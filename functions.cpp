@@ -379,26 +379,23 @@ void GetNodesEdgesCountFromAccDegDistr(const TFltPrV& deg, int& nodes, int& edge
 	//	edges /= 2; as Deg = inDeg + outDeg
 }
 
-void SaveDegree(const TFltPrV& deg, const TStr& n, bool isIn, bool isCumulative, int nodes = 0, int edges = 0){
+void SaveDegree(const TFltPrV& deg, const TStr& n, bool isIn, bool isCum, bool calcCum = true){
 	TFltPrV d(deg);
 	d.Sort();
-	if (nodes == 0 && edges == 0)
-		GetNodesEdgesCountFromDegDistr(d, nodes, edges);
-	if (isIn){
-		TSnap::PlotDegDistr(d, nodes, edges, n, n, isCumulative, false, isIn);
-	}
-	else {
-		TSnap::PlotDegDistr(d, nodes, edges, n, n, isCumulative, false, isIn);
-	}
+	int nodes, edges;
+	GetNodesEdgesCountFromDegDistr(d, nodes, edges);
+	TSnap::PlotDegDistr(d, nodes, edges, n, n, isCum, false, isIn, calcCum);
 }
 
 void SaveAndPlot(const PNGraph& G, const TStr& name, bool isCum){
-	TFltPrV in, out;
+    TFltPrV in, out;
 	TSnap::GetInDegCnt(G, in);
 	TSnap::GetOutDegCnt(G, out);
-	TStr fullName;
-	TSnap::PlotInDegDistr(G, name, name, isCum, false);
-	TSnap::PlotOutDegDistr(G, name, name, isCum, false);
+	int nodes = G->GetNodes(), edges = G->GetEdges();
+	/*TSnap::PlotInDegDistr(G, name, name, isCum, false);
+	TSnap::PlotOutDegDistr(G, name, name, isCum, false);*/
+	TSnap::PlotDegDistr(in, nodes, edges, name, name, isCum, false, true);
+	TSnap::PlotDegDistr(out, nodes, edges, name, name, isCum, false, false);
 }
 
 void GetMinMaxLogDegree(const vector<TFltPrV>& distr, TFlt& minLog, TFlt& maxLog){
@@ -414,16 +411,83 @@ void GetMinMaxLogDegree(const vector<TFltPrV>& distr, TFlt& minLog, TFlt& maxLog
 	maxLog= log10(vecMax[vecMax.Len()-1]);
 }
 
-void SaveSparse(const TFltPrV& G, const int& NInt, const TFlt& minLog, const TFlt& maxLog, bool isIn, const TStr&name, bool isCum){
+void ExpBinning(const TFltPrV& deg, TFltPrV& degSparse, const int& BinRadix){
+	PrintDegDistr(deg, "degtest");
+	TFlt maxDeg(deg[deg.Len()-1].Val1.Val);
+	bool maxPowerReached = false;
+	// idx - index of border, previdx - index of previous border
+	int power = 0, previdx = 0, idx = 0, binSize = 0;
+	bool isExact;
+	while (!maxPowerReached){
+		double binBorder = pow(static_cast<double>(BinRadix), power++);
+		if (power == 1){
+			// if there are nodes with degree 1
+			idx = FindVal1Elem(deg, 1, isExact);
+			if (isExact){
+				TFltPr val(1, deg[idx].Val2.Val);
+				degSparse.Add(val);
+				previdx = idx;
+			}
+		}
+		else {
+			if (binBorder >= maxDeg){
+				// when last element of deg was previous bin border
+				if (previdx == deg.Len() - 1)
+					break;
+				// if we have another elements
+				binBorder = maxDeg;
+				maxPowerReached = true;
+			}
+			// find next element
+			idx = FindVal1Elem(deg, binBorder, isExact);
+			// if bin size == 0
+			if (previdx + 1 == idx && !isExact)
+				continue;
+			if (!isExact)
+				idx = idx - 1;
+			double sum = 0.0;
+			binSize = idx - previdx;
+			for (int i = previdx + 1; i <= idx; i++){
+				sum += deg[i].Val2.Val;
+			}
+			sum /= binSize;
+			double avgDeg = (binBorder + static_cast<double>(binBorder) / BinRadix) / 2.0;
+			TFltPr val(avgDeg, sum);
+			degSparse.Add(val);
+			previdx = idx;
+		}
+	}
+}
+
+void GetCumDistr(const TFltPrV& nonCum, TFltPrV& res){
+	for (int i = nonCum.Len() - 1; i >=0; i--){
+		TFlt count;
+		if (i == nonCum.Len() - 1)
+			count = nonCum[i].Val2.Val;
+		else
+			count = nonCum[i].Val2.Val + res[res.Len()-1].Val2.Val;
+		TFltPr val(nonCum[i].Val1, count);
+		res.Add(val);
+	}
+	res.Sort();
+}
+
+void SaveSparse(const TFltPrV& G, const int& BinRadix, bool isIn, const TStr&name, bool isCum){
 	TFltPrV deg(G), degSparse;
-	GetPoints(maxLog, minLog, NInt, deg, degSparse);
-	int nodes, edges;
-	if (isCum) 
-		GetNodesEdgesCountFromAccDegDistr(deg, nodes, edges);
-	else 
-		GetNodesEdgesCountFromDegDistr(deg, nodes, edges);
-	//printf("Nodes %d, edges %d\n", nodes, edges);
-	SaveDegree(degSparse, name, isIn, isCum, nodes, edges);
+	if (isCum){
+		deg.Clr();
+		GetCumDistr(G, deg);
+	}
+	//GetPoints(maxLog, minLog, NInt, deg, degSparse);
+	ExpBinning(deg, degSparse, BinRadix);
+
+	/*if (isCum){
+	PrintDegDistr(G, "G.Tab");
+	PrintDegDistr(deg, "degTest.Tab");
+	PrintDegDistr(degSparse, "degSparseTest.Tab");
+	}*/
+	//printf("%s: Nodes %d, edges %d\n", name.CStr(), nodes, edges);
+	SaveDegree(degSparse, name, isIn, isCum, false);
 }
 
 void GetPowerLawDistrib(TIntV& DegSeqV, const int& NodesCount, const double& gamma){
@@ -460,6 +524,8 @@ void ConvertToNonCum(TFltPrV& distr){
 	for (int i = 0; i < distr.Len() - 1; i++ )
 		distr[i].Val2.Val -= distr[i+1].Val2.Val;
 }
+
+
 
 // get model graph according to args
 void GetModel(const TStr& args, PNGraph& G, const TStr& name, const TStr& Plt){
@@ -498,7 +564,7 @@ void GenKron(const TStr& args, const TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, T
 	const TInt NKron = Env.GetIfArgPrefixInt("-n:", 1, "Number of generated Kronecker graphs");
 	// if IsSampled == true, during averaging each value is divided on number of samples having this value,
 	// otherwise value is divided on NKron
-	const TBool IsSampled = Env.GetIfArgPrefixBool("-s:", true, "Averaging by number of samples");
+	const TStr IsSampled = Env.GetIfArgPrefixStr("-s:", "true", "Averaging by number of samples");
 	// iterations of Kronecker product
 	const TInt NIter = Env.GetIfArgPrefixInt("-i:", 10, "Iterations of Kronecker product");
 	// output file name
@@ -509,12 +575,10 @@ void GenKron(const TStr& args, const TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, T
 	for (int i = 0; i < NKron; i++){
 		KroneckerGen(NIter, FitMtx, kron, OutFnm);
 		printf("Nodes count: %d, nodes with non-zero degree: %d\n", kron->GetNodes(), TSnap::CntNonZNodes(kron));
-		if (IsSampled){
-			AddDegreesStat(inDegAvgKronM, samplesIn, kron, true);
-			AddDegreesStat(outDegAvgKronM, samplesOut, kron, false);
-		}
+		AddDegreesStat(inDegAvgKronM, samplesIn, kron, true);
+		AddDegreesStat(outDegAvgKronM, samplesOut, kron, false);
 	}
-	if (IsSampled){
+	if (IsSampled == "true"){
 		GetAvgDegreeStat(inDegAvgKronM, samplesIn);
 		GetAvgDegreeStat(outDegAvgKronM, samplesOut);
 	}
@@ -522,6 +586,8 @@ void GenKron(const TStr& args, const TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, T
 		GetAvgDegreeStat(inDegAvgKronM, NKron);
 		GetAvgDegreeStat(outDegAvgKronM, NKron);
 	}
+	inDegAvgKronM.Sort();
+	outDegAvgKronM.Sort();
 }
 
 // plot all points without binning
@@ -541,14 +607,14 @@ void PlotPoints(const TFltPrV& inFirst, const TFltPrV& outFirst, const TFltPrV& 
 }
 
 
-void PlotSparse(const vector<TFltPrV>& distr, const TStrV& names, bool isIn, const TStr& Plt, const TInt& NInt){
+void PlotSparse(const vector<TFltPrV>& distr, const TStrV& names, bool isIn, const TStr& Plt, const TInt& BinRadix){
 	TFlt minLog, maxLog;
-	GetMinMaxLogDegree(distr, minLog, maxLog);
 	for (size_t i = 0; i < distr.size(); i++){
-		if (Plt == "cum" || Plt == "all")
-			SaveSparse(distr[i], NInt, minLog, maxLog, isIn, names[i], true);
+		if (Plt == "cum" || Plt == "all"){
+			SaveSparse(distr[i], BinRadix, isIn, names[i], true);
+		}
 		if (Plt == "noncum" || Plt == "all")
-			SaveSparse(distr[i], NInt, minLog, maxLog, isIn, names[i], false);
+			SaveSparse(distr[i], BinRadix, isIn, names[i], false);
 	}
 }
 
@@ -566,6 +632,8 @@ void KroneckerByConf(vector<TStr> commandLineArgs){
 	const TStr PType = Env.GetIfArgPrefixStr("-ptype:", "all", "How to plot (full, expbin, all)");
 	// if there is a need for a plot of the small model
 	const TStr PlotMS = Env.GetIfArgPrefixStr("-ms:", "false", "Plot of small model is required: true, false");
+	// radix of binning
+	const TInt BinRadix = Env.GetIfArgPrefixInt("-bin:", 2, "Radix for exponential binning");
 
 	PNGraph model;
 	GetModel(commandLineArgs[GRAPHGEN_M], model, "model", Plt);
@@ -612,128 +680,10 @@ void KroneckerByConf(vector<TStr> commandLineArgs){
 		}
 		distrIn.push_back(inDegAvgKronM); distrOut.push_back(outDegAvgKronM); names.Add("kronModelSparse");
 		distrIn.push_back(inDegAvgKronMS); distrOut.push_back(outDegAvgKronMS); names.Add("kronSmallSparse");
-		PlotSparse(distrIn, names, true, Plt, NInt);
-		PlotSparse(distrOut, names, false, Plt, NInt);
+		PlotSparse(distrIn, names, true, Plt, BinRadix);
+		PlotSparse(distrOut, names, false, Plt, BinRadix);
 	}
 	
 	Catch
 }
 
-//void KroneckerTest(const vector<TStr> commandLineArgs){
-//	Try
-//	Env = TEnv(commandLineArgs[KRONTEST], TNotify::StdNotify);
-//	const TStr InFNm = Env.GetIfArgPrefixStr("-i:", "../as20graph.txt", "Input graph file (single directed edge per line)");
-//	const TStr Mtx = Env.GetIfArgPrefixStr("-m:", "random", "Init Kronecker matrix");
-//	// if matrix will be generated, its size is an argument of KRONFIT cmd line
-//	const TInt MtxRndSize = Env.GetIfArgPrefixInt("-rs:", 2, "Size of randomized Kronecker matrix");
-//	// number of Kronecker graphs to generate
-//	const TInt NKron = Env.GetIfArgPrefixInt("-n:", 1, "Number of generated Kronecker graphs");
-//	// number of intervals for plots
-//	const TInt NInt = Env.GetIfArgPrefixInt("-ni:", 10, "Number of intervals for plots");
-//
-//	// read model graph and plot its degree distribution (!solve the problem with gnuplot)
-//	PUNGraph model;
-//	PNGraph modelD; 
-//	//ReadPNGraphFromFile(InFNm, modelD);
-//	//GraphGen(commandLineArgs[GRAPHGEN], model);
-//	//modelD = TSnap::ConvertGraph<PNGraph>(model, false);
-//	GraphGen(commandLineArgs[GRAPHGEN], modelD);
-//	TFltPrV m;
-//	// get degree distribution of m
-//	TSnap::GetDegCnt(modelD, m);
-//	// ? is it necessary ?
-//	m.Sort();
-//	TSnap::PlotInDegDistr(modelD, "modelD", "Model graph", true, false);
-//	
-//	TKronMtx FitMtx;
-//	// get Kronecker init matrix
-//	if (Mtx == "random"){
-//		FitMtx.SetRndMtx(MtxRndSize);
-//	}
-//	else if (Mtx == "create"){
-//		InitKronecker(commandLineArgs[KRONFIT_BIG], modelD, FitMtx);
-//	}
-//	else {
-//		TFltV matrix;
-//		GetMtxFromSepLine(Mtx, ";", matrix);
-//		FitMtx.GenMtx(matrix.Len() / 2);
-//		FitMtx.SetMtx(matrix);
-//	}
-//	
-//	// generating NKron graphs (with saving and averaging degree distributions)
-//	TVec<PNGraph> kron;
-//	TFltPrV degrees;
-//	TIntPrV samplesNum;
-//	for (int i = 0; i < NKron; i++){
-//		PNGraph k;
-//		TFltPrV deg;
-//		// calculating big graph with this initiator matrix
-//		KroneckerGen(commandLineArgs[KRONGEN], FitMtx, k);
-//		TSnap::GetDegCnt(k, deg);
-//		AddDegreesStat(deg, degrees, samplesNum);
-//		kron.Add(k);
-//	}
-//	
-//	//float sum = 0;
-//	for (int i = 0; i < degrees.Len(); i++){
-//		//printf("%f %f\n", degrees[i].Val1.Val, degrees[i].Val2.Val);
-//		// degrees[i].Val2.Val /= samplesNum[i].Val2.Val;
-//		// degrees[i].Val2.Val /= NKron;
-//		//printf("%f %f %d\n", degrees[i].Val1.Val, degrees[i].Val2.Val, samplesNum[i].Val2.Val);
-//		//sum += degrees[i].Val2.Val;
-//	}
-//	degrees.Sort();
-//		
-//	TFlt maxModelDeg = m[m.Len()-1].Val1.Val, minModelDeg = m[0].Val1.Val,
-//		maxKronDeg = degrees[degrees.Len()-1].Val1.Val, minKronDeg = degrees[0].Val1.Val;
-//	TFlt maxDeg = maxModelDeg > maxKronDeg ? maxModelDeg : maxKronDeg,
-//		minDeg = minModelDeg < minKronDeg ? minModelDeg : minKronDeg;
-//	maxDeg = log10(maxDeg.Val);
-//	if (minDeg.Val > 0) 
-//		minDeg = log10(minDeg.Val);
-//	TFltPrV modelPoints;
-//	TFltPrV kronPoints;
-//	GetPoints(maxDeg, minDeg, NInt.Val, m, modelPoints);
-//	GetPoints(maxDeg, minDeg, NInt.Val, degrees, kronPoints);
-//	PrintDegDistr(m, "modelDDistr.txt");
-//	PrintDegDistr(kronPoints, "kronDistr.txt");
-//	TFltPrV kronEx;
-//	TSnap::GetDegCnt(kron[0], kronEx);
-//	PrintDegDistr(kronEx, "kronExDistr.txt");
-//	printf("Model nodes count: %d, model edges count: %d, \n", modelD->GetNodes(), modelD->GetEdges());
-//	printf("KronEx nodes count: %d, KronEx edges count: %d\n", kron[0]->GetNodes(), kron[0]->GetEdges());
-//	//TSnap::PlotDegDistr(modelPoints, modelD->GetNodes(), modelD->GetEdges(), "modelD", "Model graph", true, false);
-//	//TSnap::PlotDegDistr(kronPoints, kron[0]->GetNodes(), kron[0]->GetEdges(), "kron", "Kronecker", true, false);
-//	TFltPrV modelIn, modelOut, kronIn, kronOut, confIn, confOut;
-//	PNGraph modelConfD;
-//	TStr x = commandLineArgs[SMALLCONF];
-//	GraphGen(commandLineArgs[SMALLCONF], modelConfD);
-//	model = TSnap::ConvertGraph<PUNGraph>(modelConfD);
-//	PUNGraph conf = TSnap::GenConfModel(model);
-//	PNGraph confD = TSnap::ConvertGraph<PNGraph>(conf), kronConf;
-//	TKronMtx FitConfMtx;
-//	InitKronecker(commandLineArgs[KRONFIT_SMALL], modelD, FitConfMtx);
-//	KroneckerGen(commandLineArgs[KRONGEN], FitConfMtx, kronConf);
-//	// small conf model
-//
-//
-//
-//	TSnap::GetInDegCnt(modelD, modelIn);
-//	TSnap::GetInDegCnt(kron[0], kronIn);
-//	TSnap::GetInDegCnt(kronConf, confIn);
-//	TSnap::GetOutDegCnt(modelD, modelOut);
-//	TSnap::GetOutDegCnt(kron[0], kronOut);
-//	TSnap::GetOutDegCnt(kronConf, confOut);
-//	/*PrintDegDistr(modelIn, "modelIn.txt");
-//	PrintDegDistr(modelOut, "modelOut.txt");
-//	PrintDegDistr(kronIn, "kronIn.txt");
-//	PrintDegDistr(kronOut, "kronOut.txt");*/
-//
-//	TSnap::PlotInDegDistr(modelD, "modelD", "Model graph", true, false);
-//	TSnap::PlotInDegDistr(kron[0], "kron", "Kronecker", true, false);
-//	TSnap::PlotInDegDistr(kronConf, "kronConf", "Kronecker Conf", true, false);
-//	TSnap::PlotOutDegDistr(modelD, "modelD_o", "Model graph", true, false);
-//	TSnap::PlotOutDegDistr(kron[0], "kron_o", "Kronecker", true, false);
-//	TSnap::PlotOutDegDistr(kronConf, "kronConf_o", "Kronecker Conf", true, false);
-//	Catch
-//}
