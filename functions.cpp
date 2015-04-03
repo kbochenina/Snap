@@ -150,7 +150,7 @@ int InitKronecker(const TStr args, PNGraph &GD, TKronMtx& FitMtx){
 	const TInt WarmUp =  Env.GetIfArgPrefixInt("-w:", 10000, "Samples to warm up");
 	const TInt NSamples = Env.GetIfArgPrefixInt("-s:", 100000, "Samples per gradient estimation");
 	//const TInt GradType = Env.GetIfArgPrefixInt("-gt:", 1, "1:Grad1, 2:Grad2");
-	const bool ScaleInitMtx = Env.GetIfArgPrefixBool("-sim:", true, "Scale the initiator to match the number of edges");
+	const bool ScaleInitMtx = Env.GetIfArgPrefixBool("-sim:", false, "Scale the initiator to match the number of edges");
 	const TFlt PermSwapNodeProb = Env.GetIfArgPrefixFlt("-nsp:", 1.0, "Probability of using NodeSwap (vs. EdgeSwap) MCMC proposal distribution");
 	//if (OutFNm.Empty()) { OutFNm = TStr::Fmt("%s-fit%d", InFNm.GetFMid().CStr(), NZero()); }
 	printf("%s\n", OutFNm.CStr());
@@ -490,10 +490,45 @@ void SaveSparse(const TFltPrV& G, const int& BinRadix, bool isIn, const TStr&nam
 	SaveDegree(degSparse, name, isIn, isCum, false);
 }
 
-void GetPowerLawDistrib(TIntV& DegSeqV, const int& NodesCount, const double& gamma){
-	// part of vertices with degree deg is proportional to pow (deg, -gamma)
+void GetPowerLawDistrib(TIntV& DegSeqV, const int& NodesCount, const double& Gamma){
+	// part of vertices with degree deg is proportional to pow (c * deg, -Gamma)
+	int NodesAssigned = 0;
+	// c - normalizing coefficient
+	double degmax = pow (NodesCount, 1.00 / Gamma), c = 0.0;
+	int degsum = 0;
+	int degmaxInt = static_cast<int>(degmax);
+	double sub = degmax - degmaxInt;
+	if (sub != 0) --degmax;
+	c = static_cast<double>(NodesCount) / pow(degmax, Gamma);
+	double Z = 1.0;
+	for (int i = 2; i <= degmax; i++)
+		Z += 1.00 / pow (i, Gamma);
+	for (int i = degmax; i >= 1; i--){
+		double n = ( 1.00 / pow (i, Gamma) ) * c * NodesCount / Z;
+		int nodes = static_cast<int>(n + 0.5);
+		
+		NodesAssigned += nodes;
+		if (NodesAssigned > NodesCount)
+		{
+			int s = NodesAssigned - NodesCount;
+			nodes -= s;
+			NodesAssigned -= s;
+		}
+		for (int j = 0; j < nodes; j++){
+			DegSeqV.Add(i);
+			degsum += i;
+		}
+	}
 
-	
+	if (degsum % 2 != 0){
+		// if we have non-even sum of degrees, we add 1 edge to one 1-degree node
+		int idx = DegSeqV.SearchForw(1);
+		DegSeqV[idx]++;
+	}
+
+	if (NodesAssigned != NodesCount){
+		printf("Nodes assigned: %d, nodes count: %d", NodesAssigned, NodesCount);
+	}
 }
 
 void GenRandomMtx(const int& MtxRndSize, TKronMtx& FitMtx){
@@ -532,10 +567,23 @@ void GetModel(const TStr& args, PNGraph& G, const TStr& name, const TStr& Plt){
 	Env = TEnv(args, TNotify::StdNotify);
 	const TStr Gen = Env.GetIfArgPrefixStr("-p:", "gen", "How to get model graph: read (read from file, -i: file name); gen (use generator); deg (create with power-law degree distribution)");
 	const TStr InFNm = Env.GetIfArgPrefixStr("-i:", "", "Input graph file (single directed edge per line)");
+	const TInt NodesCount = Env.GetIfArgPrefixInt("-n:", 1024, "Nodes count");
+	const TFlt Gamma = Env.GetIfArgPrefixFlt("-gamma:", 2.0, "Gamma");
 	if (Gen == "gen")
 		GraphGen(args, G);
 	else if (Gen == "read")
 		ReadPNGraphFromFile(InFNm, G);
+	else if (Gen == "deg"){
+		TIntV DegSeqV;
+		GetPowerLawDistrib(DegSeqV, NodesCount, Gamma);
+		PUNGraph GU = TSnap::GenDegSeq(DegSeqV);
+		G = TSnap::ConvertGraph<PNGraph>(GU);
+		TFltPrV in, out;
+		TSnap::GetInDegCnt(G, in);
+		TSnap::GetInDegCnt(G, out);
+		PrintDegDistr(in, "G_in.tab");
+		PrintDegDistr(out, "G_out.tab");
+	}
 	if (Plt == "cum" || Plt == "all")
 		SaveAndPlot(G, name.CStr(), true);
 	if (Plt == "noncum" || Plt == "all")
@@ -624,8 +672,6 @@ void PlotSparse(const vector<TFltPrV>& distr, const TStrV& names, bool isIn, con
 void KroneckerByConf(vector<TStr> commandLineArgs){
 	Try
 	Env = TEnv(commandLineArgs[KRONTEST], TNotify::StdNotify);
-	// number of intervals to plot
-	const TInt NInt = Env.GetIfArgPrefixInt("-ni:", 10, "Number of intervals for plots");
 	// type of plots
 	const TStr Plt = Env.GetIfArgPrefixStr("-plt:", "noncum", "Type of plots (cum, noncum, all)");
 	// full - all points of distrib will be plotted; expbin - exponential binning
@@ -657,7 +703,7 @@ void KroneckerByConf(vector<TStr> commandLineArgs){
 	// generate Kronecker initiator matrix using modelSmall
 	TKronMtx FitMtxMS;
 	if (!GetMtx(commandLineArgs[MTXGEN_MS], FitMtxMS))
-		GenNewMtx(model, commandLineArgs[KRONFIT_MS], FitMtxMS);
+		GenNewMtx(modelS, commandLineArgs[KRONFIT_MS], FitMtxMS);
 
 	// create NKron graphs
 	TFltPrV inDegAvgKronMS, outDegAvgKronMS;
