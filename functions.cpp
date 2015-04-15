@@ -1,5 +1,7 @@
 #include "stdafx.h"
 
+ofstream TFile;
+
 void DefaultSettings(vector<TStr>& out){
 	out.clear();
 	printf("Applying default settings...\n");
@@ -76,7 +78,6 @@ int GraphGen(const TStr args, PNGraph &GD){
 	const int K = Env.GetIfArgPrefixInt("-k:", 3, "Degree");
   
 	if (Env.IsEndOfRun()) { return 0; }
-	TExeTm ExeTm;
 	TInt::Rnd.PutSeed(0); // initialize random seed
 	printf("Generating...\n");
 
@@ -150,7 +151,7 @@ int InitKronecker(const TStr args, PNGraph &GD, TKronMtx& FitMtx){
 	const TInt WarmUp =  Env.GetIfArgPrefixInt("-w:", 10000, "Samples to warm up");
 	const TInt NSamples = Env.GetIfArgPrefixInt("-s:", 100000, "Samples per gradient estimation");
 	//const TInt GradType = Env.GetIfArgPrefixInt("-gt:", 1, "1:Grad1, 2:Grad2");
-	const bool ScaleInitMtx = Env.GetIfArgPrefixBool("-sim:", false, "Scale the initiator to match the number of edges");
+	const bool ScaleInitMtx = Env.GetIfArgPrefixBool("-sim:", true, "Scale the initiator to match the number of edges");
 	const TFlt PermSwapNodeProb = Env.GetIfArgPrefixFlt("-nsp:", 1.0, "Probability of using NodeSwap (vs. EdgeSwap) MCMC proposal distribution");
 	//if (OutFNm.Empty()) { OutFNm = TStr::Fmt("%s-fit%d", InFNm.GetFMid().CStr(), NZero()); }
 	printf("%s\n", OutFNm.CStr());
@@ -200,6 +201,18 @@ int InitKronecker(const TStr args, PNGraph &GD, TKronMtx& FitMtx){
 	return 0;
 }
 
+void RemoveZeroDegreeNodes(PNGraph& out){
+	TRnd rnd;
+	int nodesCount = out->GetNodes();
+	for (int i = 0; i < nodesCount; i++){
+		if (out->GetNI(i).GetInDeg() == 0){
+			double val = rnd.GetUniDev();
+			int nodeId = static_cast<int>(val * nodesCount);
+			out->AddEdge(nodeId, i);
+		}
+	}
+}
+
 int KroneckerGen(const TInt NIter, const TKronMtx& FitMtx, PNGraph& out, const TStr& OutFNm){
 	Env.PrepArgs(TStr::Fmt("Kronecker graphs. build: %s, %s. Time: %s", __TIME__, __DATE__, TExeTm::GetCurTm()));
 	TExeTm ExeTm;
@@ -211,7 +224,10 @@ int KroneckerGen(const TInt NIter, const TKronMtx& FitMtx, PNGraph& out, const T
 	// slow but exact O(n^2) algorightm
 	//PNGraph Graph = TKronMtx::GenKronecker(SeedMtx, NIter, true, Seed); 
 	// fast O(e) approximate algorithm
-	out = TKronMtx::GenFastKronecker(SeedMtx, NIter, true, 0); 
+	out = TKronMtx::GenFastKronecker(SeedMtx, NIter, true, 0);
+
+	RemoveZeroDegreeNodes(out);
+
 	// save edge list
 	TSnap::SaveEdgeList(out, OutFNm, TStr::Fmt("Kronecker Graph: seed matrix [%s]", FitMtx.GetMtxStr().CStr()));
 	Catch
@@ -536,7 +552,9 @@ void GenRandomMtx(const int& MtxRndSize, TKronMtx& FitMtx){
 }
 
 void GenNewMtx(PNGraph& model, const TStr& args, TKronMtx& FitMtx){
+	TExeTm execTime;
 	InitKronecker(args, model, FitMtx);
+	TFile << "Time of creation of init matrix: " <<  execTime.GetTmStr() << endl;
 }
 
 void ReadMtx(const TStr& Mtx, TKronMtx& FitMtx){
@@ -569,6 +587,7 @@ void GetModel(const TStr& args, PNGraph& G, const TStr& name, const TStr& Plt){
 	const TStr InFNm = Env.GetIfArgPrefixStr("-i:", "", "Input graph file (single directed edge per line)");
 	const TInt NodesCount = Env.GetIfArgPrefixInt("-n:", 1024, "Nodes count");
 	const TFlt Gamma = Env.GetIfArgPrefixFlt("-gamma:", 2.0, "Gamma");
+	TExeTm execTime;
 	if (Gen == "gen")
 		GraphGen(args, G);
 	else if (Gen == "read")
@@ -578,16 +597,12 @@ void GetModel(const TStr& args, PNGraph& G, const TStr& name, const TStr& Plt){
 		GetPowerLawDistrib(DegSeqV, NodesCount, Gamma);
 		PUNGraph GU = TSnap::GenDegSeq(DegSeqV);
 		G = TSnap::ConvertGraph<PNGraph>(GU);
-		TFltPrV in, out;
-		TSnap::GetInDegCnt(G, in);
-		TSnap::GetInDegCnt(G, out);
-		PrintDegDistr(in, "G_in.tab");
-		PrintDegDistr(out, "G_out.tab");
 	}
 	if (Plt == "cum" || Plt == "all")
 		SaveAndPlot(G, name.CStr(), true);
 	if (Plt == "noncum" || Plt == "all")
 		SaveAndPlot(G, name.CStr(), false);
+	TFile << "Time of getting model: " <<  execTime.GetTmStr() << endl;
 }
 
 // read or get random mtx
@@ -608,6 +623,7 @@ bool GetMtx(const TStr& MtxArgs, TKronMtx& FitMtxModel){
 
 void GenKron(const TStr& args, const TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV& outDegAvgKronM){
 	Env = TEnv(args, TNotify::StdNotify);
+	TExeTm execTime;
 	// number of Kronecker graphs to generate
 	const TInt NKron = Env.GetIfArgPrefixInt("-n:", 1, "Number of generated Kronecker graphs");
 	// if IsSampled == true, during averaging each value is divided on number of samples having this value,
@@ -620,12 +636,16 @@ void GenKron(const TStr& args, const TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, T
 	// Kronecker model of graph
 	PNGraph kron;
 	TIntPrV samplesIn, samplesOut;
+	double sec = 0.0;
 	for (int i = 0; i < NKron; i++){
+		execTime.Tick();
 		KroneckerGen(NIter, FitMtx, kron, OutFnm);
+		sec += execTime.GetSecInt();
 		printf("Nodes count: %d, nodes with non-zero degree: %d\n", kron->GetNodes(), TSnap::CntNonZNodes(kron));
 		AddDegreesStat(inDegAvgKronM, samplesIn, kron, true);
 		AddDegreesStat(outDegAvgKronM, samplesOut, kron, false);
 	}
+	sec /= NKron;
 	if (IsSampled == "true"){
 		GetAvgDegreeStat(inDegAvgKronM, samplesIn);
 		GetAvgDegreeStat(outDegAvgKronM, samplesOut);
@@ -636,7 +656,9 @@ void GenKron(const TStr& args, const TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, T
 	}
 	inDegAvgKronM.Sort();
 	outDegAvgKronM.Sort();
+	TFile << "Average time of generation of Kronecker product: " <<  execTime.GetTmStrFromSec(sec) << endl;
 }
+
 
 // plot all points without binning
 void PlotPoints(const TFltPrV& inFirst, const TFltPrV& outFirst, const TFltPrV& inSecond, const TFltPrV& outSecond, const TStr& Plt){
@@ -666,6 +688,28 @@ void PlotSparse(const vector<TFltPrV>& distr, const TStrV& names, bool isIn, con
 	}
 }
 
+ofstream OpenFile(const TStr& fileName)
+{
+	Try
+	ofstream f(fileName.CStr());
+	if (f.is_open())
+	return f;		
+	IAssert(1);
+	Catch
+}
+
+void GetGraphs(vector <TStr>& parameters)
+{
+	GetModel(parameters[GRAPHGEN], G, parameters[NAME], parameters[PLT]);
+	// generate Kronecker initiator matrix using big graph
+	TKronMtx FitMtxM;
+	if (!GetMtx(parameters[MTXGEN], FitMtxM))
+		GenNewMtx(G, parameters[KRONFIT], FitMtxM);
+
+	// in and out average degree distribution for kronM (non-accumulated)
+	TFltPrV inDegAvgKronM, outDegAvgKronM;
+	GenKron(parameters[KRONGEN], FitMtxM, inDegAvgKronM, outDegAvgKronM);
+}
 
 // generates Kronecker model using configuration model of small model network
 // and compare it to big network
@@ -680,8 +724,24 @@ void KroneckerByConf(vector<TStr> commandLineArgs){
 	const TStr PlotMS = Env.GetIfArgPrefixStr("-ms:", "false", "Plot of small model is required: true, false");
 	// radix of binning
 	const TInt BinRadix = Env.GetIfArgPrefixInt("-bin:", 2, "Radix for exponential binning");
+	// time estimates file name
+	const TStr TimeFile = Env.GetIfArgPrefixStr("-ot:", "time.dat", "Name of output file with time estimates");
+	// generation of big model and its Kronecker product is required
+	const TStr ModelGen = Env.GetIfArgPrefixStr("-mg:", "true", "Generation of big model and its Kronecker product is required");
+
+	TFile = OpenFile(TimeFile.CStr());
+
+	if (ModelGen == "true")
+	{
+		TFile << "Model graph" << endl;
+		vector <TStr> parameters;
+		copy(commandLineArgs.begin() + 1, commandLineArgs.begin() + NPARCOPY, parameters);
+		parameters.push_back(PType); parameters.push_back(Plt); parameters.push_back("model");
+		GetGraphs(parameters);
+	}
 
 	PNGraph model;
+	
 	GetModel(commandLineArgs[GRAPHGEN_M], model, "model", Plt);
 	// generate Kronecker initiator matrix using big graph
 	TKronMtx FitMtxM;
@@ -729,7 +789,9 @@ void KroneckerByConf(vector<TStr> commandLineArgs){
 		PlotSparse(distrIn, names, true, Plt, BinRadix);
 		PlotSparse(distrOut, names, false, Plt, BinRadix);
 	}
-	
+
+	TFile.close();
+
 	Catch
 }
 
