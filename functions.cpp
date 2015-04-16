@@ -606,7 +606,9 @@ void GetModel(const TStr& args, PNGraph& G, const TStr& name, const TStr& Plt){
 	}
 	if (Gen == "genpy")
 	{
-		GenPy();	
+		PUNGraph GU;
+		GenPy(GU);	
+		G = TSnap::ConvertGraph<PNGraph>(GU);
 	}
 	if (Plt == "cum" || Plt == "all")
 		SaveAndPlot(G, name.CStr(), true);
