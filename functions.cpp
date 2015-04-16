@@ -1,4 +1,6 @@
 #include "stdafx.h"
+#include <iostream>
+#include "GenPy.h"
 
 ofstream TFile;
 
@@ -507,6 +509,7 @@ void SaveSparse(const TFltPrV& G, const int& BinRadix, bool isIn, const TStr&nam
 }
 
 void GetPowerLawDistrib(TIntV& DegSeqV, const int& NodesCount, const double& Gamma){
+	TExeTm execTime;
 	// part of vertices with degree deg is proportional to pow (c * deg, -Gamma)
 	int NodesAssigned = 0;
 	// c - normalizing coefficient
@@ -545,6 +548,7 @@ void GetPowerLawDistrib(TIntV& DegSeqV, const int& NodesCount, const double& Gam
 	if (NodesAssigned != NodesCount){
 		printf("Nodes assigned: %d, nodes count: %d", NodesAssigned, NodesCount);
 	}
+	TFile << "Time of getting power law distrib: " <<  execTime.GetTmStr() << endl;
 }
 
 void GenRandomMtx(const int& MtxRndSize, TKronMtx& FitMtx){
@@ -595,8 +599,14 @@ void GetModel(const TStr& args, PNGraph& G, const TStr& name, const TStr& Plt){
 	else if (Gen == "deg"){
 		TIntV DegSeqV;
 		GetPowerLawDistrib(DegSeqV, NodesCount, Gamma);
+		TExeTm t;
 		PUNGraph GU = TSnap::GenDegSeq(DegSeqV);
+		TFile << "Time of execution of configuration model: " <<  t.GetTmStr() << endl;
 		G = TSnap::ConvertGraph<PNGraph>(GU);
+	}
+	if (Gen == "genpy")
+	{
+		GenPy();	
 	}
 	if (Plt == "cum" || Plt == "all")
 		SaveAndPlot(G, name.CStr(), true);
@@ -640,7 +650,7 @@ void GenKron(const TStr& args, const TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, T
 	for (int i = 0; i < NKron; i++){
 		execTime.Tick();
 		KroneckerGen(NIter, FitMtx, kron, OutFnm);
-		sec += execTime.GetSecInt();
+		sec += execTime.GetSecs();
 		printf("Nodes count: %d, nodes with non-zero degree: %d\n", kron->GetNodes(), TSnap::CntNonZNodes(kron));
 		AddDegreesStat(inDegAvgKronM, samplesIn, kron, true);
 		AddDegreesStat(outDegAvgKronM, samplesOut, kron, false);
@@ -661,18 +671,14 @@ void GenKron(const TStr& args, const TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, T
 
 
 // plot all points without binning
-void PlotPoints(const TFltPrV& inFirst, const TFltPrV& outFirst, const TFltPrV& inSecond, const TFltPrV& outSecond, const TStr& Plt){
+void PlotPoints(const TFltPrV& in, const TFltPrV& out, const TStr& name, const TStr& Plt){
 		if (Plt == "cum" || Plt == "all"){
-			SaveDegree(inFirst, "kronModel", true, true);
-			SaveDegree(outFirst, "kronModel", false, true);
-			SaveDegree(inSecond, "kronSmall", true, true);
-			SaveDegree(outSecond, "kronSmall", false, true);
+			SaveDegree(in, "kron" + name, true, true);
+			SaveDegree(out, "kron" + name, false, true);
 		}
 		if (Plt == "noncum" || Plt == "all"){
-			SaveDegree(inFirst, "kronModel", true, false);
-			SaveDegree(outFirst, "kronModel", false, false);
-			SaveDegree(inSecond, "kronSmall", true, false);
-			SaveDegree(outSecond, "kronSmall", false, false);
+			SaveDegree(in, "kron" + name, true, false);
+			SaveDegree(out, "kron" + name, false, false);
 		}
 }
 
@@ -698,17 +704,33 @@ ofstream OpenFile(const TStr& fileName)
 	Catch
 }
 
-void GetGraphs(vector <TStr>& parameters)
+void GetGraphs(vector <TStr>& parameters, vector<TFltPrV>& distrIn, vector<TFltPrV>& distrOut, TStrV& names, bool PlotModel)
 {
-	GetModel(parameters[GRAPHGEN], G, parameters[NAME], parameters[PLT]);
+	PNGraph G;
+	const TStr& name = parameters[NAME];
+	const TStr& Plt = parameters[PLT];
+	GetModel(parameters[GRAPHGEN], G, name, parameters[PLT]);
 	// generate Kronecker initiator matrix using big graph
 	TKronMtx FitMtxM;
 	if (!GetMtx(parameters[MTXGEN], FitMtxM))
 		GenNewMtx(G, parameters[KRONFIT], FitMtxM);
 
 	// in and out average degree distribution for kronM (non-accumulated)
-	TFltPrV inDegAvgKronM, outDegAvgKronM;
-	GenKron(parameters[KRONGEN], FitMtxM, inDegAvgKronM, outDegAvgKronM);
+	TFltPrV inDegAvgKron, outDegAvgKron;
+	GenKron(parameters[KRONGEN], FitMtxM, inDegAvgKron, outDegAvgKron);
+	const TStr& PType = parameters[PTYPE];
+	if ( PType == "full" || PType == "all" )
+		PlotPoints(inDegAvgKron, outDegAvgKron, name, Plt);
+	if ( PType == "exp" || PType == "all"){
+		if (PlotModel)
+		{
+			TFltPrV mDegIn, mDegOut;
+			TSnap::GetInDegCnt(G, mDegIn);
+			TSnap::GetOutDegCnt(G, mDegOut);
+			distrIn.push_back(mDegIn); distrOut.push_back(mDegOut); names.Add(name + "Sparse");
+		}
+		distrIn.push_back(inDegAvgKron); distrOut.push_back(outDegAvgKron); names.Add("kron" + name + "Sparse");
+	}
 }
 
 // generates Kronecker model using configuration model of small model network
@@ -731,64 +753,31 @@ void KroneckerByConf(vector<TStr> commandLineArgs){
 
 	TFile = OpenFile(TimeFile.CStr());
 
+	vector<TFltPrV> distrIn, distrOut;
+	TStrV names;
+
 	if (ModelGen == "true")
 	{
-		TFile << "Model graph" << endl;
+		TFile << "Kronecker" << endl;
 		vector <TStr> parameters;
-		copy(commandLineArgs.begin() + 1, commandLineArgs.begin() + NPARCOPY, parameters);
-		parameters.push_back(PType); parameters.push_back(Plt); parameters.push_back("model");
-		GetGraphs(parameters);
+		for (size_t i = 1; i <= NPARCOPY; i++)
+			parameters.push_back(commandLineArgs[i]);
+		parameters.push_back(PType); parameters.push_back(Plt); parameters.push_back("Model"); 
+		GetGraphs(parameters, distrIn, distrOut, names, true);
 	}
-
-	PNGraph model;
 	
-	GetModel(commandLineArgs[GRAPHGEN_M], model, "model", Plt);
-	// generate Kronecker initiator matrix using big graph
-	TKronMtx FitMtxM;
-	if (!GetMtx(commandLineArgs[MTXGEN_M], FitMtxM))
-		GenNewMtx(model, commandLineArgs[KRONFIT_M], FitMtxM);
+	TFile << "Kronecker from reduced size" << endl;
+	vector <TStr> parameters;
+	for (size_t i = NPARCOPY + 1; i <= 2 * NPARCOPY; i++)
+		parameters.push_back(commandLineArgs[i]);
+	parameters.push_back(PType); parameters.push_back(Plt); parameters.push_back("Small"); 
+	bool PlotMSBool = false;
+	if (PlotMS == "true")
+		PlotMSBool = true;
+	GetGraphs(parameters, distrIn, distrOut, names, PlotMSBool);
 	
-	
-	// in and out average degree distribution for kronM (non-accumulated)
-	TFltPrV inDegAvgKronM, outDegAvgKronM;
-	GenKron(commandLineArgs[KRONGEN_M], FitMtxM, inDegAvgKronM, outDegAvgKronM);
-	
-	// generate small graph with the same degree distribution
-	PNGraph modelS;
-	GetModel(commandLineArgs[GRAPHGEN_MS], modelS, "modelSmall", Plt);
-	// use configuration model
-	/*PUNGraph modelU = TSnap::GenConfModel(TSnap::ConvertGraph<PUNGraph>(modelSmall));
-	modelSmall = TSnap::ConvertGraph<PNGraph>(modelU);*/
-		
-	// generate Kronecker initiator matrix using modelSmall
-	TKronMtx FitMtxMS;
-	if (!GetMtx(commandLineArgs[MTXGEN_MS], FitMtxMS))
-		GenNewMtx(modelS, commandLineArgs[KRONFIT_MS], FitMtxMS);
-
-	// create NKron graphs
-	TFltPrV inDegAvgKronMS, outDegAvgKronMS;
-	GenKron(commandLineArgs[KRONGEN_MS], FitMtxMS, inDegAvgKronMS, outDegAvgKronMS);
-	
-	if ( PType == "full" || PType == "all" )
-		PlotPoints(inDegAvgKronM, outDegAvgKronM, inDegAvgKronMS, outDegAvgKronMS, Plt);
-
-	if ( PType == "exp" || PType == "all"){
-		TFltPrV mDegIn, mDegOut, msDegIn, msDegOut;
-		TSnap::GetInDegCnt(model, mDegIn);
-		TSnap::GetOutDegCnt(model, mDegOut);
-		TSnap::GetInDegCnt(modelS, msDegIn);
-		TSnap::GetOutDegCnt(modelS, msDegOut);
-		vector<TFltPrV> distrIn, distrOut;
-		TStrV names;
-		distrIn.push_back(mDegIn); distrOut.push_back(mDegOut); names.Add("modelSparse");
-		if (PlotMS == "true"){
-			distrIn.push_back(msDegIn); distrOut.push_back(msDegOut); names.Add("modelSmallSparse");
-		}
-		distrIn.push_back(inDegAvgKronM); distrOut.push_back(outDegAvgKronM); names.Add("kronModelSparse");
-		distrIn.push_back(inDegAvgKronMS); distrOut.push_back(outDegAvgKronMS); names.Add("kronSmallSparse");
-		PlotSparse(distrIn, names, true, Plt, BinRadix);
-		PlotSparse(distrOut, names, false, Plt, BinRadix);
-	}
+	PlotSparse(distrIn, names, true, Plt, BinRadix);
+	PlotSparse(distrOut, names, false, Plt, BinRadix);
 
 	TFile.close();
 

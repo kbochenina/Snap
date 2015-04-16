@@ -6,7 +6,7 @@ const int NFUNC = 9;
 const int NPARCOPY = 4;
 const string FUNCNAMES[] = {"KRONTEST", "GRAPHGEN_M", "MTXGEN_M", "KRONFIT_M", "KRONGEN_M", "GRAPHGEN_MS", "MTXGEN_MS", "KRONFIT_MS", "KRONGEN_MS"};
 const enum CMDARGS { KRONTEST = 0, GRAPHGEN_M = 1, MTXGEN_M = 2, KRONFIT_M = 3, KRONGEN_M = 4, GRAPHGEN_MS = 5, MTXGEN_MS = 6, KRONFIT_MS = 7, KRONGEN_MS = 8};
-const enum ARGS { GRAPHGEN = 1, MTXGEN = 2, KRONFIT = 3, KRONGEN = 4, PTYPE = 5, PLT = 6, NAME = 7 };
+const enum ARGS { GRAPHGEN = 0, MTXGEN = 1, KRONFIT = 2, KRONGEN = 3, PTYPE = 4, PLT = 5, NAME = 6};
 
 void DefaultSettings(vector<TStr>& out);
 void ReadParameters(TStr settingsFN, vector<TStr>& out);
