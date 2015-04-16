@@ -63,7 +63,7 @@ int GraphGen(const TStr args, PNGraph &GD){
 	TExeTm ExeTm;
 	Try
 	const TStr OutFNm = Env.GetIfArgPrefixStr("-o:", "output.txt", "Output graph filename");
-	const TStr Plot = Env.GetIfArgPrefixStr("-g:", "e", "Which generator to use:"
+	const TStr Plot = Env.GetIfArgPrefixStr("-gt:", "e", "Which generator to use:"
 	"\n\tf: Complete graph. Required parameters: n (number of nodes)"
 	"\n\ts: Star graph. Required parameters: n (number of nodes)"
 	"\n\t2: 2D Grid. Required parameters: n (number of rows), m (number of columns)"
@@ -587,7 +587,7 @@ void ConvertToNonCum(TFltPrV& distr){
 // get model graph according to args
 void GetModel(const TStr& args, PNGraph& G, const TStr& name, const TStr& Plt){
 	Env = TEnv(args, TNotify::StdNotify);
-	const TStr Gen = Env.GetIfArgPrefixStr("-p:", "gen", "How to get model graph: read (read from file, -i: file name); gen (use generator); deg (create with power-law degree distribution)");
+	const TStr Gen = Env.GetIfArgPrefixStr("-g:", "gen", "How to get model graph: read (read from file, -i: file name); gen (use generator); deg (create with power-law degree distribution)");
 	const TStr InFNm = Env.GetIfArgPrefixStr("-i:", "", "Input graph file (single directed edge per line)");
 	const TInt NodesCount = Env.GetIfArgPrefixInt("-n:", 1024, "Nodes count");
 	const TFlt Gamma = Env.GetIfArgPrefixFlt("-gamma:", 2.0, "Gamma");
@@ -607,7 +607,7 @@ void GetModel(const TStr& args, PNGraph& G, const TStr& name, const TStr& Plt){
 	if (Gen == "genpy")
 	{
 		PUNGraph GU;
-		GenPy(GU);	
+		GenPy(GU, TFile, args);	
 		G = TSnap::ConvertGraph<PNGraph>(GU);
 	}
 	if (Plt == "cum" || Plt == "all")

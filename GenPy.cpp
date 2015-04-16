@@ -1,6 +1,32 @@
 #include "stdafx.h"
 #include "GenPy.h"
 #include <stdlib.h>
+#include <tuple>
+
+inline TStrV createTStrV(TStr s)
+{
+	TStrV vec;
+	s.SplitOnAllCh(' ', vec);
+	return vec;
+}
+
+class cmp_str
+{
+public:
+   bool operator()(TStr const&  a, TStr const&  b) const
+   {
+      return (a == b) < 0;
+   }
+};
+// [funcName] -> argPrefixes, argTypes, required arguments count
+map<TStr, tuple<TStrV,TStrV, int>,cmp_str> funcInfo;
+
+void AddFuncInfo()
+{
+	funcInfo["fast_gnp_random_graph"] = make_tuple(createTStrV("n p seed directed"), createTStrV("int double double int"), 2);
+}
+
+
 
 void AddPath(const char * path)
 {
@@ -140,23 +166,64 @@ void GetEdges(PyObject **G, PyObject***list)
 	return Get(G, "edges", list);
 }
 
-
-
-int GenPy(PUNGraph &res)
+int ParseArgs(const char* funcname, const TStr& parameters, TStrV& args, TStrV& argTypes)
 {
-	int argc = 2;
+	Env = TEnv(parameters, TNotify::StdNotify);
+	map<TStr,tuple<TStrV,TStrV, int>,cmp_str>::const_iterator i;
+	for (i = funcInfo.begin(); i!= funcInfo.end(); ++i)
+	{
+		if (i->first == funcname)
+		{
+			size_t argCount = get<0>(i->second).Len();
+			if (get<1>(i->second).Len() != argCount)
+			{
+				printf("ParseArgs error\n");
+				return 0;
+			}
+			int reqArgs = get<2>(i->second);
+			int argRead = 0;
+			for (size_t j = 0; j < argCount; j++)
+			{
+				TStr arg = Env.GetIfArgPrefixStr("-" + get<0>(i->second)[j] + ":", "", get<0>(i->second)[j]);
+				TStr argType = get<1>(i->second)[j];
+				if (arg != ""){
+					args.Add(arg);
+					argTypes.Add(argType);
+					argRead++;
+				}
+				//printf("%d %s %s\n", j, arg.CStr(), argType.CStr());
+			}
+			if (argRead < reqArgs)
+				return 0;
+		}
+	}
+	return 1;
+}
+
+int GenPy(PUNGraph &res, ofstream& TFile, const TStr& parameters)
+{
+	Env = TEnv(parameters, TNotify::StdNotify);
+	TStr mN = Env.GetIfArgPrefixStr("-module:", "random_graphs", "Module name");
+	TStr fN = Env.GetIfArgPrefixStr("-func:", "fast_gnp_random_graph", "Function name");
+
 	PyObject **G = new PyObject*[1];
 	// add path to NetworkX folders and initialize interpretator
 	PyInit();
 		
-	char *moduleName = "random_graphs";
-	char *funcName = "fast_gnp_random_graph";
-	TStrV args(argc);
-	args[0] = "1024"; args[1] = "0.003";
-	TStrV argTypes(argc);
-	argTypes[0] = "int"; argTypes[1] = "double";
+	char *moduleName = mN.CStr();
+	char *funcName = fN.CStr();
+	AddFuncInfo();
+	TStrV args, argTypes;
+	if (!ParseArgs(funcName, parameters, args, argTypes))
+	{
+		printf("Fail to parse arguments for NetworkX generation...\n");
+		return 0;
+	};
+	TExeTm execTime;
 	CallPyFunction(moduleName, funcName, args, argTypes, G);
-	
+	TFile << "Time of generation of graph by NetworkX: " << execTime.GetTmStr() << endl; 
+
+	execTime.Tick();
 	PyObject*** nodes = new PyObject**[1];
 	GetNodes(G, nodes);
 	int nodesCount = PyList_Size(*(nodes[0]));
@@ -181,7 +248,7 @@ int GenPy(PUNGraph &res)
 		v2 = PyInt_AsLong(node);
 		res->AddEdge(v1,v2);
 	}
-
+	TFile << "Time of copying of graph from NetworkX representation: " << execTime.GetTmStr() << endl; 
 	Py_DECREF(G);
 	Py_DECREF(edges);
 	Py_Finalize(); // очищение памяти, отданной интерпретатору
