@@ -16,7 +16,10 @@ class cmp_str
 public:
    bool operator()(TStr const&  a, TStr const&  b) const
    {
-      return (a.CStr() != b.CStr());
+	int res = strcmp(a.CStr(), b.CStr());
+	if (res == -1 || res == 0)
+		return true;
+	else return false;
    }
 };
 // [funcName] -> argPrefixes, argTypes, required arguments count, default values
@@ -38,7 +41,7 @@ void AddFuncInfo()
 
 void AddPath(const char * path)
 {
-	PyObject * pName = PyString_FromString(path), *syspath;
+	PyObject * pName = PyUnicode_FromString(path), *syspath;
 	// reference to Python search path
 	syspath = PySys_GetObject("path");
 	// add path to syspath
@@ -66,7 +69,7 @@ int ParseArgument(const TStr& arg, const TStr& argType, PyObject** argPy)
 {
 	if (argType == "int")
 	{
-		*argPy = PyInt_FromLong(arg.GetInt());
+		*argPy = PyLong_FromLong(arg.GetInt());
 	}
 	else if (argType == "double")
 	{
@@ -74,7 +77,7 @@ int ParseArgument(const TStr& arg, const TStr& argType, PyObject** argPy)
 	}
 	else if (argType == "string")
 	{
-		*argPy = PyString_FromString(arg.CStr());
+		*argPy = PyUnicode_FromString(arg.CStr());
 	}
 	if (!*argPy) {
         fprintf(stderr, "Cannot convert argument\n");
@@ -88,7 +91,7 @@ int CallPyFunction(const char *moduleName, const char *funcName, const TStrV& ar
 	PyObject *pName, *pModule, *pFunc, *pArgs;
 	bool err = false;
 	// get PyObject representation of moduleName
-	pName = PyString_FromString(moduleName);
+	pName = PyUnicode_FromString(moduleName);
 	TExeTm execTime;
 	// import module
 	pModule = PyImport_Import(pName);
@@ -183,7 +186,7 @@ void GetEdges(PyObject **G, PyObject***list)
 
 int ParseArgs(const char* funcname, const TStr& parameters, TStrV& args, TStrV& argTypes)
 {
-	Env = TEnv(parameters, TNotify::StdNotify);
+	Env = TEnv(parameters, TNotify::NullNotify);
 	map<TStr,tuple<TStrV,TStrV, int, TStrV>,cmp_str>::const_iterator i;
 	for (i = funcInfo.begin(); i!= funcInfo.end(); ++i)
 	{
@@ -211,7 +214,7 @@ int ParseArgs(const char* funcname, const TStr& parameters, TStrV& args, TStrV& 
 					args.Add(arg);
 				}
 				argTypes.Add(argType);
-				printf("%d %s %s\n", j, arg.CStr(), argType.CStr());
+				//printf("%d %s %s\n", j, arg.CStr(), argType.CStr());
 			}
 			if (argRead < reqArgs)
 				return 0;
@@ -229,7 +232,6 @@ int GenPy(PUNGraph &res, ofstream& TFile, const TStr& parameters)
 	PyObject **G = new PyObject*[1];
 		
 	char *moduleName = mN.CStr();
-	printf("%s\n", moduleName);
 	char *funcName = fN.CStr();
 	AddFuncInfo();
 	TStrV args, argTypes;
@@ -252,7 +254,7 @@ int GenPy(PUNGraph &res, ofstream& TFile, const TStr& parameters)
 	PyObject*** nodes = new PyObject**[1];
 	GetNodes(G, nodes);
 	int nodesCount = PyList_Size(*(nodes[0]));
-	printf("nodesCount = %d, ", nodesCount);
+	//printf("nodesCount = %d, ", nodesCount);
 	res = PUNGraph::TObj::New();
     res->Reserve(nodesCount, nodesCount*nodesCount);
 	for (size_t i = 0; i < nodesCount; i++)
@@ -262,15 +264,15 @@ int GenPy(PUNGraph &res, ofstream& TFile, const TStr& parameters)
 	PyObject*** edges = new PyObject**[1];
 	GetEdges(G, edges);
 	int edgesCount = PyList_Size(*(edges[0]));
-	printf("edgesCount = %d\n", edgesCount);
+	//printf("edgesCount = %d\n", edgesCount);
 	for (size_t i = 0; i < edgesCount; i++)
 	{
 		PyObject* item = PySequence_Fast_GET_ITEM(*(edges[0]), i);
 		int v1, v2;
 		PyObject* node = PySequence_Fast_GET_ITEM(item,0);
-		v1 = PyInt_AsLong(node);
+		v1 = PyLong_AsLong(node);
 		node = PySequence_Fast_GET_ITEM(item,1);
-		v2 = PyInt_AsLong(node);
+		v2 = PyLong_AsLong(node);
 		res->AddEdge(v1,v2);
 	}
 	TFile << "Time of copying of graph from NetworkX representation: " << execTime.GetTmStr() << endl; 

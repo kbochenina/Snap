@@ -1,5 +1,3 @@
-#include "Python.h"
-#include "stdlib.h"
 #include <map>
 
 void PyInit();

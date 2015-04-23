@@ -424,14 +424,15 @@ void GetMinMaxLogDegree(const vector<TFltPrV>& distr, TFlt& minLog, TFlt& maxLog
 }
 
 void ExpBinning(const TFltPrV& deg, TFltPrV& degSparse, const int& BinRadix){
-	PrintDegDistr(deg, "degtest");
-	TFlt maxDeg(deg[deg.Len()-1].Val1.Val);
+	TFlt maxDeg(deg[deg.Len()-1].Val1.Val), minDeg(deg[0].Val1.Val);
 	bool maxPowerReached = false;
 	// idx - index of border, previdx - index of previous border
 	int power = 0, previdx = 0, idx = 0, binSize = 0;
-	bool isExact;
+	double binBorder = 0.0;
+	while (binBorder <= minDeg)
+		binBorder = pow(static_cast<double>(BinRadix), power++);
+	bool isExact = false;
 	while (!maxPowerReached){
-		double binBorder = pow(static_cast<double>(BinRadix), power++);
 		if (power == 1){
 			// if there are nodes with degree 1
 			idx = FindVal1Elem(deg, 1, isExact);
@@ -468,6 +469,7 @@ void ExpBinning(const TFltPrV& deg, TFltPrV& degSparse, const int& BinRadix){
 			degSparse.Add(val);
 			previdx = idx;
 		}
+		binBorder = pow(static_cast<double>(BinRadix), power++);
 	}
 }
 
@@ -555,10 +557,10 @@ void GenNewMtx(PNGraph& model, const TStr& args, TKronMtx& FitMtx){
 	TFile << "Time of creation of init matrix: " <<  execTime.GetTmStr() << endl;
 }
 
-void ReadMtx(const TStr& Mtx, TKronMtx& FitMtx){
+void ReadMtx(const TStr& Mtx, const TInt& MtxSize, TKronMtx& FitMtx){
 	TFltV matrix;
 	GetMtxFromSepLine(Mtx, ";", matrix);
-	FitMtx.GenMtx(matrix.Len() / 2);
+	FitMtx.GenMtx(matrix.Len() / MtxSize);
 	FitMtx.SetMtx(matrix);
 }
 
@@ -581,16 +583,17 @@ void ConvertToNonCum(TFltPrV& distr){
 // get model graph according to args
 void GetModel(const TStr& args, PNGraph& G, const TStr& name, const TStr& Plt){
 	Env = TEnv(args, TNotify::StdNotify);
-	const TStr Gen = Env.GetIfArgPrefixStr("-g:", "gen", "How to get model graph: read (read from file, -i: file name); gen (use generator); deg (create with power-law degree distribution)");
+	const TStr Gen = Env.GetIfArgPrefixStr("-g:", "gen", "How to get model graph: read, gen, deg, genpy");
 	const TStr InFNm = Env.GetIfArgPrefixStr("-i:", "", "Input graph file (single directed edge per line)");
-	const TInt NodesCount = Env.GetIfArgPrefixInt("-n:", 1024, "Nodes count");
-	const TFlt Gamma = Env.GetIfArgPrefixFlt("-gamma:", 2.0, "Gamma");
+	
 	TExeTm execTime;
 	if (Gen == "gen")
 		GraphGen(args, G);
 	else if (Gen == "read")
 		ReadPNGraphFromFile(InFNm, G);
 	else if (Gen == "deg"){
+		const TInt NodesCount = Env.GetIfArgPrefixInt("-n:", 1024, "Nodes count");
+		const TFlt Gamma = Env.GetIfArgPrefixFlt("-gamma:", 2.0, "Gamma");
 		TIntV DegSeqV;
 		GetPowerLawDistrib(DegSeqV, NodesCount, Gamma);
 		TExeTm t;
@@ -617,13 +620,13 @@ bool GetMtx(const TStr& MtxArgs, TKronMtx& FitMtxModel){
 	// how to generate initiator matrix
 	const TStr Mtx = Env.GetIfArgPrefixStr("-m:", "random", "Init Kronecker matrix");
 	// if matrix will be generated, its size is an argument of KRONFIT cmd line
-	const TInt MtxRndSize = Env.GetIfArgPrefixInt("-rs:", 2, "Size of randomized Kronecker matrix");
+	const TInt MtxSize = Env.GetIfArgPrefixInt("-rs:", 2, "Size of randomized Kronecker matrix");
 	// get Kronecker init matrix
 	if (Mtx == "create") return false;
 	if (Mtx == "random")
-		GenRandomMtx(MtxRndSize, FitMtxModel);
+		GenRandomMtx(MtxSize, FitMtxModel);
 	else 
-		ReadMtx(Mtx, FitMtxModel);
+		ReadMtx(Mtx, MtxSize, FitMtxModel);
 	return true;
 }
 
@@ -661,8 +664,6 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 		cout << "Expected nodes " << expectedNodes << " Expected edges " << expectedEdges << endl;
 		cout << "Scaled nodes " << modelNodes << " scaled edges " << expectedEdges << endl;
 		FitMtx.SetForEdges(expectedNodes, expectedEdges);
-		cout << NIter << endl;
-		cout << endl << FitMtx.GetEdges(NIter) << endl;
 	}
 	for (int i = 0; i < NKron; i++){
 		execTime.Tick();

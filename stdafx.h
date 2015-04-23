@@ -15,6 +15,8 @@ using namespace std;
 
 #include "Snap.h"
 #include "kronecker.h"
+#include "Python.h"
+#include "Plot.h"
 #include "functions.h"
 
 
