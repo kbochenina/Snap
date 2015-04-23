@@ -1,1 +1,10 @@
+void SaveAndPlot(const PNGraph& G, const TStr& name, bool isCum);
+int FindVal1Elem(const TFltPrV& vec, const TFlt& elem, bool& isExact);
 void ExpBinning(const TFltPrV& deg, TFltPrV& degSparse, const int& BinRadix);
+void PlotPoints(const TFltPrV& in, const TFltPrV& out, const TStr& name, const TStr& Plt);
+void SaveDegree(const TFltPrV& deg, const TStr& n, bool isIn, bool isCum, bool calcCum = true);
+void GetNodesEdgesCountFromDegDistr(const TFltPrV& deg, int& nodes, int& edges);
+void GetNodesEdgesCountFromAccDegDistr(const TFltPrV& deg, int& nodes, int& edges);
+void SaveSparse(const TFltPrV& G, const int& BinRadix, bool isIn, const TStr&name, bool isCum);
+void GetCumDistr(const TFltPrV& nonCum, TFltPrV& res);
+void PlotSparse(const vector<TFltPrV>& distr, const TStrV& names, bool isIn, const TStr& Plt, const TInt& BinRadix);

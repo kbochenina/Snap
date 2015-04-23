@@ -17,6 +17,8 @@ using namespace std;
 #include "kronecker.h"
 #include "Python.h"
 #include "Plot.h"
+#include "InOut.h"
+#include "Stat.h"
 #include "functions.h"
 
 
