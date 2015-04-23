@@ -2,6 +2,7 @@
 #include "GenPy.h"
 #include <stdlib.h>
 #include <tuple>
+#include <iostream>
 
 inline TStrV createTStrV(TStr s)
 {
@@ -15,15 +16,22 @@ class cmp_str
 public:
    bool operator()(TStr const&  a, TStr const&  b) const
    {
-      return (a == b) < 0;
+      return (a.CStr() != b.CStr());
    }
 };
-// [funcName] -> argPrefixes, argTypes, required arguments count
-map<TStr, tuple<TStrV,TStrV, int>,cmp_str> funcInfo;
+// [funcName] -> argPrefixes, argTypes, required arguments count, default values
+map<TStr, tuple<TStrV,TStrV, int, TStrV>,cmp_str> funcInfo;
 
 void AddFuncInfo()
 {
-	funcInfo["fast_gnp_random_graph"] = make_tuple(createTStrV("n p seed directed"), createTStrV("int double double int"), 2);
+	funcInfo.clear();
+	funcInfo["fast_gnp_random_graph"] = make_tuple(createTStrV("n p seed directed"), createTStrV("int double int int"), 2, createTStrV("1024 0.003 0 0"));
+	funcInfo["random_powerlaw_tree"] = make_tuple(createTStrV("n gamma seed tries"), createTStrV("int double int int"), 2, createTStrV("1024 2 0 10000"));
+	funcInfo["barabasi_albert_graph"] = make_tuple(createTStrV("n m seed"), createTStrV("int int int"), 2, createTStrV("1024 3 0"));
+	funcInfo["gnm_random_graph"] = make_tuple(createTStrV("n m seed directed"), createTStrV("int int int int"), 2, createTStrV("1024 2048 0 0"));
+	funcInfo["newman_watts_strogatz_graph"] = make_tuple(createTStrV("n k p seed"), createTStrV("int int double int"), 3, createTStrV("1024 2 0.3 0"));
+	funcInfo["powerlaw_cluster_graph"] = make_tuple(createTStrV("n m p seed"), createTStrV("int int double int"), 3, createTStrV("1024 3 0.2 0"));
+	funcInfo["random_lobster"] = make_tuple(createTStrV("n p1 p2 seed"), createTStrV("int double double int"), 3, createTStrV("1024 0.1 0.1 0"));
 }
 
 
@@ -81,10 +89,12 @@ int CallPyFunction(const char *moduleName, const char *funcName, const TStrV& ar
 	bool err = false;
 	// get PyObject representation of moduleName
 	pName = PyString_FromString(moduleName);
+	TExeTm execTime;
 	// import module
 	pModule = PyImport_Import(pName);
+	cout << "Time of importing module " << moduleName << ": " << execTime.GetTmStr() << endl;
 	// we don't need pName anymore
-	//Py_DECREF(pName);
+	Py_DECREF(pName);
 	// if module was loaded 
 	if (pModule != nullptr) {
 		// get pointer to function
@@ -115,6 +125,10 @@ int CallPyFunction(const char *moduleName, const char *funcName, const TStrV& ar
 				Py_DECREF(arg);
 			}
 			*res = PyObject_CallObject(pFunc, pArgs);
+			if (PyErr_Occurred()){
+                PyErr_Print();
+				err = true;
+			}
 			if (res == nullptr)
 			{
 				PyErr_Print();
@@ -135,11 +149,12 @@ int CallPyFunction(const char *moduleName, const char *funcName, const TStrV& ar
 		fprintf(stderr, "Failed to load \"%s\"\n", moduleName);
 		err = true;
     }
+	if (err == true) return 0;
 	//Py_DECREF(pArgs);
 	Py_DECREF(pFunc);
 	Py_DECREF(pModule);
-	if (err == true) return 1;
-	return 0;
+	
+	return 1;
 }
 
 
@@ -169,12 +184,12 @@ void GetEdges(PyObject **G, PyObject***list)
 int ParseArgs(const char* funcname, const TStr& parameters, TStrV& args, TStrV& argTypes)
 {
 	Env = TEnv(parameters, TNotify::StdNotify);
-	map<TStr,tuple<TStrV,TStrV, int>,cmp_str>::const_iterator i;
+	map<TStr,tuple<TStrV,TStrV, int, TStrV>,cmp_str>::const_iterator i;
 	for (i = funcInfo.begin(); i!= funcInfo.end(); ++i)
 	{
 		if (i->first == funcname)
 		{
-			size_t argCount = get<0>(i->second).Len();
+			size_t argCount = get<1>(i->second).Len();
 			if (get<1>(i->second).Len() != argCount)
 			{
 				printf("ParseArgs error\n");
@@ -188,10 +203,15 @@ int ParseArgs(const char* funcname, const TStr& parameters, TStrV& args, TStrV& 
 				TStr argType = get<1>(i->second)[j];
 				if (arg != ""){
 					args.Add(arg);
-					argTypes.Add(argType);
 					argRead++;
 				}
-				//printf("%d %s %s\n", j, arg.CStr(), argType.CStr());
+				else
+				{
+					arg = get<3>(i->second)[j];
+					args.Add(arg);
+				}
+				argTypes.Add(argType);
+				printf("%d %s %s\n", j, arg.CStr(), argType.CStr());
 			}
 			if (argRead < reqArgs)
 				return 0;
@@ -205,12 +225,11 @@ int GenPy(PUNGraph &res, ofstream& TFile, const TStr& parameters)
 	Env = TEnv(parameters, TNotify::StdNotify);
 	TStr mN = Env.GetIfArgPrefixStr("-module:", "random_graphs", "Module name");
 	TStr fN = Env.GetIfArgPrefixStr("-func:", "fast_gnp_random_graph", "Function name");
-
+	
 	PyObject **G = new PyObject*[1];
-	// add path to NetworkX folders and initialize interpretator
-	PyInit();
 		
 	char *moduleName = mN.CStr();
+	printf("%s\n", moduleName);
 	char *funcName = fN.CStr();
 	AddFuncInfo();
 	TStrV args, argTypes;
@@ -220,7 +239,13 @@ int GenPy(PUNGraph &res, ofstream& TFile, const TStr& parameters)
 		return 0;
 	};
 	TExeTm execTime;
-	CallPyFunction(moduleName, funcName, args, argTypes, G);
+	if (!CallPyFunction(moduleName, funcName, args, argTypes, G))
+	{
+		cout << "CallPyFunction() raised error. Execution terminated.\n";
+		system("pause");
+		exit(1);
+	};
+	
 	TFile << "Time of generation of graph by NetworkX: " << execTime.GetTmStr() << endl; 
 
 	execTime.Tick();
@@ -251,6 +276,7 @@ int GenPy(PUNGraph &res, ofstream& TFile, const TStr& parameters)
 	TFile << "Time of copying of graph from NetworkX representation: " << execTime.GetTmStr() << endl; 
 	Py_DECREF(G);
 	Py_DECREF(edges);
-	Py_Finalize(); // очищение памяти, отданной интерпретатору
+	//Py_Finalize(); // очищение памяти, отданной интерпретатору
+	
 	return 0;
 }

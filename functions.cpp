@@ -158,17 +158,7 @@ int InitKronecker(const TStr args, PNGraph &GD, TKronMtx& FitMtx){
 	//if (OutFNm.Empty()) { OutFNm = TStr::Fmt("%s-fit%d", InFNm.GetFMid().CStr(), NZero()); }
 	printf("%s\n", OutFNm.CStr());
 	// load graph
-	/*PNGraph G;
-	if (InFNm.GetFExt().GetLc()==".ungraph") {
-	TFIn FIn(InFNm);  G=TSnap::ConvertGraph<PNGraph>(TUNGraph::Load(FIn), true); }
-	else if (InFNm.GetFExt().GetLc()==".ngraph") {
-	TFIn FIn(InFNm);  G=TNGraph::Load(FIn); }
-	else {
-	G = TSnap::LoadEdgeList<PNGraph>(InFNm, 0, 1);
-	}*/
-	// convert from undirected to directed via doubling of edges
-	/*PNGraph GD;
-	GD=TSnap::ConvertGraph<PNGraph>(G, true);*/
+	cout << "n0 = " << NZero << endl;
 	// fit
 	TKronMtx InitKronMtx = InitMtx=="r" ? TKronMtx::GetRndMtx(NZero, 0.1) : TKronMtx::GetMtx(InitMtx);
 	InitKronMtx.Dump("INIT PARAM", true);
@@ -215,7 +205,7 @@ void RemoveZeroDegreeNodes(PNGraph& out){
 	}
 }
 
-int KroneckerGen(const TInt NIter, const TKronMtx& FitMtx, PNGraph& out, const TStr& OutFNm){
+int KroneckerGen(const TInt NIter, const TKronMtx& FitMtx, PNGraph& out, const TStr& OutFNm, const TIntPr& InDegR = TIntPr(-1,-1), const TIntPr& OutDegR = TIntPr(-1,-1)){
 	Env.PrepArgs(TStr::Fmt("Kronecker graphs. build: %s, %s. Time: %s", __TIME__, __DATE__, TExeTm::GetCurTm()));
 	TExeTm ExeTm;
 	Try
@@ -226,9 +216,13 @@ int KroneckerGen(const TInt NIter, const TKronMtx& FitMtx, PNGraph& out, const T
 	// slow but exact O(n^2) algorightm
 	//PNGraph Graph = TKronMtx::GenKronecker(SeedMtx, NIter, true, Seed); 
 	// fast O(e) approximate algorithm
-	out = TKronMtx::GenFastKronecker(SeedMtx, NIter, true, 0);
+	// if we don't have constraints on degrees, run basic algorithm
+	if (InDegR.Val1 == -1 && InDegR.Val2 == -1 && OutDegR.Val1 == -1 && OutDegR.Val1 == -1)
+		out = TKronMtx::GenFastKronecker(SeedMtx, NIter, true, 0);
+	else
+		out = TKronMtx::GenFastKronecker(SeedMtx, NIter, true, 0, InDegR, OutDegR);
 
-	RemoveZeroDegreeNodes(out);
+	//RemoveZeroDegreeNodes(out);
 
 	// save edge list
 	TSnap::SaveEdgeList(out, OutFNm, TStr::Fmt("Kronecker Graph: seed matrix [%s]", FitMtx.GetMtxStr().CStr()));
@@ -633,7 +627,7 @@ bool GetMtx(const TStr& MtxArgs, TKronMtx& FitMtxModel){
 	return true;
 }
 
-void GenKron(const TStr& args, const TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV& outDegAvgKronM){
+void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV& outDegAvgKronM, int modelNodes = 0, int modelEdges = 0){
 	Env = TEnv(args, TNotify::StdNotify);
 	TExeTm execTime;
 	// number of Kronecker graphs to generate
@@ -645,15 +639,40 @@ void GenKron(const TStr& args, const TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, T
 	const TInt NIter = Env.GetIfArgPrefixInt("-i:", 10, "Iterations of Kronecker product");
 	// output file name
 	const TStr OutFnm = Env.GetIfArgPrefixStr("-o:", "kronGen.txt", "Output file name (default: krongen.txt)");
+	// output file name
+	const TStr ScaleMtx = Env.GetIfArgPrefixStr("-scalemtx:", "true", "Scale init matrix to match number of edges");
+	// restrictions to in- and out- degrees count for 1 vertex
+	const TInt InMin = Env.GetIfArgPrefixInt("-inmin:", -1, "In-degree minimum");
+	const TInt InMax = Env.GetIfArgPrefixInt("-inmax:", -1, "In-degree maximum");
+	const TInt OutMin = Env.GetIfArgPrefixInt("-outmin:", -1, "Out-degree minimum");
+	const TInt OutMax = Env.GetIfArgPrefixInt("-outmax:", -1, "Out-degree maximum");
+	// check values!
+	const TIntPr InDegR(InMin, InMax); const TIntPr OutDegR(OutMin, OutMax);
 	// Kronecker model of graph
 	PNGraph kron;
 	TIntPrV samplesIn, samplesOut;
 	double sec = 0.0;
+	
+	if (ScaleMtx == "true")
+	{
+		double expectedNodes = pow(sqrt(static_cast<double>(FitMtx.Len())), NIter);
+		cout << "Model nodes " << modelNodes << " model edges " << modelEdges << endl;
+		int expectedEdges = expectedNodes / modelNodes * modelEdges;
+		cout << "Expected nodes " << expectedNodes << " Expected edges " << expectedEdges << endl;
+		cout << "Scaled nodes " << modelNodes << " scaled edges " << expectedEdges << endl;
+		FitMtx.SetForEdges(expectedNodes, expectedEdges);
+		cout << NIter << endl;
+		cout << endl << FitMtx.GetEdges(NIter) << endl;
+	}
 	for (int i = 0; i < NKron; i++){
 		execTime.Tick();
-		KroneckerGen(NIter, FitMtx, kron, OutFnm);
+		KroneckerGen(NIter, FitMtx, kron, OutFnm, InDegR, OutDegR);
 		sec += execTime.GetSecs();
 		printf("Nodes count: %d, nodes with non-zero degree: %d\n", kron->GetNodes(), TSnap::CntNonZNodes(kron));
+		if (i == NKron - 1){
+			TFile << "Clustering coefficient: " << TSnap::GetClustCf(kron) << endl;
+			TSnap::PlotClustCf(kron,"kronSingle");
+		}
 		AddDegreesStat(inDegAvgKronM, samplesIn, kron, true);
 		AddDegreesStat(outDegAvgKronM, samplesOut, kron, false);
 	}
@@ -706,32 +725,88 @@ ofstream OpenFile(const TStr& fileName)
 	Catch
 }
 
-void GetGraphs(vector <TStr>& parameters, vector<TFltPrV>& distrIn, vector<TFltPrV>& distrOut, TStrV& names, bool PlotModel)
+
+void GetGraphFromAvgDistr(TFltPrV in_deg_avg_kron, PNGraph& t_pt)
+{
+	TIntV vec;
+	for (size_t i = 0; i < in_deg_avg_kron.Len(); i++){
+		// for all nodes with the same degree
+		for (int j = 0; j < static_cast<int>(in_deg_avg_kron[i].Val2); j++)
+			// add degree to vec
+			vec.Add(static_cast<int>(in_deg_avg_kron[i].Val1));
+	}
+	PUNGraph G = TSnap::GenConfModel(vec);
+	t_pt = TSnap::ConvertGraph<PNGraph>(G);
+}
+
+void GetGraphs(vector <TStr>& parameters, vector<TFltPrV>& distrIn, vector<TFltPrV>& distrOut, TStrV& names, const TStr& ModelGen, const TStr&ModelPlt)
 {
 	PNGraph G;
 	const TStr& name = parameters[NAME];
 	const TStr& Plt = parameters[PLT];
-	GetModel(parameters[GRAPHGEN], G, name, parameters[PLT]);
-	// generate Kronecker initiator matrix using big graph
-	TKronMtx FitMtxM;
-	if (!GetMtx(parameters[MTXGEN], FitMtxM))
-		GenNewMtx(G, parameters[KRONFIT], FitMtxM);
-
-	// in and out average degree distribution for kronM (non-accumulated)
-	TFltPrV inDegAvgKron, outDegAvgKron;
-	GenKron(parameters[KRONGEN], FitMtxM, inDegAvgKron, outDegAvgKron);
 	const TStr& PType = parameters[PTYPE];
-	if ( PType == "full" || PType == "all" )
+
+	GetModel(parameters[GRAPHGEN], G, name, parameters[PLT]);
+
+	if ( PType == "exp" || PType == "all" )
+	{
+		TFltPrV mDegIn, mDegOut;
+		TSnap::GetInDegCnt(G, mDegIn);
+		TSnap::GetOutDegCnt(G, mDegOut);
+		distrIn.push_back(mDegIn); distrOut.push_back(mDegOut); names.Add(name + "Sparse");
+		TExeTm execTime;
+		TFile << "Clustering coefficient: " << TSnap::GetClustCf(G) << endl;
+		TSnap::PlotClustCf(G, name);
+		TSnap::PlotHops(G, name);
+		TFile << "Time of calculating the metrics: " << execTime.GetTmStr() << endl;
+	}
+
+	
+	if (ModelGen == "model+kron"){
+		// generate Kronecker initiator matrix using big graph
+		TKronMtx FitMtxM;
+		if (!GetMtx(parameters[MTXGEN], FitMtxM))
+			GenNewMtx(G, parameters[KRONFIT], FitMtxM);
+
+		// in and out average degree distribution for kronM (non-accumulated)
+		TFltPrV inDegAvgKron, outDegAvgKron;
+		GenKron(parameters[KRONGEN], FitMtxM, inDegAvgKron, outDegAvgKron, G->GetNodes(), G->GetEdges());
+		if ( PType == "full" || PType == "all" ){
 		PlotPoints(inDegAvgKron, outDegAvgKron, name, Plt);
-	if ( PType == "exp" || PType == "all"){
-		if (PlotModel)
-		{
-			TFltPrV mDegIn, mDegOut;
-			TSnap::GetInDegCnt(G, mDegIn);
-			TSnap::GetOutDegCnt(G, mDegOut);
-			distrIn.push_back(mDegIn); distrOut.push_back(mDegOut); names.Add(name + "Sparse");
 		}
-		distrIn.push_back(inDegAvgKron); distrOut.push_back(outDegAvgKron); names.Add("kron" + name + "Sparse");
+		if ( PType == "exp" || PType == "all"){
+			distrIn.push_back(inDegAvgKron); distrOut.push_back(outDegAvgKron); names.Add("kron" + name + "Sparse");
+		}
+		PNGraph  K;
+		TExeTm execTime;
+		GetGraphFromAvgDistr(inDegAvgKron, K);
+		TFile << "Clustering coefficient: " << TSnap::GetClustCf(K) << endl;
+		TSnap::PlotClustCf(K, "kron" + name);
+		TSnap::PlotHops(K, "kron" + name);
+		TFile << "Time of calculating the metrics: " << execTime.GetTmStr() << endl;
+	}
+	
+	
+}
+
+void CheckParams(const TStr& model_gen, const TStr& model_plt)
+{
+	try
+	{
+		if (model_gen != model_plt)
+		{
+			if (model_gen != "model+kron")
+				throw 1;
+			if (model_gen == "none" && model_plt != "none")
+				throw 1;
+			if (model_plt == "model+kron" && model_gen != "model+kron")
+				throw 1;
+		}
+	}
+	catch (int i){
+		cout << "Inconsistency in KRONTEST parameters" << endl;
+		system("pause");
+		exit(1);
 	}
 }
 
@@ -744,44 +819,54 @@ void KroneckerByConf(vector<TStr> commandLineArgs){
 	const TStr Plt = Env.GetIfArgPrefixStr("-plt:", "noncum", "Type of plots (cum, noncum, all)");
 	// full - all points of distrib will be plotted; expbin - exponential binning
 	const TStr PType = Env.GetIfArgPrefixStr("-ptype:", "all", "How to plot (full, expbin, all)");
-	// if there is a need for a plot of the small model
-	const TStr PlotMS = Env.GetIfArgPrefixStr("-ms:", "false", "Plot of small model is required: true, false");
 	// radix of binning
 	const TInt BinRadix = Env.GetIfArgPrefixInt("-bin:", 2, "Radix for exponential binning");
 	// time estimates file name
-	const TStr TimeFile = Env.GetIfArgPrefixStr("-ot:", "time.dat", "Name of output file with time estimates");
+	const TStr TimeFile = Env.GetIfArgPrefixStr("-ot:", "time.tab", "Name of output file with time estimates");
 	// generation of big model and its Kronecker product is required
-	const TStr ModelGen = Env.GetIfArgPrefixStr("-mg:", "true", "Generation of big model and its Kronecker product is required");
+	const TStr ModelGen = Env.GetIfArgPrefixStr("-mgen:", "model", "Generation of big model and/or its Kronecker product (model, kron, model+kron)");
+	// generation of big model and its Kronecker product is required
+	const TStr ModelPlt = Env.GetIfArgPrefixStr("-mplt:", "model", "Plotting of big model and/or its Kronecker product (model, kron, model+kron)");
+	// generation of big model and its Kronecker product is required
+	const TStr MSGen = Env.GetIfArgPrefixStr("-msgen:", "model+kron", "Generation of small model and/or its Kronecker product (model, kron, model+kron)");
+	// generation of big model and its Kronecker product is required
+	const TStr MSPlt = Env.GetIfArgPrefixStr("-msplt:", "kron", "Plotting of small model and/or its Kronecker product (model, kron, model+kron)");
+
+	CheckParams(ModelGen, ModelPlt);
+	CheckParams(MSGen, MSPlt);
 
 	TFile = OpenFile(TimeFile.CStr());
 
 	vector<TFltPrV> distrIn, distrOut;
 	TStrV names;
 
-	if (ModelGen == "true")
+	PyInit();
+
+	if (ModelGen != "none")
 	{
 		TFile << "Kronecker" << endl;
 		vector <TStr> parameters;
 		for (size_t i = 1; i <= NPARCOPY; i++)
 			parameters.push_back(commandLineArgs[i]);
 		parameters.push_back(PType); parameters.push_back(Plt); parameters.push_back("Model"); 
-		GetGraphs(parameters, distrIn, distrOut, names, true);
+		GetGraphs(parameters, distrIn, distrOut, names, ModelGen, ModelPlt);
 	}
 	
-	TFile << "Kronecker from reduced size" << endl;
-	vector <TStr> parameters;
-	for (size_t i = NPARCOPY + 1; i <= 2 * NPARCOPY; i++)
-		parameters.push_back(commandLineArgs[i]);
-	parameters.push_back(PType); parameters.push_back(Plt); parameters.push_back("Small"); 
-	bool PlotMSBool = false;
-	if (PlotMS == "true")
-		PlotMSBool = true;
-	GetGraphs(parameters, distrIn, distrOut, names, PlotMSBool);
-	
+	if (MSGen != "none"){
+		TFile << "Kronecker from reduced size" << endl;
+		vector <TStr> parameters;
+		for (size_t i = NPARCOPY + 1; i <= 2 * NPARCOPY; i++)
+			parameters.push_back(commandLineArgs[i]);
+		parameters.push_back(PType); parameters.push_back(Plt); parameters.push_back("Small"); 
+		GetGraphs(parameters, distrIn, distrOut, names, MSGen, MSPlt);
+	}
+
 	PlotSparse(distrIn, names, true, Plt, BinRadix);
 	PlotSparse(distrOut, names, false, Plt, BinRadix);
 
 	TFile.close();
+
+	Py_Finalize();
 
 	Catch
 }
