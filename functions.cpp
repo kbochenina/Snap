@@ -167,8 +167,9 @@ int KroneckerGen(const TInt NIter, const TKronMtx& FitMtx, PNGraph& out, const T
 	// if we don't have constraints on degrees, run basic algorithm
 	if (InDegR.Val1 == -1 && InDegR.Val2 == -1 && OutDegR.Val1 == -1 && OutDegR.Val1 == -1)
 		out = TKronMtx::GenFastKronecker(SeedMtx, NIter, true, 0);
-	else
+	else {
 		out = TKronMtx::GenFastKronecker(SeedMtx, NIter, true, 0, InDegR, OutDegR);
+	}
 
 	//RemoveZeroDegreeNodes(out);
 
@@ -176,6 +177,7 @@ int KroneckerGen(const TInt NIter, const TKronMtx& FitMtx, PNGraph& out, const T
 	TSnap::SaveEdgeList(out, OutFNm, TStr::Fmt("Kronecker Graph: seed matrix [%s]", FitMtx.GetMtxStr().CStr()));
 	Catch
 		printf("\nrun time: %s (%s)\n", ExeTm.GetTmStr(), TSecTm::GetCurTm().GetTmStr().CStr());
+	
 	return 0;
 }
 
@@ -306,6 +308,17 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 	const TInt OutMax = Env.GetIfArgPrefixInt("-outmax:", -1, "Out-degree maximum");
 	// check values!
 	const TIntPr InDegR(InMin, InMax); const TIntPr OutDegR(OutMin, OutMax);
+	try {
+		int Edges = FitMtx.GetEdges(NIter);
+		if (InDegR.Val1 > Edges || OutDegR.Val1 > Edges )
+			throw exception("FastKronecker() exception. Constraints do not match to the number of edges");
+	}
+	catch (const exception e) {
+		cerr << e.what() << endl;
+		system("pause");
+		exit(1);
+	}
+	
 	// Kronecker model of graph
 	PNGraph kron;
 	TIntPrV samplesIn, samplesOut;
