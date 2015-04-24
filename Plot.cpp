@@ -29,48 +29,42 @@ void ExpBinning(const TFltPrV& deg, TFltPrV& degSparse, const int& BinRadix){
 	TFlt maxDeg(deg[deg.Len()-1].Val1.Val), minDeg(deg[0].Val1.Val);
 	bool maxPowerReached = false;
 	// idx - index of border, previdx - index of previous border
-	int power = 0, previdx = 0, idx = 0, binSize = 0;
+	int power = 0, previdx = 0, idx, binSize;
+	TFltPr val;
 	double binBorder = 0.0;
 	while (binBorder <= minDeg)
 		binBorder = pow(static_cast<double>(BinRadix), power++);
+
+	//TFltPr val(minDeg, deg[0].Val2.Val);
+	//degSparse.Add(val);
+
 	bool isExact = false;
 	while (!maxPowerReached){
-		if (power == 1){
-			// if there are nodes with degree 1
-			idx = FindVal1Elem(deg, 1, isExact);
-			if (isExact){
-				TFltPr val(1, deg[idx].Val2.Val);
-				degSparse.Add(val);
-				previdx = idx;
-			}
+		if (binBorder >= maxDeg){
+			// when last element of deg was previous bin border
+			if (previdx == deg.Len() - 1)
+				break;
+			// if we have another elements
+			binBorder = maxDeg;
+			maxPowerReached = true;
 		}
-		else {
-			if (binBorder >= maxDeg){
-				// when last element of deg was previous bin border
-				if (previdx == deg.Len() - 1)
-					break;
-				// if we have another elements
-				binBorder = maxDeg;
-				maxPowerReached = true;
-			}
-			// find next element
-			idx = FindVal1Elem(deg, binBorder, isExact);
-			// if bin size == 0
-			if (previdx + 1 == idx && !isExact)
-				continue;
-			if (!isExact)
-				idx = idx - 1;
-			double sum = 0.0;
-			binSize = idx - previdx;
-			for (int i = previdx + 1; i <= idx; i++){
-				sum += deg[i].Val2.Val;
-			}
-			sum /= binSize;
-			double avgDeg = (binBorder + static_cast<double>(binBorder) / BinRadix) / 2.0;
-			TFltPr val(avgDeg, sum);
-			degSparse.Add(val);
-			previdx = idx;
+		// find next element
+		idx = FindVal1Elem(deg, binBorder, isExact);
+		// if bin size == 0
+		if (previdx + 1 == idx && !isExact)
+			continue;
+		if (!isExact)
+			idx = idx - 1;
+		double sum = 0.0;
+		binSize = idx - previdx;
+		for (int i = previdx + 1; i <= idx; i++){
+			sum += deg[i].Val2.Val;
 		}
+		sum /= binSize;
+		double avgDeg = (binBorder + static_cast<double>(binBorder) / BinRadix) / 2.0;
+		val.Val1 = avgDeg; val.Val2 = sum;
+		degSparse.Add(val);
+		previdx = idx;
 		binBorder = pow(static_cast<double>(BinRadix), power++);
 	}
 }
@@ -150,7 +144,6 @@ void SaveSparse(const TFltPrV& G, const int& BinRadix, bool isIn, const TStr&nam
 }
 
 void PlotSparse(const vector<TFltPrV>& distr, const TStrV& names, bool isIn, const TStr& Plt, const TInt& BinRadix){
-	TFlt minLog, maxLog;
 	for (size_t i = 0; i < distr.size(); i++){
 		if (Plt == "cum" || Plt == "all"){
 			SaveSparse(distr[i], BinRadix, isIn, names[i], true);

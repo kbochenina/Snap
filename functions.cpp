@@ -302,22 +302,12 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 	// output file name
 	const TStr ScaleMtx = Env.GetIfArgPrefixStr("-scalemtx:", "true", "Scale init matrix to match number of edges");
 	// restrictions to in- and out- degrees count for 1 vertex
-	const TInt InMin = Env.GetIfArgPrefixInt("-inmin:", -1, "In-degree minimum");
-	const TInt InMax = Env.GetIfArgPrefixInt("-inmax:", -1, "In-degree maximum");
-	const TInt OutMin = Env.GetIfArgPrefixInt("-outmin:", -1, "Out-degree minimum");
-	const TInt OutMax = Env.GetIfArgPrefixInt("-outmax:", -1, "Out-degree maximum");
-	// check values!
+	const TInt InMin = Env.GetIfArgPrefixInt("-inmin:", numeric_limits<int>::lowest(), "In-degree minimum");
+	const TInt InMax = Env.GetIfArgPrefixInt("-inmax:", INT_MAX, "In-degree maximum");
+	const TInt OutMin = Env.GetIfArgPrefixInt("-outmin:", numeric_limits<int>::lowest(), "Out-degree minimum");
+	const TInt OutMax = Env.GetIfArgPrefixInt("-outmax:", INT_MAX, "Out-degree maximum");
 	const TIntPr InDegR(InMin, InMax); const TIntPr OutDegR(OutMin, OutMax);
-	try {
-		int Edges = FitMtx.GetEdges(NIter);
-		if (InDegR.Val1 > Edges || OutDegR.Val1 > Edges )
-			throw exception("FastKronecker() exception. Constraints do not match to the number of edges");
-	}
-	catch (const exception e) {
-		cerr << e.what() << endl;
-		system("pause");
-		exit(1);
-	}
+	
 	
 	// Kronecker model of graph
 	PNGraph kron;
@@ -333,6 +323,19 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 		cout << "Scaled nodes " << modelNodes << " scaled edges " << expectedEdges << endl;
 		FitMtx.SetForEdges(expectedNodes, expectedEdges);
 	}
+
+	try {
+		int Nodes = FitMtx.GetNodes(NIter);
+		int Edges = FitMtx.GetEdges(NIter);
+		if (InDegR.Val1 * Nodes > Edges || OutDegR.Val1 * Nodes > Edges || InDegR.Val2 < InDegR.Val1 || OutDegR.Val2 < OutDegR.Val1) 
+			throw exception("FastKronecker() exception. Constraints do not match to the number of edges");
+	}
+	catch (const exception e) {
+		cerr << e.what() << endl;
+		system("pause");
+		exit(0);
+	}
+
 	for (int i = 0; i < NKron; i++){
 		execTime.Tick();
 		KroneckerGen(NIter, FitMtx, kron, OutFnm, InDegR, OutDegR);
