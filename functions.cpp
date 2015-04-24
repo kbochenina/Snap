@@ -165,7 +165,7 @@ int KroneckerGen(const TInt NIter, const TKronMtx& FitMtx, PNGraph& out, const T
 	//PNGraph Graph = TKronMtx::GenKronecker(SeedMtx, NIter, true, Seed); 
 	// fast O(e) approximate algorithm
 	// if we don't have constraints on degrees, run basic algorithm
-	if (InDegR.Val1 == -1 && InDegR.Val2 == -1 && OutDegR.Val1 == -1 && OutDegR.Val1 == -1)
+	if (InDegR.Val1 == numeric_limits<int>::lowest() && InDegR.Val2 == INT_MAX && OutDegR.Val1 == numeric_limits<int>::lowest() && INT_MAX)
 		out = TKronMtx::GenFastKronecker(SeedMtx, NIter, true, 0);
 	else {
 		out = TKronMtx::GenFastKronecker(SeedMtx, NIter, true, 0, InDegR, OutDegR);
@@ -373,8 +373,11 @@ void GetGraphFromAvgDistr(TFltPrV in_deg_avg_kron, PNGraph& t_pt)
 			// add degree to vec
 			vec.Add(static_cast<int>(in_deg_avg_kron[i].Val1));
 	}
+	TExeTm execTime;
 	PUNGraph G = TSnap::GenConfModel(vec);
+	TFile << "Time of configuration model: " <<  execTime.GetTmStr() << endl;
 	t_pt = TSnap::ConvertGraph<PNGraph>(G);
+
 }
 
 void GetGraphs(vector <TStr>& parameters, vector<TFltPrV>& distrIn, vector<TFltPrV>& distrOut, TStrV& names, const TStr& ModelGen, const TStr&ModelPlt)
@@ -480,6 +483,7 @@ void KroneckerByConf(vector<TStr> commandLineArgs){
 		GetGraphs(parameters, distrIn, distrOut, names, MSGen, MSPlt);
 	}
 
+	system("pause");
 	PlotSparse(distrIn, names, true, Plt, BinRadix);
 	PlotSparse(distrOut, names, false, Plt, BinRadix);
 
