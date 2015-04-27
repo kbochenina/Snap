@@ -52,17 +52,48 @@ void AddPath(const char * path)
 		printf("Error setting sys.path object\n");
 }
 
-void PyInit()
+void AddPath(const std::string& path)
 {
-	char *path = "D:\\ITMO\\Graphs\\NetworkX\\networkx\\generators";
-	Py_Initialize(); // инициализация интерпретатора 
-	AddPath(path);
-	path = "D:\\ITMO\\Graphs\\NetworkX\\";
-	AddPath(path);
-	path = "D:\\ITMO\\Graphs\\NetworkX\\networkx\\readwrite";
-	AddPath(path);
-	path = "D:\\ITMO\\Graphs\\NetworkX\\networkx\\classes";
-	AddPath(path);
+	AddPath(path.c_str());
+}
+
+void PyInit(const TStr& PySettings)
+{
+	Try
+	ifstream f(PySettings.CStr());
+	if (f.is_open())
+	{
+		/*char *path = "D:\\ITMO\\Graphs\\Software\\NetworkX\\networkx-1.9.1\\networkx\\generators";
+		Py_Initialize(); 
+		AddPath(path);
+		path = "D:\\ITMO\\Graphs\\Software\\NetworkX\\networkx-1.9.1";
+		AddPath(path);
+		path = "D:\\ITMO\\Graphs\\Software\\NetworkX\\networkx-1.9.1\\networkx\\readwrite";
+		AddPath(path);
+		path = "D:\\ITMO\\Graphs\\Software\\NetworkX\\networkx-1.9.1\\networkx\\classes";
+		AddPath(path);*/
+		std::string s;
+		std::getline(f, s);
+		Py_Initialize(); // инициализация интерпретатора  */
+		AddPath(s);
+		AddPath(s+"\\\\networkx\\\\generators");
+		AddPath(s+"\\\\networkx\\\\readwrite");
+		AddPath(s+"\\\\networkx\\\\classes");
+		/*AddPath(path);
+		s = path;
+		s += "networkx\\\\generators";
+		AddPath(s);
+		s = path;
+		s += "networkx\\\\readwrite";
+		AddPath(path);
+		s = path;
+		s += "networkx\\\\classes";
+		AddPath(path);*/
+	}
+	return;		
+	IAssert(1);
+	Catch
+	
 }
 
 int ParseArgument(const TStr& arg, const TStr& argType, PyObject** argPy)

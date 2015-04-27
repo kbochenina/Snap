@@ -462,7 +462,7 @@ void KroneckerByConf(vector<TStr> commandLineArgs){
 	vector<TFltPrV> distrIn, distrOut;
 	TStrV names;
 
-	PyInit();
+	PyInit("PySettings.txt");
 
 	if (ModelGen != "none")
 	{

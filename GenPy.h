@@ -1,5 +1,5 @@
 #include <map>
 
-void PyInit();
+void PyInit(const TStr& PySettings);
 
 int GenPy(PUNGraph & G, ofstream& TFile, const TStr& args);
