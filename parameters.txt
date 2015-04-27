@@ -1,0 +1,18 @@
+KRONTEST
+-plt:all -ptype:all -bin:2 -ot:time.tab -mgen:model+kron -mplt:model+kron -msgen:none -msplt:none
+GRAPHGEN_M
+-g:genpy -module:random_graphs -func:powerlaw_cluster_graph -n:2178 -m:3 -p:0.3
+MTXGEN_M
+-m:0.678233;0.635647;0.477873;0.636646;0.248316;0.00422656;0.477873;0.0143104;0.326792 -rs:3 
+KRONFIT_M
+-m:r -o:fitmtxmodel.txt -gi:50 -w:10000 -s:100000 -p:d -nsp:1 -n0:3
+KRONGEN_M
+-i:7 -n:1 -s:false -scalemtx:true -inmin:3 -outmin:3
+GRAPHGEN_MS
+-g:genpy -module:random_graphs -func:powerlaw_cluster_graph -n:2048 -m:3 -p:0.3
+MTXGEN_MS
+-m:create -rs:2 
+KRONFIT_MS
+-m:r -o:fitmtxsmall.txt -gi:50 -w:10000 -s:100000 -p:d -nsp:1
+KRONGEN_MS
+-i:10 -n:1 -s:false -scalemtx:true
