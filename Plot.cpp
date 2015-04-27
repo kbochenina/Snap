@@ -61,7 +61,9 @@ void ExpBinning(const TFltPrV& deg, TFltPrV& degSparse, const int& BinRadix){
 			sum += deg[i].Val2.Val;
 		}
 		sum /= binSize;
-		double avgDeg = (binBorder + static_cast<double>(binBorder) / BinRadix) / 2.0;
+		// if prevBinBorder was the smallest degree, it can be more than binBorder / BinRadix
+		double SumBinBorder = previdx > 0 ? binBorder + static_cast<double>(binBorder) / BinRadix : binBorder + static_cast<double>(minDeg); 
+		double avgDeg = SumBinBorder / 2.0;
 		val.Val1 = avgDeg; val.Val2 = sum;
 		degSparse.Add(val);
 		previdx = idx;
