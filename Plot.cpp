@@ -24,7 +24,7 @@ int FindVal1Elem(const TFltPrV& vec, const TFlt& elem, bool& isExact){
 	}
 	return false;
 }
-
+// CHECK
 void ExpBinning(const TFltPrV& deg, TFltPrV& degSparse, const int& BinRadix){
 	TFlt maxDeg(deg[deg.Len()-1].Val1.Val), minDeg(deg[0].Val1.Val);
 	bool maxPowerReached = false;
@@ -35,8 +35,8 @@ void ExpBinning(const TFltPrV& deg, TFltPrV& degSparse, const int& BinRadix){
 	while (binBorder <= minDeg)
 		binBorder = pow(static_cast<double>(BinRadix), power++);
 
-	//TFltPr val(minDeg, deg[0].Val2.Val);
-	//degSparse.Add(val);
+	TFltPr v(minDeg, deg[0].Val2.Val);
+	degSparse.Add(v);
 
 	bool isExact = false;
 	while (!maxPowerReached){

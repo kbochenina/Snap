@@ -316,12 +316,12 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 	
 	if (ScaleMtx == "true")
 	{
-		double expectedNodes = pow(sqrt(static_cast<double>(FitMtx.Len())), NIter);
+		double expectedNodes = pow(static_cast<double>(FitMtx.GetDim()), NIter);
 		cout << "Model nodes " << modelNodes << " model edges " << modelEdges << endl;
 		int expectedEdges = expectedNodes / modelNodes * modelEdges;
 		cout << "Expected nodes " << expectedNodes << " Expected edges " << expectedEdges << endl;
-		cout << "Scaled nodes " << modelNodes << " scaled edges " << expectedEdges << endl;
 		FitMtx.SetForEdges(expectedNodes, expectedEdges);
+		cout << "Scaled nodes " << FitMtx.GetNodes(NIter) << " scaled edges " << FitMtx.GetEdges(NIter) << endl;
 	}
 
 	try {
@@ -359,7 +359,7 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 	}
 	inDegAvgKronM.Sort();
 	outDegAvgKronM.Sort();
-	TFile << "Average time of generation of Kronecker product: " <<  execTime.GetTmStrFromSec(sec) << endl;
+	TFile << "Average time of generation of Kronecker product: " <<  sec << endl;
 }
 
 
@@ -438,7 +438,7 @@ void KroneckerByConf(vector<TStr> commandLineArgs){
 	Try
 	Env = TEnv(commandLineArgs[KRONTEST], TNotify::StdNotify);
 	// type of plots
-	const TStr Plt = Env.GetIfArgPrefixStr("-plt:", "noncum", "Type of plots (cum, noncum, all)");
+	const TStr Plt = Env.GetIfArgPrefixStr("-plt:", "all", "Type of plots (cum, noncum, all)");
 	// full - all points of distrib will be plotted; expbin - exponential binning
 	const TStr PType = Env.GetIfArgPrefixStr("-ptype:", "all", "How to plot (full, expbin, all)");
 	// radix of binning

@@ -54,14 +54,14 @@ void AddPath(const char * path)
 
 void PyInit()
 {
-	char *path = "D:\\ITMO\\Graphs\\Software\\NetworkX\\networkx-1.9.1\\networkx\\generators";
+	char *path = "D:\\ITMO\\Graphs\\NetworkX\\networkx\\generators";
 	Py_Initialize(); // инициализация интерпретатора 
 	AddPath(path);
-	path = "D:\\ITMO\\Graphs\\Software\\NetworkX\\networkx-1.9.1";
+	path = "D:\\ITMO\\Graphs\\NetworkX\\";
 	AddPath(path);
-	path = "D:\\ITMO\\Graphs\\Software\\NetworkX\\networkx-1.9.1\\networkx\\readwrite";
+	path = "D:\\ITMO\\Graphs\\NetworkX\\networkx\\readwrite";
 	AddPath(path);
-	path = "D:\\ITMO\\Graphs\\Software\\NetworkX\\networkx-1.9.1\\networkx\\classes";
+	path = "D:\\ITMO\\Graphs\\NetworkX\\networkx\\classes";
 	AddPath(path);
 }
 

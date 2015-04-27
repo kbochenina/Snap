@@ -124,6 +124,14 @@ void PrintDegDistr(const TIntPrV& distr, const TStr& OutFNm){
 	if (! OutFNm.Empty()) { fclose(F); }
 }
 
+void PrintDegDistr(const PNGraph& G, const TStr& OutFNm){
+	TFltPrV InDeg, OutDeg;
+	TSnap::GetInDegCnt(G, InDeg);
+	TSnap::GetInDegCnt(G, OutDeg);
+	PrintDegDistr(InDeg, OutFNm + "In.tab");
+	PrintDegDistr(OutDeg, OutFNm + "Out.tab");
+}
+
 void ReadMtx(const TStr& Mtx, const TInt& MtxSize, TKronMtx& FitMtx){
 	TFltV matrix;
 	GetMtxFromSepLine(Mtx, ";", matrix);

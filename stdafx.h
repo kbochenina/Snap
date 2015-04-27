@@ -10,14 +10,13 @@
 #include <stdio.h>
 #include <tchar.h>
 #include <vector>
-
 using namespace std;
 
 #include "Snap.h"
 #include "kronecker.h"
+#include "InOut.h"
 #include "Python.h"
 #include "Plot.h"
-#include "InOut.h"
 #include "Stat.h"
 #include "functions.h"
 
