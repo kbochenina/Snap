@@ -63,15 +63,6 @@ void PyInit(const TStr& PySettings)
 	ifstream f(PySettings.CStr());
 	if (f.is_open())
 	{
-		/*char *path = "D:\\ITMO\\Graphs\\Software\\NetworkX\\networkx-1.9.1\\networkx\\generators";
-		Py_Initialize(); 
-		AddPath(path);
-		path = "D:\\ITMO\\Graphs\\Software\\NetworkX\\networkx-1.9.1";
-		AddPath(path);
-		path = "D:\\ITMO\\Graphs\\Software\\NetworkX\\networkx-1.9.1\\networkx\\readwrite";
-		AddPath(path);
-		path = "D:\\ITMO\\Graphs\\Software\\NetworkX\\networkx-1.9.1\\networkx\\classes";
-		AddPath(path);*/
 		std::string s;
 		std::getline(f, s);
 		Py_Initialize(); // инициализация интерпретатора  */
@@ -79,16 +70,6 @@ void PyInit(const TStr& PySettings)
 		AddPath(s+"\\\\networkx\\\\generators");
 		AddPath(s+"\\\\networkx\\\\readwrite");
 		AddPath(s+"\\\\networkx\\\\classes");
-		/*AddPath(path);
-		s = path;
-		s += "networkx\\\\generators";
-		AddPath(s);
-		s = path;
-		s += "networkx\\\\readwrite";
-		AddPath(path);
-		s = path;
-		s += "networkx\\\\classes";
-		AddPath(path);*/
 	}
 	return;		
 	IAssert(1);
@@ -158,7 +139,9 @@ int CallPyFunction(const char *moduleName, const char *funcName, const TStrV& ar
 				PyTuple_SetItem(pArgs, i, *arg);
 				Py_DECREF(arg);
 			}
+			//TExeTm execTime;
 			*res = PyObject_CallObject(pFunc, pArgs);
+			//cout << "Time of execution of function " << funcName << ": " << execTime.GetTmStr() << endl; 
 			if (PyErr_Occurred()){
                 PyErr_Print();
 				err = true;

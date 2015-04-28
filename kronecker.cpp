@@ -411,7 +411,7 @@ int TKronMtx::AddEdges(const TKronMtx& SeedMtx, const int&NIter, const bool& IsD
 	}
 	std::string s = "Edges added=" + std::to_string((long long)edges) +", edges to add=" + std::to_string((long long)NEdges) + "\n";
 	printf("%s",s.c_str());
-	PrintDeg(G, "AddEdges");
+	//PrintDeg(G, "AddEdges");
 	//printf("             %d edges [%s]\n", Graph->GetEdges(), ExeTm.GetTmStr());
 	return Collision;
 }
@@ -484,22 +484,23 @@ bool CheckEdges(TIntV& DegCount, TInt& S, const int&DegAdd, const int&DegToCheck
 		}
 		else {
 			if (LeastEdges < S){
-				TStr LeastEdgesStr(LeastEdges), SStr(S);
-				throw "CheckEdges() error. Least edges < S: Least=" + LeastEdgesStr + ", S=" + SStr + "\n";
+				std::string s = "CheckEdges() error. Least edges < S: Least=" + std::to_string((long long)LeastEdges) + ", S=" + 
+					std::to_string((long long)S) + "\n";
+				throw s;
 			}
 			if (LeastEdges == S)
 				return false;
 			return true;
 		}
 	}
-	catch (const TStr& ex){
-		printf("%s\n", ex.CStr());
+	catch (const std::string& ex){
+		printf("%s\n", ex.c_str());
 		system("pause");
 		exit(0);
 	}
 }
 
-int TKronMtx::AddSecond(bool IsOut, const TIntPr& InDegR, const TIntPr& OutDegR, PNGraph& G, const TKronMtx& SeedMtx, const int&NIter, bool IsDir, TRnd&Rnd){
+int TKronMtx::AddSecondDir(bool IsOut, const TIntPr& InDegR, const TIntPr& OutDegR, PNGraph& G, const TKronMtx& SeedMtx, const int&NIter, TRnd&Rnd){
 	int Collision = 0;
 	const int NNodes = SeedMtx.GetNodes(NIter);
 	const int NEdges = SeedMtx.GetEdges(NIter);
@@ -532,10 +533,6 @@ int TKronMtx::AddSecond(bool IsOut, const TIntPr& InDegR, const TIntPr& OutDegR,
 				G->AddEdge(Row,Col);
 				//printf("\nEdge %d,%d was added", Row, Col);
 				EdgesAdded++;
-				if (!IsDir){
-					G->AddEdge(Col, Row);
-					EdgesAdded++;
-				}
 			}
 			else {Collision++; j--;}
 		}
@@ -543,12 +540,13 @@ int TKronMtx::AddSecond(bool IsOut, const TIntPr& InDegR, const TIntPr& OutDegR,
 	}
 	std::string s = "Edges added=" + std::to_string((long long)EdgesAdded) +", edges to add=" + std::to_string((long long)EdgesToAdd * NNodes) + "\n";
 	printf("%s",s.c_str());
-	PrintDeg(G, "AddSecond");
+	printf("Collisions (AddSecondDir): %d\n", Collision);
+	//PrintDeg(G, "AddSecond");
 	return Collision;
 }
 
 
-int TKronMtx::AddFirst(bool IsOut, const TIntPr& InDegR, const TIntPr& OutDegR, PNGraph& G, const TKronMtx& SeedMtx, const int&NIter, bool IsDir, TRnd&Rnd){
+int TKronMtx::AddFirstDir(bool IsOut, const TIntPr& InDegR, const TIntPr& OutDegR, PNGraph& G, const TKronMtx& SeedMtx, const int&NIter, TRnd&Rnd){
 	int Collision = 0;
 	const int NNodes = SeedMtx.GetNodes(NIter);
 	const int NEdges = SeedMtx.GetEdges(NIter);
@@ -586,20 +584,17 @@ int TKronMtx::AddFirst(bool IsOut, const TIntPr& InDegR, const TIntPr& OutDegR, 
 				if (CheckEdges(DegCount, S, DegAdded, DegToCheck, NEdges - EdgesAdded)){
 					G->AddEdge(Row,Col);
 					EdgesAdded++;
-					if (!IsDir){
-						G->AddEdge(Col, Row);
-						EdgesAdded++;
-					}
 				}
 				else {Collision++; j--;}
 			}
 			else {Collision++; j--;}
 		}
 	}
+	printf("Collisions (AddFirstDir): %d\n", Collision);
 	std::string s = "Edges added=" + std::to_string((long long)EdgesAdded) +", edges to add=" + std::to_string((long long)EdgesToAdd * NNodes) + "\n";
 	printf("%s",s.c_str());
 	
-	PrintDeg(G, "AddFirst");
+	//PrintDeg(G, "AddFirst");
 
 	try {
 		if (EdgesAdded != EdgesToAdd * NNodes){
@@ -615,11 +610,58 @@ int TKronMtx::AddFirst(bool IsOut, const TIntPr& InDegR, const TIntPr& OutDegR, 
 	return Collision;
 }
 
-PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& Seed, const TIntPr& InDegR, const TIntPr& OutDegR){
+int TKronMtx::AddUnDir(const TIntPr& DegR, PNGraph& G, const TKronMtx& SeedMtx, const int& NIter, TRnd& Rnd){
+	int Collision = 0;
+	const int NNodes = SeedMtx.GetNodes(NIter);
+	const int NEdges = SeedMtx.GetEdges(NIter);
+	const TInt& DegMin = DegR.Val1, & DegMax = DegR.Val2;
+	TKronMtx Mtx(SeedMtx);
+	// get row prob accum vectors
+	TVec<TVec<TFltIntIntTr>> RowProbCumV;
+	GetRowProbCumV(Mtx, RowProbCumV);
+	int EdgesAdded = 0;
+
+	for (int i = 0; i < DegMin; i++){
+		for (int j = 0; j < NNodes; j++){
+			int Row = j;
+			int Col = GetCol(RowProbCumV, Row, NIter, Rnd);
+			if (Row != Col && !G->IsEdge(Row, Col)){
+				int InDeg = G->GetNI(Col).GetInDeg(), OutDeg = G->GetNI(Row).GetOutDeg();
+				if (InDeg + 1 > DegMax || OutDeg + 1 > DegMax) {Collision++; j--; continue;}
+				InDeg = G->GetNI(Row).GetInDeg(); OutDeg = G->GetNI(Col).GetOutDeg();
+				if (InDeg + 1 > DegMax || OutDeg + 1 > DegMax) {Collision++; j--; continue;}
+				G->AddEdge(Row,Col);
+				EdgesAdded++;
+				G->AddEdge(Col, Row);
+				EdgesAdded++;
+			}
+			else {Collision++; j--;}
+		}
+	}
+	std::string s = "Edges added=" + std::to_string((long long)EdgesAdded) +", edges to add=" + std::to_string((long long)2 * DegMin * NNodes) + "\n";
+	printf("%s",s.c_str());
+
+	//PrintDeg(G, "AddFirst");
+
+	try {
+		if (EdgesAdded != 2 * DegMin * NNodes){
+			throw "AddUnDir() error. Edges added=" + std::to_string((long long)EdgesAdded) +", edges to add=" + std::to_string((long long)2 * DegMin * NNodes) + "\n";
+		}
+	}
+	catch (const TStr& ex){
+		printf("%s\n", ex);
+		system("pause");
+		exit(0);
+	}
+
+	return Collision;
+}
+
+PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& Seed, const TIntPr& InDegR, const TIntPr& OutDegR, PNGraph& Graph){
 	const int NNodes = SeedMtx.GetNodes(NIter);
 	const int NEdges = SeedMtx.GetEdges(NIter);
 	printf("GenFastKronecker() with restrictions. Nodes %d, edges %d\n", NNodes, NEdges);
-	PNGraph Graph = TNGraph::New(NNodes, -1);
+	Graph = TNGraph::New(NNodes, -1);
 	// add nodes
 	for (int i = 0; i < NNodes; i++) {
 		Graph->AddNode(i); }
@@ -628,9 +670,12 @@ PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, co
 	IsOut = false;
 	TRnd Rnd(Seed);
 	int Collisions = 0;
-	Collisions += AddFirst(IsOut, InDegR, OutDegR, Graph, SeedMtx, NIter, IsDir, Rnd);
-	if (IsDir)
-		Collisions += AddSecond(!IsOut, InDegR, OutDegR, Graph, SeedMtx, NIter, IsDir, Rnd);
+	if (IsDir){
+		Collisions += AddFirstDir(IsOut, InDegR, OutDegR, Graph, SeedMtx, NIter, Rnd);
+		Collisions += AddSecondDir(!IsOut, InDegR, OutDegR, Graph, SeedMtx, NIter, Rnd);
+	}
+	else 
+		Collisions += AddUnDir(InDegR, Graph, SeedMtx, NIter, Rnd);
 	const int Least = NEdges - Graph->GetEdges();
 	Collisions += AddEdges(SeedMtx, NIter, IsDir, Rnd, Graph, Least, InDegR.Val2, OutDegR.Val2);
 	printf("             collisions: %d (%.4f)\n", Collisions, Collisions/(double)Graph->GetEdges());

@@ -153,7 +153,7 @@ void RemoveZeroDegreeNodes(PNGraph& out){
 	}
 }
 
-int KroneckerGen(const TInt NIter, const TKronMtx& FitMtx, PNGraph& out, const TStr& OutFNm, const TIntPr& InDegR = TIntPr(-1,-1), const TIntPr& OutDegR = TIntPr(-1,-1)){
+int KroneckerGen(const TInt NIter, const TKronMtx& FitMtx, PNGraph& out, const TStr& OutFNm, const TIntPr& InDegR, const TIntPr& OutDegR, const TStr& IsDir){
 	Env.PrepArgs(TStr::Fmt("Kronecker graphs. build: %s, %s. Time: %s", __TIME__, __DATE__, TExeTm::GetCurTm()));
 	TExeTm ExeTm;
 	Try
@@ -168,13 +168,14 @@ int KroneckerGen(const TInt NIter, const TKronMtx& FitMtx, PNGraph& out, const T
 	if (InDegR.Val1 == numeric_limits<int>::lowest() && InDegR.Val2 == INT_MAX && OutDegR.Val1 == numeric_limits<int>::lowest() && INT_MAX)
 		out = TKronMtx::GenFastKronecker(SeedMtx, NIter, true, 0);
 	else {
-		out = TKronMtx::GenFastKronecker(SeedMtx, NIter, true, 0, InDegR, OutDegR);
+		bool Dir = IsDir == "true" ? true: false;
+		TKronMtx::GenFastKronecker(SeedMtx, NIter, Dir, 0, InDegR, OutDegR, out);
 	}
 
 	//RemoveZeroDegreeNodes(out);
 
 	// save edge list
-	TSnap::SaveEdgeList(out, OutFNm, TStr::Fmt("Kronecker Graph: seed matrix [%s]", FitMtx.GetMtxStr().CStr()));
+	//TSnap::SaveEdgeList(out, OutFNm, TStr::Fmt("Kronecker Graph: seed matrix [%s]", FitMtx.GetMtxStr().CStr()));
 	Catch
 		printf("\nrun time: %s (%s)\n", ExeTm.GetTmStr(), TSecTm::GetCurTm().GetTmStr().CStr());
 	
@@ -269,6 +270,17 @@ void GetModel(const TStr& args, PNGraph& G, const TStr& name, const TStr& Plt){
 	if (Plt == "noncum" || Plt == "all")
 		SaveAndPlot(G, name.CStr(), false);
 	TFile << "Time of getting model: " <<  execTime.GetTmStr() << endl;
+	TFile << "Model graph: " << G->GetNodes() << " nodes, " << G->GetEdges() << " edges\n";
+	TIntV DegV;
+	TSnap::GetDegSeqV(G, DegV);
+	execTime.Tick();
+	PUNGraph Conf = TSnap::GenConfModel(DegV);
+	TFile << "Time of getting configuration model: " <<  execTime.GetTmStr() << endl;
+	cout << "Undirected configuration model: " << Conf->GetNodes() << " nodes, " << Conf->GetEdges() << " edges\n";
+	//PNGraph ConfD = TSnap::ConvertGraph<PNGraph>(Conf);
+	//SaveAndPlot(ConfD, "conf", false);
+	//TFile << "Clustering coefficient of configuration model: " << TSnap::GetClustCf(ConfD) << endl;
+	//TSnap::PlotClustCf(ConfD,"conf");
 }
 
 // read or get random mtx
@@ -301,6 +313,8 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 	const TStr OutFnm = Env.GetIfArgPrefixStr("-o:", "kronGen.txt", "Output file name (default: krongen.txt)");
 	// output file name
 	const TStr ScaleMtx = Env.GetIfArgPrefixStr("-scalemtx:", "true", "Scale init matrix to match number of edges");
+	// output file name
+	const TStr IsDir = Env.GetIfArgPrefixStr("-isdir:", "false", "Produce directed graph (true, false)");
 	// restrictions to in- and out- degrees count for 1 vertex
 	const TInt InMin = Env.GetIfArgPrefixInt("-inmin:", numeric_limits<int>::lowest(), "In-degree minimum");
 	const TInt InMax = Env.GetIfArgPrefixInt("-inmax:", INT_MAX, "In-degree maximum");
@@ -329,6 +343,8 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 		int Edges = FitMtx.GetEdges(NIter);
 		if (InDegR.Val1 * Nodes > Edges || OutDegR.Val1 * Nodes > Edges || InDegR.Val2 < InDegR.Val1 || OutDegR.Val2 < OutDegR.Val1) 
 			throw exception("FastKronecker() exception. Constraints do not match to the number of edges");
+		if (IsDir == "false" && (InDegR.Val1 != OutDegR.Val1 || InDegR.Val2 != OutDegR.Val2))
+			throw exception("FastKronecker() exception. InDegR and OutDegR should be the same for undirected graph");
 	}
 	catch (const exception e) {
 		cerr << e.what() << endl;
@@ -338,12 +354,12 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 
 	for (int i = 0; i < NKron; i++){
 		execTime.Tick();
-		KroneckerGen(NIter, FitMtx, kron, OutFnm, InDegR, OutDegR);
+		KroneckerGen(NIter, FitMtx, kron, OutFnm, InDegR, OutDegR, IsDir);
 		sec += execTime.GetSecs();
 		printf("Nodes count: %d, nodes with non-zero degree: %d\n", kron->GetNodes(), TSnap::CntNonZNodes(kron));
 		if (i == NKron - 1){
-			TFile << "Clustering coefficient: " << TSnap::GetClustCf(kron) << endl;
-			TSnap::PlotClustCf(kron,"kronSingle");
+			/*TFile << "Clustering coefficient: " << TSnap::GetClustCf(kron) << endl;
+			TSnap::PlotClustCf(kron,"kronSingle");*/
 			TSnap::PlotHops(kron, "kronSingle");
 		}
 		AddDegreesStat(inDegAvgKronM, samplesIn, kron, true);
@@ -397,8 +413,8 @@ void GetGraphs(vector <TStr>& parameters, vector<TFltPrV>& distrIn, vector<TFltP
 		TSnap::GetOutDegCnt(G, mDegOut);
 		distrIn.push_back(mDegIn); distrOut.push_back(mDegOut); names.Add(name + "Sparse");
 		TExeTm execTime;
-		TFile << "Clustering coefficient: " << TSnap::GetClustCf(G) << endl;
-		TSnap::PlotClustCf(G, name);
+		//TFile << "Clustering coefficient: " << TSnap::GetClustCf(G) << endl;
+		//TSnap::PlotClustCf(G, name);
 		TSnap::PlotHops(G, name);
 		TFile << "Time of calculating the metrics: " << execTime.GetTmStr() << endl;
 	}
@@ -419,13 +435,13 @@ void GetGraphs(vector <TStr>& parameters, vector<TFltPrV>& distrIn, vector<TFltP
 		if ( PType == "exp" || PType == "all"){
 			distrIn.push_back(inDegAvgKron); distrOut.push_back(outDegAvgKron); names.Add("kron" + name + "Sparse");
 		}
-		PNGraph  K;
-		TExeTm execTime;
-		GetGraphFromAvgDistr(inDegAvgKron, K);
+		//PNGraph  K;
+		//TExeTm execTime;
+		//GetGraphFromAvgDistr(inDegAvgKron, K);
 		//TFile << "Clustering coefficient: " << TSnap::GetClustCf(K) << endl;
 		//TSnap::PlotClustCf(K, "kron" + name);
 		//TSnap::PlotHops(K, "kron" + name);
-		TFile << "Time of calculating the metrics: " << execTime.GetTmStr() << endl;
+		//TFile << "Time of calculating the metrics: " << execTime.GetTmStr() << endl;
 	}
 	
 	

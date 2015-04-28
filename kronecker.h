@@ -87,10 +87,11 @@ public:
   static int GetKronIter(const int& GNodes, const int& SeedMtxSz);
   // from the seed matrix
   static PNGraph GenKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& Seed=0);
-  static PNGraph GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& Seed, const TIntPr& InDegR, const TIntPr& OutDegR);
+  static PNGraph GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& Seed, const TIntPr& InDegR, const TIntPr& OutDegR, PNGraph& Graph);
   static int AddEdges(const TKronMtx& SeedMtx, const int&NIter, const bool& IsDir, TRnd& Rnd, PNGraph& G, const int& NEdges, const int&InDegMax, const int& OutDegMax);
-  static int AddFirst(bool OutFirst, const TIntPr& InDegR, const TIntPr& OutDegR, PNGraph& G, const TKronMtx& SeedMtx, const int&NIter, bool IsDir, TRnd&Rnd);
-  static int AddSecond(bool OutFirst, const TIntPr& InDegR, const TIntPr& OutDegR, PNGraph& G, const TKronMtx& SeedMtx, const int&NIter, bool IsDir, TRnd&Rnd);
+  static int AddFirstDir(bool OutFirst, const TIntPr& InDegR, const TIntPr& OutDegR, PNGraph& G, const TKronMtx& SeedMtx, const int&NIter, TRnd&Rnd);
+  static int AddSecondDir(bool OutFirst, const TIntPr& InDegR, const TIntPr& OutDegR, PNGraph& G, const TKronMtx& SeedMtx, const int&NIter, TRnd&Rnd);
+  static int AddUnDir(const TIntPr& DegR, PNGraph& G, const TKronMtx& SeedMtx, const int& NIter, TRnd& Rnd);
   static void GetRowProbCumV(const TKronMtx& Mtx, TVec<TVec<TFltIntIntTr>>& RowProbCumV);
   static PNGraph GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& Seed=0);
   static PNGraph GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, const int& Edges, const bool& IsDir, const int& Seed=0);
