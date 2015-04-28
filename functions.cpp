@@ -344,6 +344,7 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 		if (i == NKron - 1){
 			TFile << "Clustering coefficient: " << TSnap::GetClustCf(kron) << endl;
 			TSnap::PlotClustCf(kron,"kronSingle");
+			TSnap::PlotHops(kron, "kronSingle");
 		}
 		AddDegreesStat(inDegAvgKronM, samplesIn, kron, true);
 		AddDegreesStat(outDegAvgKronM, samplesOut, kron, false);
@@ -421,9 +422,9 @@ void GetGraphs(vector <TStr>& parameters, vector<TFltPrV>& distrIn, vector<TFltP
 		PNGraph  K;
 		TExeTm execTime;
 		GetGraphFromAvgDistr(inDegAvgKron, K);
-		TFile << "Clustering coefficient: " << TSnap::GetClustCf(K) << endl;
-		TSnap::PlotClustCf(K, "kron" + name);
-		TSnap::PlotHops(K, "kron" + name);
+		//TFile << "Clustering coefficient: " << TSnap::GetClustCf(K) << endl;
+		//TSnap::PlotClustCf(K, "kron" + name);
+		//TSnap::PlotHops(K, "kron" + name);
 		TFile << "Time of calculating the metrics: " << execTime.GetTmStr() << endl;
 	}
 	
@@ -483,7 +484,7 @@ void KroneckerByConf(vector<TStr> commandLineArgs){
 		GetGraphs(parameters, distrIn, distrOut, names, MSGen, MSPlt);
 	}
 
-	system("pause");
+	//system("pause");
 	PlotSparse(distrIn, names, true, Plt, BinRadix);
 	PlotSparse(distrOut, names, false, Plt, BinRadix);
 
