@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "kronecker.h"
+#include <queue>
 
 void PrintDeg(const TFltPrV& distr, const TStr& OutFNm){
 	FILE *F = stdout;
@@ -406,7 +407,7 @@ int TKronMtx::AddEdges(const TKronMtx& SeedMtx, const int&NIter, const bool& IsD
 				}
 			}
 			else { Collision++; }
-		} else { Collision++; }
+		} else { Collision++; } //printf("(%d %d) collision\n", Row, Col);
 		//if (edges % 1000 == 0) printf("\r...%dk", edges/1000);
 	}
 	std::string s = "Edges added=" + std::to_string((long long)edges) +", edges to add=" + std::to_string((long long)NEdges) + "\n";
@@ -545,6 +546,33 @@ int TKronMtx::AddSecondDir(bool IsOut, const TIntPr& InDegR, const TIntPr& OutDe
 	return Collision;
 }
 
+void GetRndEdge(const TKronMtx& SeedMtx, const int& NIter, TRnd& Rnd, int& Row, int& Col){
+	const TKronMtx& SeedGraph = SeedMtx;
+	const int MtxDim = SeedGraph.GetDim();
+	const double MtxSum = SeedGraph.GetMtxSum();
+	const int NNodes = SeedGraph.GetNodes(NIter);
+	double CumProb = 0.0;
+	TVec<TFltIntIntTr> ProbToRCPosV; // row, col position
+	for (int r = 0; r < MtxDim; r++) {
+		for (int c = 0; c < MtxDim; c++) {
+			const double Prob = SeedGraph.At(r, c);
+			if (Prob > 0.0) {
+				CumProb += Prob;
+				ProbToRCPosV.Add(TFltIntIntTr(CumProb/MtxSum, r, c));
+			}
+		}
+	}
+	int Rng=NNodes;  Row=0;  Col=0; int n = 0;
+	for (int iter = 0; iter < NIter; iter++) {
+		const double& Prob = Rnd.GetUniDev();
+		n = 0; while(Prob > ProbToRCPosV[n].Val1) { n++; }
+		const int MtxRow = ProbToRCPosV[n].Val2;
+		const int MtxCol = ProbToRCPosV[n].Val3;
+		Rng /= MtxDim;
+		Row += MtxRow * Rng;
+		Col += MtxCol * Rng;
+	}
+}
 
 int TKronMtx::AddFirstDir(bool IsOut, const TIntPr& InDegR, const TIntPr& OutDegR, PNGraph& G, const TKronMtx& SeedMtx, const int&NIter, TRnd&Rnd){
 	int Collision = 0;
@@ -570,27 +598,45 @@ int TKronMtx::AddFirstDir(bool IsOut, const TIntPr& InDegR, const TIntPr& OutDeg
 	DegCount[0] = DegToCheck * NNodes;
 
 	int EdgesAdded = 0;
+	int Row = 0, Col = 0;
+	GetRndEdge(Mtx, NIter, Rnd, Row, Col);
+	std::queue<int> Q;
+	Q.push(Row);
+	int Collision1 = 0, Collision2 = 0;
 
-	for (int i = 0; i < EdgesToAdd; i++){
-		for (int j = 0; j < NNodes; j++){
-			int Row = j;
-			int Col = GetCol(RowProbCumV, Row, NIter, Rnd);
-			if (!IsOut) {TInt Add = Row; Row = Col; Col = Add;}
-			if (Row != Col && !G->IsEdge(Row, Col)){
-				int InDeg = G->GetNI(Col).GetInDeg(), OutDeg = G->GetNI(Row).GetOutDeg();
-				if (InDeg + 1 > InMax || OutDeg + 1 > OutMax) {Collision++; j--; continue;}
-				// check for non-violation of EdgesToCheck
-				int DegAdded = IsOut ? OutDeg : InDeg;
-				if (CheckEdges(DegCount, S, DegAdded, DegToCheck, NEdges - EdgesAdded)){
-					G->AddEdge(Row,Col);
-					EdgesAdded++;
+	while (EdgesAdded < EdgesToAdd * NNodes){
+		for (int i = 0; i < EdgesToAdd; i++){
+		//	for (int j = 0; j < NNodes; j++){
+				//int Row = j;
+				Row = Q.front(); 
+				Col = GetCol(RowProbCumV, Row, NIter, Rnd);
+				if (!IsOut) {TInt Add = Row; Row = Col; Col = Add; }
+				if (Row != Col && !G->IsEdge(Row, Col)){
+					int InDeg = G->GetNI(Col).GetInDeg(), OutDeg = G->GetNI(Row).GetOutDeg();
+					if (InDeg + 1 > InMax || OutDeg + 1 > OutMax) {Collision++; i--; continue;}
+					// check for non-violation of EdgesToCheck
+					int DegAdded = IsOut ? OutDeg : InDeg;
+					printf("(%d, %d)\n", Row, Col);
+					if (CheckEdges(DegCount, S, DegAdded, DegToCheck, NEdges - EdgesAdded)){
+						if (G->GetNI(Row).GetInDeg() == 0){
+							Q.pop(); Q.push(Row); 
+						}
+						else {
+							while (G->GetNI(Row).GetInDeg() != 0)
+								GetRndEdge(Mtx, NIter, Rnd, Row, Col);
+							Q.pop(); Q.push(Row);
+						}
+						G->AddEdge(Row,Col);
+						EdgesAdded++;
+						printf("Edges added: %d\n", EdgesAdded);
+					}
+					else {Collision++; i--; Collision1++;}
 				}
-				else {Collision++; j--;}
-			}
-			else {Collision++; j--;}
+				else {Collision++; i--; Collision2++;}
 		}
 	}
 	printf("Collisions (AddFirstDir): %d\n", Collision);
+	printf("Collision1 : %d, Collision2: %d\n", Collision1, Collision2);
 	std::string s = "Edges added=" + std::to_string((long long)EdgesAdded) +", edges to add=" + std::to_string((long long)EdgesToAdd * NNodes) + "\n";
 	printf("%s",s.c_str());
 	
@@ -637,6 +683,7 @@ int TKronMtx::AddUnDir(const TIntPr& DegR, PNGraph& G, const TKronMtx& SeedMtx, 
 			}
 			else {Collision++; j--;}
 		}
+		
 	}
 	std::string s = "Edges added=" + std::to_string((long long)EdgesAdded) +", edges to add=" + std::to_string((long long)2 * DegMin * NNodes) + "\n";
 	printf("%s",s.c_str());
@@ -679,9 +726,10 @@ PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, co
 	const int Least = NEdges - Graph->GetEdges();
 	Collisions += AddEdges(SeedMtx, NIter, IsDir, Rnd, Graph, Least, InDegR.Val2, OutDegR.Val2);
 	printf("             collisions: %d (%.4f)\n", Collisions, Collisions/(double)Graph->GetEdges());
-	//system("pause");
+	system("pause");
 	return Graph;
 }
+
 
 // use RMat like recursive descent to quickly generate a Kronecker graph
 PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& Seed) {
@@ -708,6 +756,8 @@ PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, co
       }
     }
   }
+  /*TVec<TVec<TFltIntIntTr>> RowProbCumV;
+  GetRowProbCumV(SeedMtx, RowProbCumV);*/
   // add nodes
   for (int i = 0; i < NNodes; i++) {
     Graph->AddNode(i); }
@@ -724,6 +774,10 @@ PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, co
       Row += MtxRow * Rng;
       Col += MtxCol * Rng;
     }
+	/*while (Graph->IsEdge(Row, Col)){
+		Col = GetCol(RowProbCumV,Row,NIter,Rnd);
+		printf("Row = %d, Col = %d\n", Row, Col);
+	}*/
     if (! Graph->IsEdge(Row, Col)) { // allow self-loops
       Graph->AddEdge(Row, Col);  edges++;
       if (! IsDir) {
@@ -735,7 +789,7 @@ PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, co
   }
   //printf("             %d edges [%s]\n", Graph->GetEdges(), ExeTm.GetTmStr());
   printf("             collisions: %d (%.4f)\n", Collision, Collision/(double)Graph->GetEdges());
-
+  system("pause");
   return Graph;
 }
 

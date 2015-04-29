@@ -361,6 +361,7 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 			/*TFile << "Clustering coefficient: " << TSnap::GetClustCf(kron) << endl;
 			TSnap::PlotClustCf(kron,"kronSingle");*/
 			TSnap::PlotHops(kron, "kronSingle");
+			TSnap::SavePajek(kron, "kron_pajek.net");
 		}
 		AddDegreesStat(inDegAvgKronM, samplesIn, kron, true);
 		AddDegreesStat(outDegAvgKronM, samplesOut, kron, false);
@@ -405,6 +406,7 @@ void GetGraphs(vector <TStr>& parameters, vector<TFltPrV>& distrIn, vector<TFltP
 	const TStr& PType = parameters[PTYPE];
 
 	GetModel(parameters[GRAPHGEN], G, name, parameters[PLT]);
+	TSnap::SavePajek(G, "model_pajek.net");
 
 	if ( PType == "exp" || PType == "all" )
 	{
