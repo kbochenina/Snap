@@ -82,7 +82,10 @@ void TKronMtx::SetForEdges(const int& Nodes, const int& Edges) {
   const double Factor = EZero / GetMtxSum();
   for (int i = 0; i < Len(); i++) {
     At(i) *= Factor;
-    if (At(i) > 1) { At(i) = 1; }
+    if (At(i) > 1)
+    {
+	    At(i) = 1;
+    }
   }
 }
 
@@ -514,12 +517,14 @@ int TKronMtx::AddSecondDir(bool IsOut, const TIntPr& InDegR, const TIntPr& OutDe
 	
 	TInt EdgesToAdd = IsOut ? OutMin : InMin;
 	
-	int EdgesAdded = 0;
+	int EdgesAdded = 0; //int Rows = 0;
 
 	for (int i = 0; i < NNodes; i++){
 		int Row = i;
 		int Deg = IsOut? G->GetNI(Row).GetOutDeg(): G->GetNI(Row).GetInDeg();
+		//if (Deg > 2) printf("Deg > 2: %d\n", Deg);
 		if (Deg >= EdgesToAdd) continue;
+		//Rows++;
 		//printf("\nRow %d Deg %d", Row, Deg);
 		for (int j = 0; j < EdgesToAdd - Deg; j++){
 			Row = i;
@@ -538,6 +543,7 @@ int TKronMtx::AddSecondDir(bool IsOut, const TIntPr& InDegR, const TIntPr& OutDe
 		}
 
 	}
+	//printf("Rows: %d\n", Rows);
 	std::string s = "Edges added=" + std::to_string((long long)EdgesAdded) +", edges to add=" + std::to_string((long long)EdgesToAdd * NNodes) + "\n";
 	printf("%s",s.c_str());
 	printf("Collisions (AddSecondDir): %d\n", Collision);
@@ -560,10 +566,10 @@ int TKronMtx::AddFirstDir(bool IsOut, const TIntPr& InDegR, const TIntPr& OutDeg
 	TIntV DegCount;
 	TInt S, EdgesToAdd, DegToCheck;
 	if (IsOut){
-		S = NEdges * InMin; EdgesToAdd = OutMin; DegToCheck = InMin; 
+		S = NNodes * InMin; EdgesToAdd = OutMin; DegToCheck = InMin; 
 	}
 	else {
-		S = NEdges * OutMin; EdgesToAdd = InMin; DegToCheck = OutMin;
+		S = NNodes * OutMin; EdgesToAdd = InMin; DegToCheck = OutMin;
 	}
 	for (int i = 0; i < DegToCheck; i++)
 		DegCount.Add(0);
@@ -571,18 +577,28 @@ int TKronMtx::AddFirstDir(bool IsOut, const TIntPr& InDegR, const TIntPr& OutDeg
 
 	int EdgesAdded = 0;
 
+	TIntV vec;
+	for (int i = 0; i < G->GetNodes(); i++)
+		vec.Add(G->GetNodes() - i - 1);
+
 	for (int i = 0; i < EdgesToAdd; i++){
 		for (int j = 0; j < NNodes; j++){
-			int Row = j;
+			int Row = vec[j];
 			int Col = GetCol(RowProbCumV, Row, NIter, Rnd);
 			if (!IsOut) {TInt Add = Row; Row = Col; Col = Add;}
 			if (Row != Col && !G->IsEdge(Row, Col)){
 				int InDeg = G->GetNI(Col).GetInDeg(), OutDeg = G->GetNI(Row).GetOutDeg();
 				if (InDeg + 1 > InMax || OutDeg + 1 > OutMax) {Collision++; j--; continue;}
 				// check for non-violation of EdgesToCheck
-				int DegAdded = IsOut ? OutDeg : InDeg;
+				int DegAdded = IsOut ? InDeg : OutDeg;
+				
+				/*printf("Least edges %d, S %d\n", NEdges - EdgesAdded, S.Val);
+				if (NEdges - EdgesAdded < S.Val)
+					printf("error\n");*/
+				//printf("DegAdded: %d, DegToCheck: %d\n", DegAdded, DegToCheck.Val);
 				if (CheckEdges(DegCount, S, DegAdded, DegToCheck, NEdges - EdgesAdded)){
 					G->AddEdge(Row,Col);
+					if (InDeg > 2) printf("InDeg > 2: %d\n", InDeg);
 					EdgesAdded++;
 				}
 				else {Collision++; j--;}
@@ -593,7 +609,9 @@ int TKronMtx::AddFirstDir(bool IsOut, const TIntPr& InDegR, const TIntPr& OutDeg
 	printf("Collisions (AddFirstDir): %d\n", Collision);
 	std::string s = "Edges added=" + std::to_string((long long)EdgesAdded) +", edges to add=" + std::to_string((long long)EdgesToAdd * NNodes) + "\n";
 	printf("%s",s.c_str());
-	
+	TSnap::PlotHops(G, "AddFirstHops.tab");
+	/*for (int i = 0; i < G->GetNodes(); i++)
+		printf("Node %d: InDeg %d, OutDeg %d\n", i, G->GetNI(i).GetInDeg(),G->GetNI(i).GetOutDeg());*/
 	//PrintDeg(G, "AddFirst");
 
 	try {
@@ -602,7 +620,7 @@ int TKronMtx::AddFirstDir(bool IsOut, const TIntPr& InDegR, const TIntPr& OutDeg
 		}
 	}
 	catch (const TStr& ex){
-		printf("%s\n", ex);
+		printf("%s\n", ex.CStr());
 		system("pause");
 		exit(0);
 	}
@@ -617,33 +635,41 @@ int TKronMtx::AddUnDir(const TIntPr& DegR, PNGraph& G, const TKronMtx& SeedMtx, 
 	const TInt& DegMin = DegR.Val1, & DegMax = DegR.Val2;
 	TKronMtx Mtx(SeedMtx);
 	// get row prob accum vectors
-	TVec<TVec<TFltIntIntTr>> RowProbCumV;
-	GetRowProbCumV(Mtx, RowProbCumV);
+	TVec<TVec<TFltIntIntTr>> RowProbCumV, ColProbCumV;
+	GetRowProbCumV(Mtx, RowProbCumV); Transpose(Mtx); GetRowProbCumV(Mtx, ColProbCumV);
 	int EdgesAdded = 0;
 
-	for (int i = 0; i < DegMin; i++){
-		for (int j = 0; j < NNodes; j++){
-			int Row = j;
+	for (int i = 0; i < NNodes; i++){
+		int Row = i;
+		int InDeg = G->GetNI(Row).GetInDeg(), OutDeg = G->GetNI(Row).GetOutDeg();
+		//printf("InDeg %d OutDeg %d\n", InDeg, OutDeg);
+		if (InDeg >= DegMin || OutDeg >= DegMin) continue;
+		for (int j = 0; j < DegMin-OutDeg; j++){	
+			//printf("Collision %d\ edges added %d \n", Collision, EdgesAdded);
 			int Col = GetCol(RowProbCumV, Row, NIter, Rnd);
 			if (Row != Col && !G->IsEdge(Row, Col)){
-				int InDeg = G->GetNI(Col).GetInDeg(), OutDeg = G->GetNI(Row).GetOutDeg();
-				if (InDeg + 1 > DegMax || OutDeg + 1 > DegMax) {Collision++; j--; continue;}
-				InDeg = G->GetNI(Row).GetInDeg(); OutDeg = G->GetNI(Col).GetOutDeg();
-				if (InDeg + 1 > DegMax || OutDeg + 1 > DegMax) {Collision++; j--; continue;}
+				int InDegCol = G->GetNI(Col).GetInDeg(), OutDegCol = G->GetNI(Col).GetOutDeg();
+				if (InDegCol + 1 > DegMax || OutDegCol + 1 > DegMax) {Collision++;  j--; continue;}
 				G->AddEdge(Row,Col);
+				//printf("(%d %d)\t", Row, Col);
 				EdgesAdded++;
 				G->AddEdge(Col, Row);
+				//printf("(%d %d)\t", Col, Row);
 				EdgesAdded++;
 			}
-			else {Collision++; j--;}
+			else {Collision++; j--;}//printf("Collision1\n"); }	
 		}
+		
+		InDeg = G->GetNI(Row).GetInDeg(); OutDeg = G->GetNI(Row).GetOutDeg();
+		//printf("After InDeg %d OutDeg %d\n", InDeg, OutDeg);
+		//if (i % 49 == 0) system("pause");
 	}
 	std::string s = "Edges added=" + std::to_string((long long)EdgesAdded) +", edges to add=" + std::to_string((long long)2 * DegMin * NNodes) + "\n";
 	printf("%s",s.c_str());
 
 	//PrintDeg(G, "AddFirst");
 
-	try {
+	/*try {
 		if (EdgesAdded != 2 * DegMin * NNodes){
 			throw "AddUnDir() error. Edges added=" + std::to_string((long long)EdgesAdded) +", edges to add=" + std::to_string((long long)2 * DegMin * NNodes) + "\n";
 		}
@@ -652,7 +678,7 @@ int TKronMtx::AddUnDir(const TIntPr& DegR, PNGraph& G, const TKronMtx& SeedMtx, 
 		printf("%s\n", ex);
 		system("pause");
 		exit(0);
-	}
+	}*/
 
 	return Collision;
 }
@@ -666,7 +692,7 @@ PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, co
 	for (int i = 0; i < NNodes; i++) {
 		Graph->AddNode(i); }
 	const TInt& InMin = InDegR.Val1, & OutMin = OutDegR.Val1;
-	bool IsOut = InMin < OutMin ? false : true;
+	bool IsOut = InMin < OutMin ? true : false;
 	IsOut = false;
 	TRnd Rnd(Seed);
 	int Collisions = 0;
