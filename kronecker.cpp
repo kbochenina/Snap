@@ -702,6 +702,7 @@ PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, co
 	}
 	else 
 		Collisions += AddUnDir(InDegR, Graph, SeedMtx, NIter, Rnd);
+	//const int Least = NEdges - Graph->GetEdges();
 	const int Least = NEdges - Graph->GetEdges();
 	Collisions += AddEdges(SeedMtx, NIter, IsDir, Rnd, Graph, Least, InDegR.Val2, OutDegR.Val2);
 	printf("             collisions: %d (%.4f)\n", Collisions, Collisions/(double)Graph->GetEdges());

@@ -335,9 +335,11 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 		for (int i = 0; i < DegSeq.Len(); i++)
 			/*expectedEdges += DegSeq[i] * k; */
 		DegAcc[DegSeq[i]]++;
-		for (auto it = DegAcc.begin(); it != DegAcc.end(); it++)
-			expectedEdges += it->first * it->second *  k;
-		expectedEdges /= 2;
+		//for (auto it = DegAcc.begin(); it != DegAcc.end(); it++)
+		//	expectedEdges += it->first * it->second *  k;
+		//	//expectedEdges += it->first * it->second *  k * k;
+		//expectedEdges /= 2;
+		expectedEdges = modelNodes * 2 * k -  1;
 	}
 	else 
 		expectedEdges = modelEdges;

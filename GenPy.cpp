@@ -35,6 +35,9 @@ void AddFuncInfo()
 	funcInfo["newman_watts_strogatz_graph"] = make_tuple(createTStrV("n k p seed"), createTStrV("int int double int"), 3, createTStrV("1024 2 0.3 0"));
 	funcInfo["powerlaw_cluster_graph"] = make_tuple(createTStrV("n m p seed"), createTStrV("int int double int"), 3, createTStrV("1024 3 0.2 0"));
 	funcInfo["random_lobster"] = make_tuple(createTStrV("n p1 p2 seed"), createTStrV("int double double int"), 3, createTStrV("1024 0.1 0.1 0"));
+	funcInfo["path_graph"] = make_tuple(createTStrV("n"), createTStrV("int"), 1, createTStrV("1024"));
+	//funcInfo["grid_2d_graph"] = make_tuple(createTStrV("n m"), createTStrV("int int"), 2, createTStrV("1024 1024"));
+	//funcInfo["grid_graph"] = make_tuple(createTStrV("n"), createTStrV("int"), 1, createTStrV("1024"));
 }
 
 
