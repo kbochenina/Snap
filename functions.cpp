@@ -108,13 +108,16 @@ int InitKronecker(const TStr args, PNGraph &GD, TKronMtx& FitMtx){
 	// load graph
 	cout << "n0 = " << NZero << endl;
 	// fit
+	FILE *F = fopen(OutFNm.CStr(), "w");
 	TKronMtx InitKronMtx = InitMtx=="r" ? TKronMtx::GetRndMtx(NZero, 0.1) : TKronMtx::GetMtx(InitMtx);
 	InitKronMtx.Dump("INIT PARAM", true);
 	TKroneckerLL KronLL(GD, InitKronMtx, PermSwapNodeProb);
+	fprintf(F, "INIT PARAM\t%s, MTX SUM %f\n", InitKronMtx.GetMtxStr().CStr(), InitKronMtx.GetMtxSum());
 	if (ScaleInitMtx) {
 		InitKronMtx.SetForEdges(GD->GetNodes(), GD->GetEdges()); }
 	KronLL.InitLL(GD, InitKronMtx);
 	InitKronMtx.Dump("SCALED PARAM", true);
+	fprintf(F, "SCALED PARAM\t%s, MTX SUM %f\n", InitKronMtx.GetMtxStr().CStr(), InitKronMtx.GetMtxSum());
 	KronLL.SetPerm(Perm.GetCh(0));
 	double LogLike = 0;
 	//if (GradType == 1) {
@@ -124,7 +127,7 @@ int InitKronecker(const TStr args, PNGraph &GD, TKronMtx& FitMtx){
 	//else{ Fail; }
 	//const TKronMtx& FitMtx = KronLL.GetProbMtx();
 	FitMtx = KronLL.GetProbMtx();
-	FILE *F = fopen(OutFNm.CStr(), "w");
+
 //	fprintf(F, "Input\t%s\n", InFNm.CStr());
 	TStrV ParamV; Env.GetCmLn().SplitOnAllCh(' ', ParamV);
 	fprintf(F, "Command line options\n");
@@ -133,7 +136,10 @@ int InitKronecker(const TStr args, PNGraph &GD, TKronMtx& FitMtx){
 	fprintf(F, "Loglikelihood\t%10.2f\n", LogLike);
 	fprintf(F, "Absolute error (based on expected number of edges)\t%f\n", KronLL.GetAbsErr());
 	fprintf(F, "RunTime\t%g\n", ExeTm.GetSecs());
-	fprintf(F, "Estimated initiator\t%s\n", FitMtx.GetMtxStr().CStr());
+	fprintf(F, "Estimated initiator\t%s, mtx sum %f\n", FitMtx.GetMtxStr().CStr(), FitMtx.GetMtxSum());
+	if (ScaleInitMtx) {
+		FitMtx.SetForEdges(GD->GetNodes(), GD->GetEdges()); }
+	fprintf(F, "Scaled initiator\t%s, mtx sum %f\n", FitMtx.GetMtxStr().CStr(), FitMtx.GetMtxSum());
 	fclose(F);
 
 	Catch
@@ -153,7 +159,7 @@ void RemoveZeroDegreeNodes(PNGraph& out){
 	}
 }
 
-int KroneckerGen(const TInt NIter, const TKronMtx& FitMtx, PNGraph& out, const TStr& OutFNm, const TIntPr& InDegR, const TIntPr& OutDegR, const TStr& IsDir){
+int KroneckerGen(const TInt NIter, const TKronMtx& FitMtx, PNGraph& out, const TStr& OutFNm, const TIntPr& InDegR, const TIntPr& OutDegR, const TStr& IsDir, double ModelClustCf){
 	Env.PrepArgs(TStr::Fmt("Kronecker graphs. build: %s, %s. Time: %s", __TIME__, __DATE__, TExeTm::GetCurTm()));
 	TExeTm ExeTm;
 	Try
@@ -164,12 +170,14 @@ int KroneckerGen(const TInt NIter, const TKronMtx& FitMtx, PNGraph& out, const T
 	// slow but exact O(n^2) algorightm
 	//PNGraph Graph = TKronMtx::GenKronecker(SeedMtx, NIter, true, Seed); 
 	// fast O(e) approximate algorithm
+	// if we need to save clustering coefficient
+	bool Dir = IsDir == "true" ? true: false;
+	ModelClustCf = 0;
 	// if we don't have constraints on degrees, run basic algorithm
 	if (InDegR.Val1 == numeric_limits<int>::lowest() && InDegR.Val2 == INT_MAX && OutDegR.Val1 == numeric_limits<int>::lowest() && INT_MAX)
-		out = TKronMtx::GenFastKronecker(SeedMtx, NIter, true, 0);
+		out = TKronMtx::GenFastKronecker(SeedMtx, NIter, true, 0, ModelClustCf);
 	else {
-		bool Dir = IsDir == "true" ? true: false;
-		TKronMtx::GenFastKronecker(SeedMtx, NIter, Dir, 0, InDegR, OutDegR, out);
+		TKronMtx::GenFastKronecker(SeedMtx, NIter, Dir, 0, InDegR, OutDegR, out, ModelClustCf);
 	}
 
 	//RemoveZeroDegreeNodes(out);
@@ -299,7 +307,16 @@ bool GetMtx(const TStr& MtxArgs, TKronMtx& FitMtxModel){
 	return true;
 }
 
-void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV& outDegAvgKronM, const PNGraph& G){
+int GetMaxDeg(const PNGraph& G)
+{
+	TIntPrV DegCnt;
+	TSnap::GetDegCnt(G, DegCnt);
+	// sort in descending order
+	DegCnt.Sort(false);
+	return DegCnt[0].Val1;
+}
+
+void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV& outDegAvgKronM, const PNGraph& G, double ModelClustCf = 0.0){
 	Env = TEnv(args, TNotify::StdNotify);
 	TExeTm execTime;
 	// number of Kronecker graphs to generate
@@ -329,21 +346,24 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 	if (modelNodes != FitMtx.GetNodes(NIter))
 	{
 		printf("FitMtx.GetNodes(NIter): %d\n", FitMtx.GetNodes(NIter));
+		printf("Model edges: %f\n", modelEdges);
+		printf("Matrix edges: %f\n", expectedEdges);
 		TIntV DegSeq; expectedEdges = 0;
 		TSnap::GetDegSeqV(G, DegSeq);
 		double k = expectedNodes / modelNodes;
-		for (int i = 0; i < DegSeq.Len(); i++)
-			/*expectedEdges += DegSeq[i] * k; */
-		DegAcc[DegSeq[i]]++;
-		//for (auto it = DegAcc.begin(); it != DegAcc.end(); it++)
+		for (int i = 0; i < DegSeq.Len(); i++){
+			expectedEdges += DegSeq[i] * k * k; 
+		}
+		// each edge is considered twice for both vertices
+		expectedEdges /= 2;
+		//	DegAcc[DegSeq[i]]++;
+		// for (auto it = DegAcc.begin(); it != DegAcc.end(); it++)
 		//	expectedEdges += it->first * it->second *  k;
-		//	//expectedEdges += it->first * it->second *  k * k;
-		//expectedEdges /= 2;
-		expectedEdges = modelNodes * 2 * k -  1;
+		//	expectedEdges += it->first * it->second *  k * k;
+		//expectedEdges = modelNodes * 2 * k -  1;
 	}
 	else 
 		expectedEdges = modelEdges;
-	printf("%f\n", expectedEdges);
 
 	// Kronecker model of graph
 	PNGraph kron;
@@ -352,16 +372,28 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 	
 	if (ScaleMtx == "true")
 	{
+		int MaxModelDeg = GetMaxDeg(G);
+		cout << "Before " << endl;
+		FitMtx.Dump();
+		double ModelIter = ceil(log10(modelNodes) / log10(static_cast<double>(FitMtx.GetDim())));
+		FitMtx.SetForMaxDeg(MaxModelDeg, ModelIter);
+		//FitMtx.SetForMaxDeg(MaxModelDeg, NIter);
+		cout << "After " << endl;
+		FitMtx.Dump();
+		cout << "After SetForMaxDeg: nodes " << FitMtx.GetNodes(NIter) << " edges " << FitMtx.GetEdges(NIter) << endl;
+
 		cout << "Model nodes " << modelNodes << " model edges " << modelEdges << endl;
 		cout << "Expected nodes " << expectedNodes << " Expected edges " << expectedEdges << endl;
 		cout << "Kron nodes " << FitMtx.GetNodes(NIter) << " kron edges " << FitMtx.GetEdges(NIter) << endl;
 		double KronEdges = 0;
-		while (abs (expectedEdges - KronEdges)  > 0.001 * expectedEdges){
+		//while (abs (expectedEdges - KronEdges)  > 0.001 * expectedEdges){
 			FitMtx.SetForEdges(expectedNodes, expectedEdges);
-			KronEdges = FitMtx.GetEdges(NIter);
+		//	KronEdges = FitMtx.GetEdges(NIter);
 			//cout << "Scaled nodes " << FitMtx.GetNodes(NIter) << " scaled edges " << FitMtx.GetEdges(NIter) << endl;
-		}
+		//}
 		cout << "Scaled nodes " << FitMtx.GetNodes(NIter) << " scaled edges " << FitMtx.GetEdges(NIter) << endl;
+		FitMtx.Dump();
+		
 	}
 
 	try {
@@ -380,12 +412,13 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 
 	for (int i = 0; i < NKron; i++){
 		execTime.Tick();
-		KroneckerGen(NIter, FitMtx, kron, OutFnm, InDegR, OutDegR, IsDir);
+		KroneckerGen(NIter, FitMtx, kron, OutFnm, InDegR, OutDegR, IsDir, ModelClustCf);
 		sec += execTime.GetSecs();
-		printf("Nodes count: %d, nodes with non-zero degree: %d\n", kron->GetNodes(), TSnap::CntNonZNodes(kron));
+		int maxDeg = GetMaxDeg(kron);
+		printf("Nodes count: %d, nodes with non-zero degree %d, edges count %d\n max deg = %d", kron->GetNodes(), TSnap::CntNonZNodes(kron), kron->GetEdges(), maxDeg);
 		if (i == NKron - 1){
-			/*TFile << "Clustering coefficient: " << TSnap::GetClustCf(kron) << endl;
-			TSnap::PlotClustCf(kron,"kronSingle");*/
+			TFile << "Clustering coefficient: " << TSnap::GetClustCf(kron) << endl;
+			TSnap::PlotClustCf(kron,"kronSingle");
 			TSnap::PlotHops(kron, "kronSingle");
 		}
 		AddDegreesStat(inDegAvgKronM, samplesIn, kron, true);
@@ -432,15 +465,18 @@ void GetGraphs(vector <TStr>& parameters, vector<TFltPrV>& distrIn, vector<TFltP
 
 	GetModel(parameters[GRAPHGEN], G, name, parameters[PLT]);
 
+	double ModelClustCf = 0.0;
+
 	if ( PType == "exp" || PType == "all" )
 	{
 		TFltPrV mDegIn, mDegOut;
 		TSnap::GetInDegCnt(G, mDegIn);
 		TSnap::GetOutDegCnt(G, mDegOut);
 		distrIn.push_back(mDegIn); distrOut.push_back(mDegOut); names.Add(name + "Sparse");
+		ModelClustCf = TSnap::GetClustCf(G);
 		TExeTm execTime;
-		//TFile << "Clustering coefficient: " << TSnap::GetClustCf(G) << endl;
-		//TSnap::PlotClustCf(G, name);
+		TFile << "Clustering coefficient: " << ModelClustCf << endl;
+		TSnap::PlotClustCf(G, name);
 		TSnap::PlotHops(G, name);
 		TFile << "Time of calculating the metrics: " << execTime.GetTmStr() << endl;
 	}
@@ -455,7 +491,7 @@ void GetGraphs(vector <TStr>& parameters, vector<TFltPrV>& distrIn, vector<TFltP
 		// in and out average degree distribution for kronM (non-accumulated)
 		TFltPrV inDegAvgKron, outDegAvgKron;
 		
-		GenKron(parameters[KRONGEN], FitMtxM, inDegAvgKron, outDegAvgKron, G);
+		GenKron(parameters[KRONGEN], FitMtxM, inDegAvgKron, outDegAvgKron, G, ModelClustCf);
 		if ( PType == "full" || PType == "all" ){
 		PlotPoints(inDegAvgKron, outDegAvgKron, name, Plt);
 		}

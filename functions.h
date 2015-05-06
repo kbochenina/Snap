@@ -12,7 +12,7 @@ void DefaultSettings(vector<TStr>& out);
 void ReadParameters(TStr settingsFN, vector<TStr>& out);
 int GraphGen(const TStr args, PNGraph &GD);
 int InitKronecker(const TStr args, PNGraph &G, TKronMtx& FitMtx);
-int KroneckerGen(const TStr args, const TKronMtx& FitMtx, PNGraph& out);
+int KroneckerGen(const TStr args, const TKronMtx& FitMtx, PNGraph& out, double ModelClustCf = 0.0);
 void ReadPNGraphFromFile(const TStr args, PNGraph& out);
 int FindVal1Elem(const TIntPrV& vec, const TInt& elem, bool& isExact);
 int FindVal1Elem(const TFltPrV& vec, const TFlt& elem, bool& isExact);

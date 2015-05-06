@@ -44,6 +44,7 @@ public:
   void SetForEdges(const int& Nodes, const int& Edges); // scales the values to allow E edges
   void AddRndNoise(const double& SDev);
   TStr GetMtxStr() const;
+  void SetForMaxDeg(const int& MaxDeg, const int& NIter);
 
   const double& At(const int& Row, const int& Col) const { return SeedMtx[MtxDim*Row+Col].Val; }
   double& At(const int& Row, const int& Col) { return SeedMtx[MtxDim*Row+Col].Val; }
@@ -85,15 +86,16 @@ public:
   PNGraph GenRndGraph(const double& RndFact=1.0) const;
 
   static int GetKronIter(const int& GNodes, const int& SeedMtxSz);
+  static int CheckClustCf(const PNGraph& Graph, int Row, int Col, double ModelClustCf, TRnd& Rnd, const bool& IsDir, int& Collisions);
   // from the seed matrix
   static PNGraph GenKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& Seed=0);
-  static PNGraph GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& Seed, const TIntPr& InDegR, const TIntPr& OutDegR, PNGraph& Graph);
-  static int AddEdges(const TKronMtx& SeedMtx, const int&NIter, const bool& IsDir, TRnd& Rnd, PNGraph& G, const int& NEdges, const int&InDegMax, const int& OutDegMax);
+  static PNGraph GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& Seed, const TIntPr& InDegR, const TIntPr& OutDegR, PNGraph& Graph, double ModelClustCf);
+  static int AddEdges(const TKronMtx& SeedMtx, const int&NIter, const bool& IsDir, TRnd& Rnd, PNGraph& G, const int& NEdges, const int&InDegMax, const int& OutDegMax, double ModelClustCf);
   static int AddFirstDir(bool OutFirst, const TIntPr& InDegR, const TIntPr& OutDegR, PNGraph& G, const TKronMtx& SeedMtx, const int&NIter, TRnd&Rnd);
   static int AddSecondDir(bool OutFirst, const TIntPr& InDegR, const TIntPr& OutDegR, PNGraph& G, const TKronMtx& SeedMtx, const int&NIter, TRnd&Rnd);
-  static int AddUnDir(const TIntPr& DegR, PNGraph& G, const TKronMtx& SeedMtx, const int& NIter, TRnd& Rnd);
+  static int AddUnDir(const TIntPr& DegR, PNGraph& G, const TKronMtx& SeedMtx, const int& NIter, TRnd& Rnd, double ModelClustCf);
   static void GetRowProbCumV(const TKronMtx& Mtx, TVec<TVec<TFltIntIntTr>>& RowProbCumV);
-  static PNGraph GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& Seed=0);
+  static PNGraph GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& Seed=0, double ModelClustCf = 0.0);
   static PNGraph GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, const int& Edges, const bool& IsDir, const int& Seed=0);
   static PNGraph GenDetKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir);
   static void PlotCmpGraphs(const TKronMtx& SeedMtx, const PNGraph& Graph, const TStr& OutFNm, const TStr& Desc);

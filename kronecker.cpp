@@ -89,6 +89,86 @@ void TKronMtx::SetForEdges(const int& Nodes, const int& Edges) {
   }
 }
 
+// works only for 2x2 size matrix!
+void TKronMtx::SetForMaxDeg(const int& MaxDeg, const int& NIter)
+{
+	while (1){
+		double MinMtx = numeric_limits<double>::infinity();
+		int MinI = 0, MinJ = 0;
+		double Sum0 = pow(At(0,0) + At(0,1), NIter) + pow(At(0,0) + At(1,0), NIter),
+			   Sum1 = pow(At(0,0) + At(0,1), NIter) + pow(At(0,1) + At(1,1), NIter),
+			   Sum2 = pow(At(1,0) + At(1,1), NIter) + pow(At(1,0) + At(0,0), NIter),
+			   Sum3 = pow(At(1,0) + At(1,1), NIter) + pow(At(1,1) + At(0,1), NIter);
+		
+		printf("%f %f %f %f\n", Sum0, Sum1, Sum2, Sum3);
+
+		double MaxSum = 0.0;
+
+		if ( Sum0 > Sum1 && Sum0 > Sum2 && Sum0 > Sum3) { MinI = 1; MinJ = 1; MaxSum = Sum0;}
+		if ( Sum1 > Sum0 && Sum1 > Sum2 && Sum1 > Sum3) { MinI = 1; MinJ = 0; MaxSum = Sum1;}
+		if ( Sum2 > Sum0 && Sum2 > Sum1 && Sum2 > Sum3) { MinI = 0; MinJ = 1; MaxSum = Sum2;}
+		if ( Sum3 > Sum0 && Sum3 > Sum1 && Sum3 > Sum2) { MinI = 0; MinJ = 0; MaxSum = Sum3;}
+			
+		//double MaxDegInv = pow(MaxDeg, 1.00 / NIter);
+		double MaxDegInv = MaxDeg / 2;
+	
+		int I = MinI ? 0 : 1, J = MinJ ? 0 : 1;
+		int NI = I, NJ = J ? 0 : 1;
+		int MI = I ? 0 : 1, MJ = J;
+		int CrossI = I ? 0 : 1, CrossJ = J ? 0 : 1;
+	
+		//MaxSum = pow(At(I,J) + At(NI, NJ), NIter) + pow(At(I,J) + At(MI, MJ), NIter);
+
+		printf("%f %f\n", MaxSum, MaxDegInv);
+		if (abs(MaxSum - MaxDegInv) < 0.01) break;
+
+		// in such case we should reduce maximum degree
+		if (MaxSum > MaxDegInv)
+		{
+			double PrevElem = At(I,J);
+			while (pow(At(I,J) + At(NI, NJ), NIter) + pow(At(I,J) + At(MI, MJ), NIter) > MaxDegInv){
+				At(I,J) -= 0.0001;
+				//printf("%f\n", At(I,J));
+				if (At(I,J) < At(J,I))
+					printf("Reverse1\n");
+			}
+			At(CrossI,CrossJ) += PrevElem - At(I,J);
+		}
+		else
+		{
+			double PrevElem = At(I,J);
+			while (pow(At(I,J) + At(NI, NJ), NIter) + pow(At(I,J) + At(MI, MJ), NIter) < MaxDegInv){
+				At(I,J) += 0.0001;
+				if (At(I,J) > At(J,I))
+					printf("Reverse2\n");
+			}
+			At(CrossI,CrossJ) -= At(I,J) - PrevElem;
+		}
+	}
+
+	//printf("%f %f\n", At(0,0), At(1,1));
+
+	//int MaxRowIndex = 0, ColIndex = 0;
+	//double MaxRowSum = 0.0;
+	//for (int i = 0; i < GetDim(); i++) {
+	//	double RowSum = 0.0;
+	//	for (int j = 0; j < GetDim(); j++)
+	//	{
+	//		RowSum += At(i,j);
+	//	}
+	//	if (RowSum > MaxRowSum)
+	//	{
+	//		MaxRowSum = RowSum;
+	//		MaxRowIndex = i;
+	//	}
+	//}
+	//double MaxDegInv = pow(MaxDeg, 1.00 / NIter);
+	//ColIndex = MaxRowIndex ? 0 : 1; double NewA = 0.0;
+	//double Diff = MaxDegInv - MaxRowSum;
+	//At(MaxRowIndex, MaxRowIndex) += Diff;
+	//At(ColIndex, ColIndex) -= Diff;
+}
+
 void TKronMtx::AddRndNoise(const double& SDev) {
   Dump("before");
   double NewVal;
@@ -368,7 +448,7 @@ PNGraph TKronMtx::GenKronecker(const TKronMtx& SeedMtx, const int& NIter, const 
   return Graph;
 }
 
-int TKronMtx::AddEdges(const TKronMtx& SeedMtx, const int&NIter, const bool& IsDir, TRnd& Rnd, PNGraph& G, const int& NEdges, const int&InDegMax, const int& OutDegMax){
+int TKronMtx::AddEdges(const TKronMtx& SeedMtx, const int&NIter, const bool& IsDir, TRnd& Rnd, PNGraph& G, const int& NEdges, const int&InDegMax, const int& OutDegMax, double ModelClustCf){
 	const int MtxDim = SeedMtx.GetDim();
 	const double MtxSum = SeedMtx.GetMtxSum();
 	const int NNodes = SeedMtx.GetNodes(NIter);
@@ -387,7 +467,7 @@ int TKronMtx::AddEdges(const TKronMtx& SeedMtx, const int&NIter, const bool& IsD
 	}
 	
 	// add edges
-	int Rng, Row, Col, Collision=0, n = 0, edges = 0;
+	int Rng, Row, Col, Collision=0, n = 0, edges = 0, ClosedTriads = 0, ClustCollision = 0;
 	for (edges = 0; edges < NEdges; ) {
 		Rng=NNodes;  Row=0;  Col=0;
 		for (int iter = 0; iter < NIter; iter++) {
@@ -399,14 +479,19 @@ int TKronMtx::AddEdges(const TKronMtx& SeedMtx, const int&NIter, const bool& IsD
 			Row += MtxRow * Rng;
 			Col += MtxCol * Rng;
 		}
-		if (! G->IsEdge(Row, Col)) { // allow self-loops
+		if (! G->IsEdge(Row, Col) && Row != Col) { // allow self-loops
 			// check for consistency for maximum degrees
 			if (G->GetNI(Row).GetOutDeg() < OutDegMax && G->GetNI(Col).GetInDeg() < InDegMax){
 				G->AddEdge(Row, Col);  edges++;
 				if (! IsDir) {
-					if (Row != Col) G->AddEdge(Col, Row);
+					G->AddEdge(Col, Row);
 					edges++;
 				}
+				if (CheckClustCf(G, Row, Col, ModelClustCf, Rnd, false, ClustCollision)){
+				  edges++;
+				  edges++;
+				  ClosedTriads++;
+			    }
 			}
 			else { Collision++; }
 		} else { Collision++; }
@@ -414,6 +499,7 @@ int TKronMtx::AddEdges(const TKronMtx& SeedMtx, const int&NIter, const bool& IsD
 	}
 	std::string s = "Edges added=" + std::to_string((long long)edges) +", edges to add=" + std::to_string((long long)NEdges) + "\n";
 	printf("%s",s.c_str());
+	printf("AddEdges: ClosedTriads %d ClustCollision %d\n", ClosedTriads, ClustCollision);
 	//PrintDeg(G, "AddEdges");
 	//printf("             %d edges [%s]\n", Graph->GetEdges(), ExeTm.GetTmStr());
 	return Collision;
@@ -628,7 +714,7 @@ int TKronMtx::AddFirstDir(bool IsOut, const TIntPr& InDegR, const TIntPr& OutDeg
 	return Collision;
 }
 
-int TKronMtx::AddUnDir(const TIntPr& DegR, PNGraph& G, const TKronMtx& SeedMtx, const int& NIter, TRnd& Rnd){
+int TKronMtx::AddUnDir(const TIntPr& DegR, PNGraph& G, const TKronMtx& SeedMtx, const int& NIter, TRnd& Rnd, double ModelClustCf){
 	int Collision = 0;
 	const int NNodes = SeedMtx.GetNodes(NIter);
 	const int NEdges = SeedMtx.GetEdges(NIter);
@@ -637,7 +723,7 @@ int TKronMtx::AddUnDir(const TIntPr& DegR, PNGraph& G, const TKronMtx& SeedMtx, 
 	// get row prob accum vectors
 	TVec<TVec<TFltIntIntTr>> RowProbCumV, ColProbCumV;
 	GetRowProbCumV(Mtx, RowProbCumV); Transpose(Mtx); GetRowProbCumV(Mtx, ColProbCumV);
-	int EdgesAdded = 0;
+	int EdgesAdded = 0, ClustCollision = 0, ClosedTriads = 0;
 
 	for (int i = 0; i < NNodes; i++){
 		int Row = i;
@@ -656,6 +742,11 @@ int TKronMtx::AddUnDir(const TIntPr& DegR, PNGraph& G, const TKronMtx& SeedMtx, 
 				G->AddEdge(Col, Row);
 				//printf("(%d %d)\t", Col, Row);
 				EdgesAdded++;
+				if (CheckClustCf(G, Row, Col, ModelClustCf, Rnd, false, ClustCollision)){
+				  EdgesAdded++;
+				  EdgesAdded++;
+				  ClosedTriads++;
+			    }
 			}
 			else {Collision++; j--;}//printf("Collision1\n"); }	
 		}
@@ -666,7 +757,7 @@ int TKronMtx::AddUnDir(const TIntPr& DegR, PNGraph& G, const TKronMtx& SeedMtx, 
 	}
 	std::string s = "Edges added=" + std::to_string((long long)EdgesAdded) +", edges to add=" + std::to_string((long long)2 * DegMin * NNodes) + "\n";
 	printf("%s",s.c_str());
-
+	printf("AddUnDir: ClosedTriads %d ClustCollision %d\n", ClosedTriads, ClustCollision);
 	//PrintDeg(G, "AddFirst");
 
 	/*try {
@@ -683,7 +774,7 @@ int TKronMtx::AddUnDir(const TIntPr& DegR, PNGraph& G, const TKronMtx& SeedMtx, 
 	return Collision;
 }
 
-PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& Seed, const TIntPr& InDegR, const TIntPr& OutDegR, PNGraph& Graph){
+PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& Seed, const TIntPr& InDegR, const TIntPr& OutDegR, PNGraph& Graph, double ModelClustCf){
 	const int NNodes = SeedMtx.GetNodes(NIter);
 	const int NEdges = SeedMtx.GetEdges(NIter);
 	printf("GenFastKronecker() with restrictions. Nodes %d, edges %d\n", NNodes, NEdges);
@@ -701,17 +792,47 @@ PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, co
 		Collisions += AddSecondDir(!IsOut, InDegR, OutDegR, Graph, SeedMtx, NIter, Rnd);
 	}
 	else 
-		Collisions += AddUnDir(InDegR, Graph, SeedMtx, NIter, Rnd);
+		Collisions += AddUnDir(InDegR, Graph, SeedMtx, NIter, Rnd, ModelClustCf);
 	//const int Least = NEdges - Graph->GetEdges();
 	const int Least = NEdges - Graph->GetEdges();
-	Collisions += AddEdges(SeedMtx, NIter, IsDir, Rnd, Graph, Least, InDegR.Val2, OutDegR.Val2);
+	Collisions += AddEdges(SeedMtx, NIter, IsDir, Rnd, Graph, Least, InDegR.Val2, OutDegR.Val2, ModelClustCf);
 	printf("             collisions: %d (%.4f)\n", Collisions, Collisions/(double)Graph->GetEdges());
 	//system("pause");
 	return Graph;
 }
 
+int TKronMtx::CheckClustCf(const PNGraph& Graph, int Row, int Col, double ModelClustCf, TRnd& Rnd, const bool& IsDir, int& Collision)
+{
+	int NeighboursCount = Graph->GetNI(Row).GetOutDeg();
+	int Triangles = NeighboursCount * (NeighboursCount - 1);
+	if (NeighboursCount  > 1){
+		const double& ProbCF = Rnd.GetUniDev();
+		int NewRow, NewCol;
+		if (ProbCF <= ModelClustCf){
+			/*int NeighID = floor(Rnd.GetUniDev() * NeighboursCount);
+			NewRow = Graph->GetNI(Row).GetNbrNId(NeighID);*/
+			NewRow = Col;
+			int NeighID = floor(Rnd.GetUniDev() * NeighboursCount);
+			NewCol = Graph->GetNI(Row).GetNbrNId(NeighID); 
+			//printf("%d %d\n", NewRow, NewCol);
+			//ClosedTriads++;
+			if (! Graph->IsEdge(NewRow, NewCol) && NewRow != NewCol ){
+				//printf("Row %d col %d newrow %d newcol %d\n", Row, Col, NewRow, NewCol);
+				Graph->AddEdge(NewRow, NewCol);  
+				if (! IsDir) 
+					Graph->AddEdge(NewCol, NewRow);
+				return 1;
+			}
+			else Collision++;
+			return 0;
+		}
+		return 0;
+	}
+	return 0;
+}
+
 // use RMat like recursive descent to quickly generate a Kronecker graph
-PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& Seed) {
+PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& Seed, double ModelClustCf) {
   const TKronMtx& SeedGraph = SeedMtx;
   const int MtxDim = SeedGraph.GetDim();
   const double MtxSum = SeedGraph.GetMtxSum();
@@ -738,6 +859,8 @@ PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, co
   // add nodes
   for (int i = 0; i < NNodes; i++) {
     Graph->AddNode(i); }
+  int ClosedTriads = 0;
+  int ClustCollision = 0;
   // add edges
   int Rng, Row, Col, Collision=0, n = 0;
   for (int edges = 0; edges < NEdges; ) {
@@ -751,18 +874,25 @@ PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, co
       Row += MtxRow * Rng;
       Col += MtxCol * Rng;
     }
-    if (! Graph->IsEdge(Row, Col)) { // allow self-loops
+    if (! Graph->IsEdge(Row, Col) && Row != Col ) { // allow self-loops
       Graph->AddEdge(Row, Col);  edges++;
-      if (! IsDir) {
-        if (Row != Col) Graph->AddEdge(Col, Row);
+	  if (! IsDir) {
+        Graph->AddEdge(Col, Row);
         edges++;
       }
+	  if (CheckClustCf(Graph, Row, Col, ModelClustCf, Rnd, IsDir, ClustCollision)){
+		  edges++;
+		  ClosedTriads++;
+		  if (!IsDir) edges++;
+	  }
+	  
+	  
     } else { Collision++; }
     //if (edges % 1000 == 0) printf("\r...%dk", edges/1000);
   }
   //printf("             %d edges [%s]\n", Graph->GetEdges(), ExeTm.GetTmStr());
   printf("             collisions: %d (%.4f)\n", Collision, Collision/(double)Graph->GetEdges());
-
+  printf("ClosedTriads %d ClustCollision %d\n", ClosedTriads, ClustCollision);
   return Graph;
 }
 
