@@ -45,6 +45,10 @@ public:
   void AddRndNoise(const double& SDev);
   TStr GetMtxStr() const;
   void SetForMaxDeg(const int& MaxDeg, const int& NIter);
+  int GetMaxDeg(const int& NIter);
+  int GetMinMaxPossibleDeg(const int& NIter);
+  void SetForEdgesNoCut(const int& Nodes, const int& Edges);
+  void Normalize();
 
   const double& At(const int& Row, const int& Col) const { return SeedMtx[MtxDim*Row+Col].Val; }
   double& At(const int& Row, const int& Col) { return SeedMtx[MtxDim*Row+Col].Val; }

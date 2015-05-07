@@ -89,6 +89,63 @@ void TKronMtx::SetForEdges(const int& Nodes, const int& Edges) {
   }
 }
 
+// scales parameter values to allow Edges - without cutting
+void TKronMtx::SetForEdgesNoCut(const int& Nodes, const int& Edges) {
+  const int KronIter = GetKronIter(Nodes);
+  const double EZero = pow((double) Edges, 1.0/double(KronIter));
+  const double Factor = EZero / GetMtxSum();
+  for (int i = 0; i < Len(); i++) {
+    At(i) *= Factor;
+   }
+}
+
+int TKronMtx::GetMinMaxPossibleDeg(const int& NIter)
+{
+	double Sum = GetMtxSum();
+	double Val = 2 * pow( Sum / 2, NIter );
+	return ceil(Val);
+}
+
+void TKronMtx::Normalize()
+{
+	double Sum = GetMtxSum();
+	for (int i = 0; i < MtxDim; i++)
+	{
+		for (int j = 0; j < MtxDim; j++)
+		{
+			double &Val = At(i,j);
+			if (Val > 1)
+			{
+				int I1 = i, J1 = j ? 0 : 1, I2 = i ? 0 :  1, J2 = j;
+				double Diff = Val - 1;
+				At(I1, J1) += Diff / 2;
+				At(I2, J2) += Diff / 2;
+				At(i, j) = 1;
+			}
+		}
+	}
+	//if (Sum != GetMtxSum())
+	//	printf("Error while normalizing\n");
+}
+
+int TKronMtx::GetMaxDeg(const int& NIter){
+	int MinI = 0, MinJ = 0;
+	double Sum0 = pow(At(0,0) + At(0,1), NIter) + pow(At(0,0) + At(1,0), NIter),
+			Sum1 = pow(At(0,0) + At(0,1), NIter) + pow(At(0,1) + At(1,1), NIter),
+			Sum2 = pow(At(1,0) + At(1,1), NIter) + pow(At(1,0) + At(0,0), NIter),
+			Sum3 = pow(At(1,0) + At(1,1), NIter) + pow(At(1,1) + At(0,1), NIter);
+		
+	printf("%f %f %f %f\n", Sum0, Sum1, Sum2, Sum3);
+
+	double MaxSum = 0.0;
+
+	if ( Sum0 > Sum1 && Sum0 > Sum2 && Sum0 > Sum3) { MinI = 1; MinJ = 1; MaxSum = Sum0;}
+	if ( Sum1 > Sum0 && Sum1 > Sum2 && Sum1 > Sum3) { MinI = 1; MinJ = 0; MaxSum = Sum1;}
+	if ( Sum2 > Sum0 && Sum2 > Sum1 && Sum2 > Sum3) { MinI = 0; MinJ = 1; MaxSum = Sum2;}
+	if ( Sum3 > Sum0 && Sum3 > Sum1 && Sum3 > Sum2) { MinI = 0; MinJ = 0; MaxSum = Sum3;}
+	return floor(MaxSum);
+}
+
 // works only for 2x2 size matrix!
 void TKronMtx::SetForMaxDeg(const int& MaxDeg, const int& NIter)
 {
@@ -120,7 +177,11 @@ void TKronMtx::SetForMaxDeg(const int& MaxDeg, const int& NIter)
 		//MaxSum = pow(At(I,J) + At(NI, NJ), NIter) + pow(At(I,J) + At(MI, MJ), NIter);
 
 		printf("%f %f\n", MaxSum, MaxDegInv);
-		if (abs(MaxSum - MaxDegInv) < 0.01) break;
+		if (abs(MaxSum - MaxDegInv) < 0.1) break;
+
+		printf("Begin\n");
+		this->Dump();
+		printf("Sum = %f\n",GetMtxSum());
 
 		// in such case we should reduce maximum degree
 		if (MaxSum > MaxDegInv)
@@ -128,24 +189,67 @@ void TKronMtx::SetForMaxDeg(const int& MaxDeg, const int& NIter)
 			double PrevElem = At(I,J);
 			while (pow(At(I,J) + At(NI, NJ), NIter) + pow(At(I,J) + At(MI, MJ), NIter) > MaxDegInv){
 				At(I,J) -= 0.0001;
-				//printf("%f\n", At(I,J));
-				if (At(I,J) < At(J,I))
-					printf("Reverse1\n");
+				//printf("%f %f\n", At(I,J), At(CrossI,CrossJ));
+				//if (At(I,J) < At(CrossI,CrossJ)){
+				//	printf("Reverse1\n");
+				//	At(NI, NJ) -= ( PrevElem - At(I,J)) / 2;
+				//	At(MI, MJ) -= ( PrevElem - At(I,J)) / 2;
+				//	At(I,J) = PrevElem;
+				//	//At(CrossI,CrossJ) += PrevElem - At(I,J);
+				//	//printf("%f %f %f %f %f\n", At(I,J), At(CrossI,CrossJ), At(NI, NJ), At(MI, MJ), GetMtxSum());
+				//}
 			}
-			At(CrossI,CrossJ) += PrevElem - At(I,J);
+			//printf("PrevElem - At(I,J) %f", PrevElem - At(I,J));
+			double AToDel = At(I,J);
+			printf("Before reverse 1\n");
+			this->Dump();
+			printf("Sum = %f\n",GetMtxSum());
+			if (At(I,J) < At(CrossI,CrossJ)){
+				double Debt = At(CrossI,CrossJ) - At(I, J) + 0.01;
+				At(NI, NJ) -=  Debt / 2;
+				At(MI, MJ) -=  Debt / 2;
+				At(I,J) = PrevElem + Debt;
+				//At(CrossI,CrossJ) += PrevElem - At(I,J);
+				//printf("%f %f %f %f %f\n", At(I,J), At(CrossI,CrossJ), At(NI, NJ), At(MI, MJ), GetMtxSum());
+			}
+			else 
+				At(CrossI,CrossJ) += PrevElem - AToDel;
+			printf("After reverse 1\n");
+			this->Dump();
+			printf("Sum = %f\n",GetMtxSum());
 		}
 		else
 		{
 			double PrevElem = At(I,J);
 			while (pow(At(I,J) + At(NI, NJ), NIter) + pow(At(I,J) + At(MI, MJ), NIter) < MaxDegInv){
 				At(I,J) += 0.0001;
-				if (At(I,J) > At(J,I))
-					printf("Reverse2\n");
+				/*if (At(CrossI,CrossJ) - (At(I,J) - PrevElem) < 0){
+					printf("Reverse2 begin\n");
+					printf("%f %f %f %f %f\n", At(I,J), At(CrossI,CrossJ), At(NI, NJ), At(MI, MJ), GetMtxSum());
+					At(NI, NJ) -= (At(I,J) - PrevElem) / 2;
+					At(MI, MJ) -= (At(I,J) - PrevElem) / 2;
+					At(CrossI, CrossJ) += At(I,J) - PrevElem;
+					printf("Reverse2 end\n");
+					printf("%f %f %f %f %f\n", At(I,J), At(CrossI,CrossJ), At(NI, NJ), At(MI, MJ), GetMtxSum());
+				}*/
 			}
+			if (At(CrossI,CrossJ) - (At(I,J) - PrevElem) < 0){
+					//printf("Reverse2 begin\n");
+					//printf("%f %f %f %f %f\n", At(I,J), At(CrossI,CrossJ), At(NI, NJ), At(MI, MJ), GetMtxSum());
+					At(NI, NJ) -= (At(I,J) - PrevElem) / 2;
+					At(MI, MJ) -= (At(I,J) - PrevElem) / 2;
+					At(CrossI, CrossJ) += At(I,J) - PrevElem;
+					//printf("Reverse2 end\n");
+					//printf("%f %f %f %f %f\n", At(I,J), At(CrossI,CrossJ), At(NI, NJ), At(MI, MJ), GetMtxSum());
+			}
+			// !check if > 1
 			At(CrossI,CrossJ) -= At(I,J) - PrevElem;
+			//printf("%f %f\n", At(I,J), At(CrossI, CrossJ));
 		}
+		printf("Sum after step: %f\n", GetMtxSum());
 	}
 
+	printf("Sum: %f\n", GetMtxSum());
 	//printf("%f %f\n", At(0,0), At(1,1));
 
 	//int MaxRowIndex = 0, ColIndex = 0;

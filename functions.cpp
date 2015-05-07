@@ -138,8 +138,10 @@ int InitKronecker(const TStr args, PNGraph &GD, TKronMtx& FitMtx){
 	fprintf(F, "RunTime\t%g\n", ExeTm.GetSecs());
 	fprintf(F, "Estimated initiator\t%s, mtx sum %f\n", FitMtx.GetMtxStr().CStr(), FitMtx.GetMtxSum());
 	if (ScaleInitMtx) {
-		FitMtx.SetForEdges(GD->GetNodes(), GD->GetEdges()); }
+		FitMtx.SetForEdgesNoCut(GD->GetNodes(), GD->GetEdges()); }
 	fprintf(F, "Scaled initiator\t%s, mtx sum %f\n", FitMtx.GetMtxStr().CStr(), FitMtx.GetMtxSum());
+	FitMtx.Normalize();
+	fprintf(F, "Normalized initiator\t%s, mtx sum %f\n", FitMtx.GetMtxStr().CStr(), FitMtx.GetMtxSum());
 	fclose(F);
 
 	Catch
@@ -316,6 +318,7 @@ int GetMaxDeg(const PNGraph& G)
 	return DegCnt[0].Val1;
 }
 
+
 void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV& outDegAvgKronM, const PNGraph& G, double ModelClustCf = 0.0){
 	Env = TEnv(args, TNotify::StdNotify);
 	TExeTm execTime;
@@ -352,7 +355,8 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 		TSnap::GetDegSeqV(G, DegSeq);
 		double k = expectedNodes / modelNodes;
 		for (int i = 0; i < DegSeq.Len(); i++){
-			expectedEdges += DegSeq[i] * k * k; 
+			//expectedEdges += DegSeq[i] * k * k; 
+			expectedEdges += DegSeq[i] * k;
 		}
 		// each edge is considered twice for both vertices
 		expectedEdges /= 2;
@@ -376,6 +380,8 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 		cout << "Before " << endl;
 		FitMtx.Dump();
 		double ModelIter = ceil(log10(modelNodes) / log10(static_cast<double>(FitMtx.GetDim())));
+		int MinMaxDeg = FitMtx.GetMinMaxPossibleDeg(NIter);
+		printf("Max degree: %d Min max possible degree %d\n", MaxModelDeg, MinMaxDeg);
 		FitMtx.SetForMaxDeg(MaxModelDeg, ModelIter);
 		//FitMtx.SetForMaxDeg(MaxModelDeg, NIter);
 		cout << "After " << endl;
@@ -386,14 +392,24 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 		cout << "Expected nodes " << expectedNodes << " Expected edges " << expectedEdges << endl;
 		cout << "Kron nodes " << FitMtx.GetNodes(NIter) << " kron edges " << FitMtx.GetEdges(NIter) << endl;
 		double KronEdges = 0;
-		//while (abs (expectedEdges - KronEdges)  > 0.001 * expectedEdges){
-			FitMtx.SetForEdges(expectedNodes, expectedEdges);
-		//	KronEdges = FitMtx.GetEdges(NIter);
+		while (abs (expectedEdges - KronEdges)  > 0.001 * expectedEdges){
+			FitMtx.SetForEdgesNoCut(expectedNodes, expectedEdges);
+			KronEdges = FitMtx.GetEdges(NIter);
 			//cout << "Scaled nodes " << FitMtx.GetNodes(NIter) << " scaled edges " << FitMtx.GetEdges(NIter) << endl;
-		//}
+		}
 		cout << "Scaled nodes " << FitMtx.GetNodes(NIter) << " scaled edges " << FitMtx.GetEdges(NIter) << endl;
 		FitMtx.Dump();
-		
+		FitMtx.Normalize();
+		cout << "Normalized matrix: \n";
+		FitMtx.Dump();
+		int MaxDeg = FitMtx.GetMaxDeg(ModelIter);
+		MinMaxDeg = FitMtx.GetMinMaxPossibleDeg(NIter);
+		printf("Max degree: %d Min max possible degree %d\n", MaxDeg, MinMaxDeg);
+		system("pause");
+		if (MaxDeg < MinMaxDeg) 
+			MaxDeg = MinMaxDeg;
+		FitMtx.SetForMaxDeg(2 * MaxDeg, NIter);
+		FitMtx.Dump();
 	}
 
 	try {
