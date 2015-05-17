@@ -9,6 +9,14 @@ void DefaultSettings(vector<TStr>& out){
 	}
 }
 
+double PrintLargestEigenVal(const PNGraph& G, ofstream& F, const TStr& GName){
+	TFltV EigenVals;
+	TSnap::GetEigVals(TSnap::ConvertGraph<PUNGraph>(G), 1, EigenVals);
+	double MaxVal = EigenVals[0].Val;
+	F << GName.CStr() << " largest eigenvalue: " << EigenVals[0].Val << endl; 
+	return MaxVal;
+}
+
 void ReadParameters(TStr settingsFN, vector<TStr>& out){
 	ifstream f;
 	f.open(settingsFN.CStr());

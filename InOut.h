@@ -8,3 +8,4 @@ void PrintDegDistr(const TFltPrV& distr, const TStr& OutFNm);
 void PrintDegDistr(const TIntPrV& distr, const TStr& OutFNm);
 void PrintDegDistr(const PNGraph& G, const TStr& OutFNm);
 void ReadMtx(const TStr& Mtx, const TInt& MtxSize, TKronMtx& FitMtx);
+double PrintLargestEigenVal(const PNGraph& G, ofstream& F, const TStr& GName);

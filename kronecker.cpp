@@ -552,6 +552,17 @@ PNGraph TKronMtx::GenKronecker(const TKronMtx& SeedMtx, const int& NIter, const 
   return Graph;
 }
 
+double TKronMtx::GetMaxEigen(const int& NIter){
+	double A = At(0,0), B = At(0,1), C = At(1,0), D = At(1,1);
+	double X = (A + D) / 2, Y =  sqrt(pow(A+D,2) - 4 * (A * D - B*C)) / 2;
+	double EigMax = X + Y;
+	double EigMin = X - Y;
+	double Member = sqrt(NIter * pow(A + B, NIter));
+	printf("EigMax + Member: %f\n", EigMax + Member);
+	printf("EigMin: %f\n", EigMin);
+	return pow (EigMax, NIter);
+}
+
 int TKronMtx::AddEdges(const TKronMtx& SeedMtx, const int&NIter, const bool& IsDir, TRnd& Rnd, PNGraph& G, const int& NEdges, const int&InDegMax, const int& OutDegMax, double ModelClustCf){
 	const int MtxDim = SeedMtx.GetDim();
 	const double MtxSum = SeedMtx.GetMtxSum();
@@ -609,7 +620,34 @@ int TKronMtx::AddEdges(const TKronMtx& SeedMtx, const int&NIter, const bool& IsD
 	return Collision;
 }
 
-
+void TKronMtx::SetForMaxEigen(const double K, const int& NIter){
+	double S = GetMtxSum();
+	double A = At(0,0), B = At(0,1), C = At(1,0), D = At(1,1);
+	double Sum1 = pow(K, 1.00 / NIter) * (A + D) / 2.0,
+		Sum2 = pow(K, 2.00 / NIter) * (A + B) / 4.0,
+		Sum3 = pow(K, 2.00 / NIter) * B * C / 4.0,
+		Sum4 = S;
+	double Disc = pow (2 * Sum2 - Sum1 - Sum4, 2) * D * D - 4 * D * D * (Sum3 - (Sum2 - Sum1) * (Sum4 - Sum2));
+	double DeltaFM = -1 * D * (2 * Sum2 - Sum1 - Sum4) / (2 * D * D),
+		DeltaSM = sqrt(Disc) / (2 * D * D);
+	double Delta1 = DeltaFM - DeltaSM, Delta2 = DeltaFM + DeltaSM;
+	double Delta = Delta1 * D < 1 ? Delta1 : Delta2;
+	double Alpha = (Sum1 - D * Delta) / A;
+	double Beta = (Sum2 - A * Alpha) / B;
+	double Gamma = Sum3 / (Beta * B) / C;
+	double NewA = A * Alpha, NewB = B * Beta, NewC = C * Gamma, NewD = D * Delta;
+	if (NewA > 1 && NewD > 1)
+		printf("Error: NewA > 1 && NewD > 1\n");
+	if (NewB > 1 && NewC > 1)
+		printf("Error: NewB > 1 && NewC > 1\n");
+	if (NewA > 1) {NewD += NewA - 1; if (NewD > 1) printf("Error. NewD > 1\n"); NewA = 1;}
+	if (NewB > 1) {NewC += NewB - 1; if (NewC > 1) printf("Error. NewC > 1\n"); NewB = 1;}
+	if (NewC > 1) {NewB += NewC - 1; if (NewB > 1) printf("Error. NewB > 1\n"); NewC = 1;}
+	if (NewD > 1) {NewA += NewD - 1; if (NewA > 1) printf("Error. NewA > 1\n"); NewD = 1;}
+	double NewSum = NewA + NewB + NewC + NewD;
+	At(0,0) = NewC; At(0,1) = NewD; At(1,0) = NewA; At(1,1) = NewB;
+	return;
+}
 
 void TKronMtx::Transpose(TKronMtx& SeedMtx){
 	TKronMtx Mtx(SeedMtx);

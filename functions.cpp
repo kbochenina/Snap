@@ -170,7 +170,7 @@ int KroneckerGen(const TInt NIter, const TKronMtx& FitMtx, PNGraph& out, const T
 	SeedMtx.Dump();
 	printf("\n*** Kronecker:\n");
 	// slow but exact O(n^2) algorightm
-	//PNGraph Graph = TKronMtx::GenKronecker(SeedMtx, NIter, true, Seed); 
+	//out = TKronMtx::GenKronecker(SeedMtx, NIter, true, 0); 
 	// fast O(e) approximate algorithm
 	// if we need to save clustering coefficient
 	bool Dir = IsDir == "true" ? true: false;
@@ -312,7 +312,7 @@ bool GetMtx(const TStr& MtxArgs, TKronMtx& FitMtxModel){
 int GetMaxDeg(const PNGraph& G)
 {
 	TIntPrV DegCnt;
-	TSnap::GetDegCnt(G, DegCnt);
+	TSnap::GetDegCnt(TSnap::ConvertGraph<PUNGraph>(G), DegCnt);
 	// sort in descending order
 	DegCnt.Sort(false);
 	return DegCnt[0].Val1;
@@ -412,6 +412,9 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 		FitMtx.Dump();
 	}
 
+	
+	
+	
 	try {
 		int Nodes = FitMtx.GetNodes(NIter);
 		int Edges = FitMtx.GetEdges(NIter);
@@ -426,16 +429,52 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 		exit(0);
 	}
 
+	double KronEdges = 0;
+	while (abs (expectedEdges - KronEdges)  > 0.001 * expectedEdges){
+		FitMtx.SetForEdges(expectedNodes, expectedEdges);
+		KronEdges = FitMtx.GetEdges(NIter);
+		//cout << "Scaled nodes " << FitMtx.GetNodes(NIter) << " scaled edges " << FitMtx.GetEdges(NIter) << endl;
+	}
+	cout << "Scaled nodes " << FitMtx.GetNodes(NIter) << " scaled edges " << FitMtx.GetEdges(NIter) << endl;
+
+	double ModelLargestEigen = PrintLargestEigenVal(G, TFile, "Model");
+	double MaxEigen = FitMtx.GetMaxEigen(NIter);
+	TFile << "Max eigenvalue of initiator matrix: " << pow(MaxEigen, 1.00 / NIter) << endl;
+	TFile << "Max eigenvalue of probability matrix: " << MaxEigen << endl;
+	int ModelIter = ceil(log10(modelNodes) / log10(static_cast<double>(FitMtx.GetDim())));
+	KroneckerGen(ModelIter, FitMtx, kron, OutFnm, InDegR, OutDegR, IsDir, ModelClustCf);
+	double ModelKronEigVal = PrintLargestEigenVal(kron, TFile, "ModelKron"),
+		MaxModelEigVal = FitMtx.GetMaxEigen(ModelIter);
+	double Coeff = (ModelKronEigVal - MaxModelEigVal) / sqrt(ModelIter * pow(FitMtx.At(0,0) + FitMtx.At(0,1), ModelIter));
+	//double Coeff = (ModelKronEigVal - MaxModelEigVal) / sqrt(4 * pow(FitMtx.At(0,0) + FitMtx.At(0,1), ModelIter) * log10(pow(2.00, ModelIter + 1) / 0.01) / log10(2.71));
+	TFile << "Coeff: " << Coeff << endl;
+	double ExpectedEigen = MaxEigen + Coeff * sqrt(NIter * pow(FitMtx.At(0,0) + FitMtx.At(0,1), NIter));
+	TFile << "Expected eigenvalue: " << ExpectedEigen << endl;
+	double K = ModelLargestEigen / ExpectedEigen;
+	FitMtx.SetForMaxEigen(K, NIter);
+	FitMtx.Dump();
+	//TFile << "Expected eigenvalue: " << MaxEigen + sqrt(4 * pow(FitMtx.At(0,0) + FitMtx.At(0,1), NIter) * log10(pow(2.00, NIter + 1) / 0.1) / log10(2.71)) << endl;
+	MaxEigen = FitMtx.GetMaxEigen(NIter);
+	TFile << "Max eigenvalue of probability matrix: " << MaxEigen << endl;
+	ExpectedEigen = MaxEigen + Coeff * sqrt(NIter * pow(FitMtx.At(1,0) + FitMtx.At(1,1), NIter));
+	TFile << "Expected eigenvalue: " << ExpectedEigen << endl;
+	MaxEigen = FitMtx.GetMaxEigen(NIter);
+	FitMtx.Dump();
+	TFile << "Max eigenvalue of probability matrix: " << MaxEigen << endl;
+	ExpectedEigen = MaxEigen + Coeff * sqrt(NIter * pow(FitMtx.At(1,0) + FitMtx.At(1,1), NIter));
+	TFile << "Expected eigenvalue: " << ExpectedEigen << endl;
+
 	for (int i = 0; i < NKron; i++){
 		execTime.Tick();
 		KroneckerGen(NIter, FitMtx, kron, OutFnm, InDegR, OutDegR, IsDir, ModelClustCf);
 		sec += execTime.GetSecs();
 		int maxDeg = GetMaxDeg(kron);
-		printf("Nodes count: %d, nodes with non-zero degree %d, edges count %d\n max deg = %d", kron->GetNodes(), TSnap::CntNonZNodes(kron), kron->GetEdges(), maxDeg);
+		printf("Nodes count: %d, nodes with non-zero degree %d, edges count %d\n max deg = %d\n", kron->GetNodes(), TSnap::CntNonZNodes(kron), kron->GetEdges(), maxDeg);
 		if (i == NKron - 1){
 			TFile << "Clustering coefficient: " << TSnap::GetClustCf(kron) << endl;
 			TSnap::PlotClustCf(kron,"kronSingle");
 			TSnap::PlotHops(kron, "kronSingle");
+			PrintLargestEigenVal(kron, TFile, "Kron");
 		}
 		AddDegreesStat(inDegAvgKronM, samplesIn, kron, true);
 		AddDegreesStat(outDegAvgKronM, samplesOut, kron, false);
