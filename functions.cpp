@@ -177,7 +177,7 @@ int KroneckerGen(const TInt NIter, const TKronMtx& FitMtx, PNGraph& out, const T
 	ModelClustCf = 0;
 	// if we don't have constraints on degrees, run basic algorithm
 	if (InDegR.Val1 == numeric_limits<int>::lowest() && InDegR.Val2 == INT_MAX && OutDegR.Val1 == numeric_limits<int>::lowest() && INT_MAX)
-		out = TKronMtx::GenFastKronecker(SeedMtx, NIter, true, 0, ModelClustCf);
+		out = TKronMtx::GenFastKronecker(SeedMtx, NIter, Dir, 0, ModelClustCf);
 	else {
 		TKronMtx::GenFastKronecker(SeedMtx, NIter, Dir, 0, InDegR, OutDegR, out, ModelClustCf);
 	}
@@ -376,21 +376,20 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 	
 	if (ScaleMtx == "true")
 	{
-		int MaxModelDeg = GetMaxDeg(G);
-		cout << "Before " << endl;
-		FitMtx.Dump();
-		double ModelIter = ceil(log10(modelNodes) / log10(static_cast<double>(FitMtx.GetDim())));
-		int MinMaxDeg = FitMtx.GetMinMaxPossibleDeg(NIter);
-		printf("Max degree: %d Min max possible degree %d\n", MaxModelDeg, MinMaxDeg);
-		FitMtx.SetForMaxDeg(MaxModelDeg, ModelIter);
-		//FitMtx.SetForMaxDeg(MaxModelDeg, NIter);
-		cout << "After " << endl;
-		FitMtx.Dump();
-		cout << "After SetForMaxDeg: nodes " << FitMtx.GetNodes(NIter) << " edges " << FitMtx.GetEdges(NIter) << endl;
-
-		cout << "Model nodes " << modelNodes << " model edges " << modelEdges << endl;
+		//int MaxModelDeg = GetMaxDeg(G);
+		//cout << "Before " << endl;
+		//FitMtx.Dump();
+		//double ModelIter = ceil(log10(modelNodes) / log10(static_cast<double>(FitMtx.GetDim())));
+		//int MinMaxDeg = FitMtx.GetMinMaxPossibleDeg(NIter);
+		//printf("Max degree: %d Min max possible degree %d\n", MaxModelDeg, MinMaxDeg);
+		//FitMtx.SetForMaxDeg(MaxModelDeg, ModelIter);
+		////FitMtx.SetForMaxDeg(MaxModelDeg, NIter);
+		//cout << "After " << endl;
+		//FitMtx.Dump();
+		//cout << "After SetForMaxDeg: nodes " << FitMtx.GetNodes(NIter) << " edges " << FitMtx.GetEdges(NIter) << endl;
+		//cout << "Model nodes " << modelNodes << " model edges " << modelEdges << endl;
 		cout << "Expected nodes " << expectedNodes << " Expected edges " << expectedEdges << endl;
-		cout << "Kron nodes " << FitMtx.GetNodes(NIter) << " kron edges " << FitMtx.GetEdges(NIter) << endl;
+		//cout << "Kron nodes " << FitMtx.GetNodes(NIter) << " kron edges " << FitMtx.GetEdges(NIter) << endl;
 		double KronEdges = 0;
 		while (abs (expectedEdges - KronEdges)  > 0.001 * expectedEdges){
 			FitMtx.SetForEdgesNoCut(expectedNodes, expectedEdges);
@@ -402,14 +401,14 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 		FitMtx.Normalize();
 		cout << "Normalized matrix: \n";
 		FitMtx.Dump();
-		int MaxDeg = FitMtx.GetMaxDeg(ModelIter);
+		/*int MaxDeg = FitMtx.GetMaxDeg(ModelIter);
 		MinMaxDeg = FitMtx.GetMinMaxPossibleDeg(NIter);
 		printf("Max degree: %d Min max possible degree %d\n", MaxDeg, MinMaxDeg);
 		system("pause");
 		if (MaxDeg < MinMaxDeg) 
 			MaxDeg = MinMaxDeg;
 		FitMtx.SetForMaxDeg(2 * MaxDeg, NIter);
-		FitMtx.Dump();
+		FitMtx.Dump();*/
 	}
 
 	
@@ -429,41 +428,29 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 		exit(0);
 	}
 
-	double KronEdges = 0;
-	while (abs (expectedEdges - KronEdges)  > 0.001 * expectedEdges){
-		FitMtx.SetForEdges(expectedNodes, expectedEdges);
-		KronEdges = FitMtx.GetEdges(NIter);
-		//cout << "Scaled nodes " << FitMtx.GetNodes(NIter) << " scaled edges " << FitMtx.GetEdges(NIter) << endl;
-	}
-	cout << "Scaled nodes " << FitMtx.GetNodes(NIter) << " scaled edges " << FitMtx.GetEdges(NIter) << endl;
-
-	double ModelLargestEigen = PrintLargestEigenVal(G, TFile, "Model");
-	double MaxEigen = FitMtx.GetMaxEigen(NIter);
-	TFile << "Max eigenvalue of initiator matrix: " << pow(MaxEigen, 1.00 / NIter) << endl;
-	TFile << "Max eigenvalue of probability matrix: " << MaxEigen << endl;
-	int ModelIter = ceil(log10(modelNodes) / log10(static_cast<double>(FitMtx.GetDim())));
-	KroneckerGen(ModelIter, FitMtx, kron, OutFnm, InDegR, OutDegR, IsDir, ModelClustCf);
-	double ModelKronEigVal = PrintLargestEigenVal(kron, TFile, "ModelKron"),
-		MaxModelEigVal = FitMtx.GetMaxEigen(ModelIter);
-	double Coeff = (ModelKronEigVal - MaxModelEigVal) / sqrt(ModelIter * pow(FitMtx.At(0,0) + FitMtx.At(0,1), ModelIter));
-	//double Coeff = (ModelKronEigVal - MaxModelEigVal) / sqrt(4 * pow(FitMtx.At(0,0) + FitMtx.At(0,1), ModelIter) * log10(pow(2.00, ModelIter + 1) / 0.01) / log10(2.71));
-	TFile << "Coeff: " << Coeff << endl;
-	double ExpectedEigen = MaxEigen + Coeff * sqrt(NIter * pow(FitMtx.At(0,0) + FitMtx.At(0,1), NIter));
-	TFile << "Expected eigenvalue: " << ExpectedEigen << endl;
-	double K = ModelLargestEigen / ExpectedEigen;
-	FitMtx.SetForMaxEigen(K, NIter);
-	FitMtx.Dump();
-	//TFile << "Expected eigenvalue: " << MaxEigen + sqrt(4 * pow(FitMtx.At(0,0) + FitMtx.At(0,1), NIter) * log10(pow(2.00, NIter + 1) / 0.1) / log10(2.71)) << endl;
-	MaxEigen = FitMtx.GetMaxEigen(NIter);
-	TFile << "Max eigenvalue of probability matrix: " << MaxEigen << endl;
-	ExpectedEigen = MaxEigen + Coeff * sqrt(NIter * pow(FitMtx.At(1,0) + FitMtx.At(1,1), NIter));
-	TFile << "Expected eigenvalue: " << ExpectedEigen << endl;
-	MaxEigen = FitMtx.GetMaxEigen(NIter);
-	FitMtx.Dump();
-	TFile << "Max eigenvalue of probability matrix: " << MaxEigen << endl;
-	ExpectedEigen = MaxEigen + Coeff * sqrt(NIter * pow(FitMtx.At(1,0) + FitMtx.At(1,1), NIter));
-	TFile << "Expected eigenvalue: " << ExpectedEigen << endl;
-
+	TFltV ModelEigValV;
+	TFltV KronEigen;
+	//TSnap::PlotEigValRank(TSnap::ConvertGraph<PUNGraph>(G), 50, "ModelEigen", ModelEigValV);
+	//double ModelLargestEigen = ModelEigValV[0].Val;
+	//TFile << "Model largest eigenvalue: " << ModelLargestEigen << endl;
+	//double MaxEigen = FitMtx.GetMaxEigen(NIter);
+	//TFile << "Max eigenvalue of probability matrix: " << MaxEigen << endl;
+	////int ModelIter = ceil(log10(modelNodes) / log10(static_cast<double>(FitMtx.GetDim())));
+	////TFile << "Model iter: " << ModelIter << " NIter: " << NIter << endl;
+	////KroneckerGen(ModelIter, FitMtx, kron, OutFnm, InDegR, OutDegR, IsDir, ModelClustCf);
+	////TSnap::PlotEigValRank(TSnap::ConvertGraph<PUNGraph>(kron), 50, "KronInitEigen", KronEigen);
+	//double KronInitLargestEigVal = KronEigen[0].Val;
+	//TFile << "Kron init largest eigenvalue: " << KronInitLargestEigVal << endl;
+	//
+	//double K = ModelLargestEigen / KronInitLargestEigVal;
+	//TFile << "K: " << K << endl;
+	////FitMtx.SetForMaxEigen(K, NIter);
+	//FitMtx.Dump();
+	////TFile << "Expected eigenvalue: " << MaxEigen + sqrt(4 * pow(FitMtx.At(0,0) + FitMtx.At(0,1), NIter) * log10(pow(2.00, NIter + 1) / 0.1) / log10(2.71)) << endl;
+	//MaxEigen = FitMtx.GetMaxEigen(NIter);
+	//TFile << "Max eigenvalue of probability matrix: " << MaxEigen << endl;
+	
+	
 	for (int i = 0; i < NKron; i++){
 		execTime.Tick();
 		KroneckerGen(NIter, FitMtx, kron, OutFnm, InDegR, OutDegR, IsDir, ModelClustCf);
@@ -474,7 +461,9 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 			TFile << "Clustering coefficient: " << TSnap::GetClustCf(kron) << endl;
 			TSnap::PlotClustCf(kron,"kronSingle");
 			TSnap::PlotHops(kron, "kronSingle");
+			KronEigen.Clr();
 			PrintLargestEigenVal(kron, TFile, "Kron");
+			//TSnap::PlotEigValRank(TSnap::ConvertGraph<PUNGraph>(kron), 50, "KronEigen", KronEigen);
 		}
 		AddDegreesStat(inDegAvgKronM, samplesIn, kron, true);
 		AddDegreesStat(outDegAvgKronM, samplesOut, kron, false);
@@ -519,6 +508,9 @@ void GetGraphs(vector <TStr>& parameters, vector<TFltPrV>& distrIn, vector<TFltP
 	const TStr& PType = parameters[PTYPE];
 
 	GetModel(parameters[GRAPHGEN], G, name, parameters[PLT]);
+
+	TFltV ModelEigValV;
+	TSnap::PlotEigValRank(TSnap::ConvertGraph<PUNGraph>(G), 26, "ModelEigen", ModelEigValV);
 
 	double ModelClustCf = 0.0;
 

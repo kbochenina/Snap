@@ -623,10 +623,11 @@ int TKronMtx::AddEdges(const TKronMtx& SeedMtx, const int&NIter, const bool& IsD
 void TKronMtx::SetForMaxEigen(const double K, const int& NIter){
 	double S = GetMtxSum();
 	double A = At(0,0), B = At(0,1), C = At(1,0), D = At(1,1);
-	double Sum1 = pow(K, 1.00 / NIter) * (A + D) / 2.0,
-		Sum2 = pow(K, 2.00 / NIter) * (A + B) / 4.0,
-		Sum3 = pow(K, 2.00 / NIter) * B * C / 4.0,
+	double Sum1 = pow(K, 1.00 / NIter) * (A + D),
+		Sum2 = pow(K, 2.00 / NIter) * (A + C),
+		Sum3 = pow(K, 2.00 / NIter) * B * C,
 		Sum4 = S;
+	printf("Sum1: %f, Sum2: %f, Sum3: %f, Sum4: %f\n", Sum1, Sum2, Sum3, Sum4);
 	double Disc = pow (2 * Sum2 - Sum1 - Sum4, 2) * D * D - 4 * D * D * (Sum3 - (Sum2 - Sum1) * (Sum4 - Sum2));
 	double DeltaFM = -1 * D * (2 * Sum2 - Sum1 - Sum4) / (2 * D * D),
 		DeltaSM = sqrt(Disc) / (2 * D * D);
@@ -640,12 +641,12 @@ void TKronMtx::SetForMaxEigen(const double K, const int& NIter){
 		printf("Error: NewA > 1 && NewD > 1\n");
 	if (NewB > 1 && NewC > 1)
 		printf("Error: NewB > 1 && NewC > 1\n");
-	if (NewA > 1) {NewD += NewA - 1; if (NewD > 1) printf("Error. NewD > 1\n"); NewA = 1;}
+	/*if (NewA > 1) {NewD += NewA - 1; if (NewD > 1) printf("Error. NewD > 1\n"); NewA = 1;}
 	if (NewB > 1) {NewC += NewB - 1; if (NewC > 1) printf("Error. NewC > 1\n"); NewB = 1;}
 	if (NewC > 1) {NewB += NewC - 1; if (NewB > 1) printf("Error. NewB > 1\n"); NewC = 1;}
-	if (NewD > 1) {NewA += NewD - 1; if (NewA > 1) printf("Error. NewA > 1\n"); NewD = 1;}
+	if (NewD > 1) {NewA += NewD - 1; if (NewA > 1) printf("Error. NewA > 1\n"); NewD = 1;}*/
 	double NewSum = NewA + NewB + NewC + NewD;
-	At(0,0) = NewC; At(0,1) = NewD; At(1,0) = NewA; At(1,1) = NewB;
+	At(0,0) = NewA; At(0,1) = NewB; At(1,0) = NewC; At(1,1) = NewD;
 	return;
 }
 
@@ -860,7 +861,7 @@ int TKronMtx::AddUnDir(const TIntPr& DegR, PNGraph& G, const TKronMtx& SeedMtx, 
 	int Collision = 0;
 	const int NNodes = SeedMtx.GetNodes(NIter);
 	const int NEdges = SeedMtx.GetEdges(NIter);
-	const TInt& DegMin = DegR.Val1, & DegMax = DegR.Val2;
+	const TInt& DegReq = DegR.Val1;
 	TKronMtx Mtx(SeedMtx);
 	// get row prob accum vectors
 	TVec<TVec<TFltIntIntTr>> RowProbCumV, ColProbCumV;
@@ -870,14 +871,15 @@ int TKronMtx::AddUnDir(const TIntPr& DegR, PNGraph& G, const TKronMtx& SeedMtx, 
 	for (int i = 0; i < NNodes; i++){
 		int Row = i;
 		int InDeg = G->GetNI(Row).GetInDeg(), OutDeg = G->GetNI(Row).GetOutDeg();
+		if (InDeg != OutDeg) printf("InDeg != OutDeg. Error");
 		//printf("InDeg %d OutDeg %d\n", InDeg, OutDeg);
-		if (InDeg >= DegMin || OutDeg >= DegMin) continue;
-		for (int j = 0; j < DegMin-OutDeg; j++){	
+		if (InDeg >= DegReq || OutDeg >= DegReq) continue;
+		for (int j = 0; j < DegReq-OutDeg; j++){	
 			//printf("Collision %d\ edges added %d \n", Collision, EdgesAdded);
 			int Col = GetCol(RowProbCumV, Row, NIter, Rnd);
 			if (Row != Col && !G->IsEdge(Row, Col)){
 				int InDegCol = G->GetNI(Col).GetInDeg(), OutDegCol = G->GetNI(Col).GetOutDeg();
-				if (InDegCol + 1 > DegMax || OutDegCol + 1 > DegMax) {Collision++;  j--; continue;}
+				if (InDegCol + 1 > DegReq || OutDegCol + 1 > DegReq) {Collision++;  j--; continue;}
 				G->AddEdge(Row,Col);
 				//printf("(%d %d)\t", Row, Col);
 				EdgesAdded++;
@@ -893,11 +895,11 @@ int TKronMtx::AddUnDir(const TIntPr& DegR, PNGraph& G, const TKronMtx& SeedMtx, 
 			else {Collision++; j--;}//printf("Collision1\n"); }	
 		}
 		
-		InDeg = G->GetNI(Row).GetInDeg(); OutDeg = G->GetNI(Row).GetOutDeg();
+		//InDeg = G->GetNI(Row).GetInDeg(); OutDeg = G->GetNI(Row).GetOutDeg();
 		//printf("After InDeg %d OutDeg %d\n", InDeg, OutDeg);
 		//if (i % 49 == 0) system("pause");
 	}
-	std::string s = "Edges added=" + std::to_string((long long)EdgesAdded) +", edges to add=" + std::to_string((long long)2 * DegMin * NNodes) + "\n";
+	std::string s = "Edges added=" + std::to_string((long long)EdgesAdded) +", edges to add=" + std::to_string((long long) DegReq * NNodes) + "\n";
 	printf("%s",s.c_str());
 	printf("AddUnDir: ClosedTriads %d ClustCollision %d\n", ClosedTriads, ClustCollision);
 	//PrintDeg(G, "AddFirst");
