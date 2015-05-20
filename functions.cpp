@@ -527,10 +527,20 @@ TFlt GetAvgScaleCf(const TFltV& ModelEigValV, const TFltV& G2EigValV, const TInt
 		if (G2EigValV[i].Val < 0 || ModelEigValV[i].Val < 0) break;
 		TFlt ScaleRatio = (G2EigValV[i].Val / ModelEigValV[i].Val) / N;
 		ScaleCfV.Add(ScaleRatio);
-		AvgScaleCf += ScaleRatio;
+		//AvgScaleCf += ScaleRatio;
 		NEigen = NEigen + 1;
 	}
-	AvgScaleCf = AvgScaleCf / NEigen;
+	//AvgScaleCf = AvgScaleCf / NEigen;
+
+	TFlt MaxEigenVal = ModelEigValV[0].Val;
+	TInt SampleCountSum = 0;
+	for (int i = 0; i < NEigen; i++){
+		TInt SampleCount = ModelEigValV[i].Val / MaxEigenVal * NEigen;
+		//printf("%f %d\n", ModelEigValV[i].Val / MaxEigenVal, SampleCount);
+		AvgScaleCf += ScaleCfV[i] * SampleCount;
+		SampleCountSum += SampleCount;
+	}
+	AvgScaleCf = AvgScaleCf / SampleCountSum;
 
 	TFile << "AvgScaleCf: " << AvgScaleCf << endl;
 
@@ -547,10 +557,11 @@ TFlt GetAvgScaleCf(const TFltV& ModelEigValV, const TFltV& G2EigValV, const TInt
 }
 
 
-void TestScalingEigen(const TInt& ScaleCount, const TInt& ScaleSize, const TFlt& AvgScaleCf, const TStr& GraphGenStr, const TInt& NEigen, const TFltV& ModelEigValV, const TInt& ModelEdges){
+void TestScalingEigen(const TInt& ScaleCount, const TInt& ScaleSize, const TFlt& AvgScaleCf, const TStr& GraphGenStr, const TFltV& ModelEigValV, const TInt& ModelEdges, const TFltV & ScaleCfV){
 	// initial nodes count
 	TInt InitN = GetNFromGraphGenStr(GraphGenStr);
 	TInt NewN = InitN;
+	TInt NEigen = ScaleCfV.Len();
 	for (TInt i = 0; i < ScaleCount; i++){
 		PNGraph G;
 		NewN = NewN * ScaleSize;
@@ -561,13 +572,15 @@ void TestScalingEigen(const TInt& ScaleCount, const TInt& ScaleSize, const TFlt&
 		TFltV GEigValV;
 		TSnap::PlotEigValRank(TSnap::ConvertGraph<PUNGraph>(G), NEigen, "ModelEigen" + i.GetStr(), GEigValV);
 		TFlt ScaleCoeff = pow(AvgScaleCf * ScaleSize, i + 1);
-		printf("ScaleCoeff: %f\n", ScaleCoeff.Val);
+		//printf("ScaleCoeff: %f\n", ScaleCoeff.Val);
 		TFltV ApproxEigValV;
 		TFlt ApproxE = ModelEdges * ScaleCoeff;
 		ofstream F = OpenFile("ApproxEigen" + i.GetStr() + ".tab");
 		F << "#" << endl;
 		F << " ApproxEigen. G(" << NewN << ", " << ApproxE.Val << "). ";
+		printf("NEigen = %d\n", NEigen);
 		for (int j = 0; j < NEigen; j++){
+			ScaleCoeff = pow(ScaleCfV[j] * ScaleSize, i + 1);
 			TFlt ApproxEigenVal = ModelEigValV[j] * ScaleCoeff;
 			if (j == 0){
 				F << "Largest eig val = " << ApproxEigenVal.Val << endl << "#" << endl << "# Rank	Eigen value" << endl;
@@ -600,8 +613,8 @@ void GetGraphs(vector <TStr>& parameters, vector<TFltPrV>& distrIn, vector<TFltP
 	TFltV ScaleCfV;
 	TFlt AvgScaleCf = GetAvgScaleCf(ModelEigValV, G2EigValV, ScaleSize, ScaleCfV);
 
-	TInt ScaleCount = 3;
-	TestScalingEigen(ScaleCount, ScaleSize, AvgScaleCf, parameters[GRAPHGEN], NEigenStr.GetInt(), ModelEigValV, G->GetEdges());
+	TInt ScaleCount = 7;
+	TestScalingEigen(ScaleCount, ScaleSize, AvgScaleCf, parameters[GRAPHGEN], ModelEigValV, G->GetEdges(), ScaleCfV);
 
 	double ModelClustCf = 0.0;
 
