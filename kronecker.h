@@ -112,6 +112,7 @@ public:
   static void KronSum(const TKronMtx& LeftPt, const TKronMtx& RightPt, TKronMtx& OutMtx); // log powering
   static void KronPwr(const TKronMtx& KronPt, const int& NIter, TKronMtx& OutMtx);
 
+  void Dump(ofstream &TFile) const;
   void Dump(const TStr& MtxNm = TStr(), const bool& Sort = false) const;
   static double GetAvgAbsErr(const TKronMtx& Kron1, const TKronMtx& Kron2); // avg L1 on (sorted) parameters
   static double GetAvgFroErr(const TKronMtx& Kron1, const TKronMtx& Kron2); // avg L2 on (sorted) parameters

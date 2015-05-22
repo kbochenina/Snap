@@ -137,11 +137,11 @@ int InitKronecker(const TStr args, PNGraph &GD, TKronMtx& FitMtx){
 	fprintf(F, "Absolute error (based on expected number of edges)\t%f\n", KronLL.GetAbsErr());
 	fprintf(F, "RunTime\t%g\n", ExeTm.GetSecs());
 	fprintf(F, "Estimated initiator\t%s, mtx sum %f\n", FitMtx.GetMtxStr().CStr(), FitMtx.GetMtxSum());
-	if (ScaleInitMtx) {
+	/*if (ScaleInitMtx) {
 		FitMtx.SetForEdgesNoCut(GD->GetNodes(), GD->GetEdges()); }
 	fprintf(F, "Scaled initiator\t%s, mtx sum %f\n", FitMtx.GetMtxStr().CStr(), FitMtx.GetMtxSum());
 	FitMtx.Normalize();
-	fprintf(F, "Normalized initiator\t%s, mtx sum %f\n", FitMtx.GetMtxStr().CStr(), FitMtx.GetMtxSum());
+	fprintf(F, "Normalized initiator\t%s, mtx sum %f\n", FitMtx.GetMtxStr().CStr(), FitMtx.GetMtxSum());*/
 	fclose(F);
 
 	Catch
@@ -318,6 +318,51 @@ int GetMaxDeg(const PNGraph& G)
 	return DegCnt[0].Val1;
 }
 
+int GetExpectedModelEdges(const PNGraph& G, const int k, const TStr& order){
+	int expectedEdges = 0;
+	map<int, int> DegAcc;
+	TIntV DegSeq; 
+	TSnap::GetDegSeqV(G, DegSeq);
+	for (int i = 0; i < DegSeq.Len(); i++){
+		if (order == "linear")
+			expectedEdges += DegSeq[i] * k;
+		else if (order == "square")
+			expectedEdges += DegSeq[i] * k * k; 
+	}
+	// each edge is considered twice for both vertices
+	expectedEdges /= 2;
+	return expectedEdges;
+}
+
+void ScaleFitMtxForEdges(TKronMtx& FitMtx, const TInt& NIter, const int& ExpectedModelEdges){
+	int ExpectedNodes = FitMtx.GetNodes(NIter);
+	TFile << "Expected nodes: " << ExpectedNodes << " expected edges: " << FitMtx.GetEdges(NIter) << endl;
+	double KronEdges = 0;
+	while (abs (ExpectedModelEdges - KronEdges)  > 0.001 * ExpectedModelEdges){
+		// after that there could be elements more that 1
+		FitMtx.SetForEdgesNoCut(ExpectedNodes, ExpectedModelEdges);
+		KronEdges = FitMtx.GetEdges(NIter);
+	}
+	TFile << "Scaled nodes " << FitMtx.GetNodes(NIter) << " scaled edges " << FitMtx.GetEdges(NIter) << endl;
+	FitMtx.Dump(TFile);
+	FitMtx.Normalize();
+	cout << "Normalized matrix: \n";
+	FitMtx.Dump(TFile);
+}
+
+void ScaleFitMtx(TKronMtx& FitMtx, const TInt& NIter, const int& InitModelNodes, const int& ExpectedModelEdges, const int& MaxModelDeg){
+	TFile << "Before scaling " << endl;
+	FitMtx.Dump(TFile);
+	// check ceil()
+	double ModelIter = ceil(log10((double)InitModelNodes) / log10((double)FitMtx.GetDim()));
+	// rename function and variable
+	int MinMaxDeg = FitMtx.GetMinMaxPossibleDeg(NIter);
+	TFile << "Expected model maximum degree: " << MaxModelDeg << endl << "Expected Kronecker maximum degree: "<<  MinMaxDeg << endl;
+	FitMtx.SetForMaxDeg(MaxModelDeg, ModelIter);
+	TFile << "After scaling " << endl;
+	FitMtx.Dump(TFile);
+	ScaleFitMtxForEdges(FitMtx, NIter, ExpectedModelEdges);	
+}
 
 void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV& outDegAvgKronM, const PNGraph& G, const int NEigen, double ModelClustCf = 0.0){
 	Env = TEnv(args, TNotify::StdNotify);
@@ -342,77 +387,25 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 	const TInt OutMax = Env.GetIfArgPrefixInt("-outmax:", INT_MAX, "Out-degree maximum");
 	const TIntPr InDegR(InMin, InMax); const TIntPr OutDegR(OutMin, OutMax);
 	
-	float modelNodes = G->GetNodes(), modelEdges = G->GetEdges(), expectedNodes = FitMtx.GetNodes(NIter), expectedEdges = FitMtx.GetEdges(NIter);
-	map<int, int> DegAcc;
+	float ModelNodes = G->GetNodes(), ModelEdges = G->GetEdges(), ExpectedNodes = FitMtx.GetNodes(NIter), ExpectedEdges = FitMtx.GetEdges(NIter);
+	TFile << "Init model nodes: " << ModelNodes << ", init model edges: " << ModelEdges << endl;
+	int ExpectedModelEdges = (ModelNodes == ExpectedNodes) ? ModelEdges : GetExpectedModelEdges(G, ExpectedNodes / ModelNodes, "linear");
+	TFile << "Expected model nodes: " << ExpectedNodes << ", expected model edges: " << ExpectedModelEdges << endl;
+	TFile << "Expected nodes: " << ExpectedNodes << ", expected edges: " << ExpectedEdges << endl;
+	// check function
+	int MaxModelDeg = GetMaxDeg(G);
+	TFile << "Maximum degree in model graph: " << MaxModelDeg << endl;
 
-	// if graph will be generated using small model, get approximate number of edges
-	if (modelNodes != FitMtx.GetNodes(NIter))
-	{
-		printf("FitMtx.GetNodes(NIter): %d\n", FitMtx.GetNodes(NIter));
-		printf("Model edges: %f\n", modelEdges);
-		printf("Matrix edges: %f\n", expectedEdges);
-		TIntV DegSeq; expectedEdges = 0;
-		TSnap::GetDegSeqV(G, DegSeq);
-		double k = expectedNodes / modelNodes;
-		for (int i = 0; i < DegSeq.Len(); i++){
-			//expectedEdges += DegSeq[i] * k * k; 
-			expectedEdges += DegSeq[i] * k;
-		}
-		// each edge is considered twice for both vertices
-		expectedEdges /= 2;
-		//	DegAcc[DegSeq[i]]++;
-		// for (auto it = DegAcc.begin(); it != DegAcc.end(); it++)
-		//	expectedEdges += it->first * it->second *  k;
-		//	expectedEdges += it->first * it->second *  k * k;
-		//expectedEdges = modelNodes * 2 * k -  1;
+	if (ScaleMtx == "true"){
+		ScaleFitMtx(FitMtx, NIter, ModelNodes, ExpectedModelEdges, MaxModelDeg);
+		//ScaleFitMtxForEdges(FitMtx, NIter, ExpectedModelEdges);	
 	}
-	else 
-		expectedEdges = modelEdges;
+
 
 	// Kronecker model of graph
 	PNGraph kron;
 	TIntPrV samplesIn, samplesOut;
 	double sec = 0.0;
-	
-	if (ScaleMtx == "true")
-	{
-		//int MaxModelDeg = GetMaxDeg(G);
-		//cout << "Before " << endl;
-		//FitMtx.Dump();
-		//double ModelIter = ceil(log10(modelNodes) / log10(static_cast<double>(FitMtx.GetDim())));
-		//int MinMaxDeg = FitMtx.GetMinMaxPossibleDeg(NIter);
-		//printf("Max degree: %d Min max possible degree %d\n", MaxModelDeg, MinMaxDeg);
-		//FitMtx.SetForMaxDeg(MaxModelDeg, ModelIter);
-		////FitMtx.SetForMaxDeg(MaxModelDeg, NIter);
-		//cout << "After " << endl;
-		//FitMtx.Dump();
-		//cout << "After SetForMaxDeg: nodes " << FitMtx.GetNodes(NIter) << " edges " << FitMtx.GetEdges(NIter) << endl;
-		//cout << "Model nodes " << modelNodes << " model edges " << modelEdges << endl;
-		cout << "Expected nodes " << expectedNodes << " Expected edges " << expectedEdges << endl;
-		//cout << "Kron nodes " << FitMtx.GetNodes(NIter) << " kron edges " << FitMtx.GetEdges(NIter) << endl;
-		double KronEdges = 0;
-		while (abs (expectedEdges - KronEdges)  > 0.001 * expectedEdges){
-			FitMtx.SetForEdgesNoCut(expectedNodes, expectedEdges);
-			KronEdges = FitMtx.GetEdges(NIter);
-			//cout << "Scaled nodes " << FitMtx.GetNodes(NIter) << " scaled edges " << FitMtx.GetEdges(NIter) << endl;
-		}
-		cout << "Scaled nodes " << FitMtx.GetNodes(NIter) << " scaled edges " << FitMtx.GetEdges(NIter) << endl;
-		FitMtx.Dump();
-		FitMtx.Normalize();
-		cout << "Normalized matrix: \n";
-		FitMtx.Dump();
-		/*int MaxDeg = FitMtx.GetMaxDeg(ModelIter);
-		MinMaxDeg = FitMtx.GetMinMaxPossibleDeg(NIter);
-		printf("Max degree: %d Min max possible degree %d\n", MaxDeg, MinMaxDeg);
-		system("pause");
-		if (MaxDeg < MinMaxDeg) 
-			MaxDeg = MinMaxDeg;
-		FitMtx.SetForMaxDeg(2 * MaxDeg, NIter);
-		FitMtx.Dump();*/
-	}
-
-	
-	
 	
 	try {
 		int Nodes = FitMtx.GetNodes(NIter);
@@ -428,42 +421,29 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 		exit(0);
 	}
 
-	TFltV ModelEigValV;
 	TFltV KronEigen;
-	//TSnap::PlotEigValRank(TSnap::ConvertGraph<PUNGraph>(G), 50, "ModelEigen", ModelEigValV);
-	//double ModelLargestEigen = ModelEigValV[0].Val;
-	//TFile << "Model largest eigenvalue: " << ModelLargestEigen << endl;
-	//double MaxEigen = FitMtx.GetMaxEigen(NIter);
-	//TFile << "Max eigenvalue of probability matrix: " << MaxEigen << endl;
-	////int ModelIter = ceil(log10(modelNodes) / log10(static_cast<double>(FitMtx.GetDim())));
-	////TFile << "Model iter: " << ModelIter << " NIter: " << NIter << endl;
-	////KroneckerGen(ModelIter, FitMtx, kron, OutFnm, InDegR, OutDegR, IsDir, ModelClustCf);
-	////TSnap::PlotEigValRank(TSnap::ConvertGraph<PUNGraph>(kron), 50, "KronInitEigen", KronEigen);
-	//double KronInitLargestEigVal = KronEigen[0].Val;
-	//TFile << "Kron init largest eigenvalue: " << KronInitLargestEigVal << endl;
-	//
-	//double K = ModelLargestEigen / KronInitLargestEigVal;
-	//TFile << "K: " << K << endl;
-	////FitMtx.SetForMaxEigen(K, NIter);
-	//FitMtx.Dump();
-	////TFile << "Expected eigenvalue: " << MaxEigen + sqrt(4 * pow(FitMtx.At(0,0) + FitMtx.At(0,1), NIter) * log10(pow(2.00, NIter + 1) / 0.1) / log10(2.71)) << endl;
-	//MaxEigen = FitMtx.GetMaxEigen(NIter);
-	//TFile << "Max eigenvalue of probability matrix: " << MaxEigen << endl;
-	
-	
+	int AverageMaxDeg = 0, MinMaxDeg = 0, MaxMaxDeg = 0;
+
 	for (int i = 0; i < NKron; i++){
 		execTime.Tick();
+		// ModelClustCf!
 		KroneckerGen(NIter, FitMtx, kron, OutFnm, InDegR, OutDegR, IsDir, ModelClustCf);
 		sec += execTime.GetSecs();
-		int maxDeg = GetMaxDeg(kron);
-		printf("Nodes count: %d, nodes with non-zero degree %d, edges count %d\n max deg = %d\n", kron->GetNodes(), TSnap::CntNonZNodes(kron), kron->GetEdges(), maxDeg);
+		int MaxDeg = GetMaxDeg(kron);
+		if (i == 0) MinMaxDeg = MaxDeg;
+		else if (MaxDeg < MinMaxDeg) MinMaxDeg = MaxDeg;
+		if (MaxDeg > MaxMaxDeg) MaxMaxDeg = MaxDeg;
+		AverageMaxDeg += MaxDeg;
+		printf("Nodes count: %d, nodes with non-zero degree %d, edges count %d\n max deg = %d\n", kron->GetNodes(), TSnap::CntNonZNodes(kron), kron->GetEdges(), MaxDeg);
 		if (i == NKron - 1){
 			//TFile << "Clustering coefficient: " << TSnap::GetClustCf(kron) << endl;
-			TSnap::PlotClustCf(kron,"kronSingle");
-			TSnap::PlotHops(kron, "kronSingle");
+			//TSnap::PlotClustCf(kron,"kronSingle");
+			//TSnap::PlotHops(kron, "kronSingle");
 			KronEigen.Clr();
-			PrintLargestEigenVal(kron, TFile, "Kron");
+			//PrintLargestEigenVal(kron, TFile, "Kron");
 			TSnap::PlotEigValRank(TSnap::ConvertGraph<PUNGraph>(kron), NEigen, "KronEigen", KronEigen);
+			TFile << "Maximum eigenvalue in kron graph: " << KronEigen[0].Val << endl;
+			TFile << "Maximum degree in kron graph: " << "from " << MinMaxDeg << " to " << MaxMaxDeg << " (average: " << (double)AverageMaxDeg / (double)NKron << ")" << endl;
 		}
 		AddDegreesStat(inDegAvgKronM, samplesIn, kron, true);
 		AddDegreesStat(outDegAvgKronM, samplesOut, kron, false);
@@ -619,6 +599,7 @@ void GetGraphs(vector <TStr>& parameters, vector<TFltPrV>& distrIn, vector<TFltP
 	GetModel(parameters[GRAPHGEN], G, name, parameters[PLT]);
 	TFltV ModelEigValV;
 	TSnap::PlotEigValRank(TSnap::ConvertGraph<PUNGraph>(G), NEigenStr.GetInt(), "ModelEigen", ModelEigValV);
+	TFile << "Maximum eigenvalue in model graph: " << ModelEigValV[0].Val << endl;
 
 	/*TStr ModifiedStr = GetModifiedStr(parameters[GRAPHGEN], ScaleSize);
 	PNGraph G2;
@@ -642,7 +623,7 @@ void GetGraphs(vector <TStr>& parameters, vector<TFltPrV>& distrIn, vector<TFltP
 		TExeTm execTime;
 		//TFile << "Clustering coefficient: " << ModelClustCf << endl;
 		//TSnap::PlotClustCf(G, name);
-		TSnap::PlotHops(G, name);
+		//TSnap::PlotHops(G, name);
 		TFile << "Time of calculating the metrics: " << execTime.GetTmStr() << endl;
 	}
 

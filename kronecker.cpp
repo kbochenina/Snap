@@ -167,7 +167,7 @@ void TKronMtx::SetForMaxDeg(const int& MaxDeg, const int& NIter)
 		if ( Sum3 > Sum0 && Sum3 > Sum1 && Sum3 > Sum2) { MinI = 0; MinJ = 0; MaxSum = Sum3;}
 			
 		//double MaxDegInv = pow(MaxDeg, 1.00 / NIter);
-		double MaxDegInv = MaxDeg / 2;
+		double MaxDegInv = MaxDeg;
 	
 		int I = MinI ? 0 : 1, J = MinJ ? 0 : 1;
 		int NI = I, NJ = J ? 0 : 1;
@@ -879,7 +879,7 @@ int TKronMtx::AddUnDir(const TIntPr& DegR, PNGraph& G, const TKronMtx& SeedMtx, 
 			int Col = GetCol(RowProbCumV, Row, NIter, Rnd);
 			if (Row != Col && !G->IsEdge(Row, Col)){
 				int InDegCol = G->GetNI(Col).GetInDeg(), OutDegCol = G->GetNI(Col).GetOutDeg();
-				if (InDegCol + 1 > DegReq || OutDegCol + 1 > DegReq) {Collision++;  j--; continue;}
+				//if (InDegCol + 1 > DegReq || OutDegCol + 1 > DegReq) {Collision++;  j--; continue;}
 				G->AddEdge(Row,Col);
 				//printf("(%d %d)\t", Row, Col);
 				EdgesAdded++;
@@ -1271,6 +1271,17 @@ void TKronMtx::KronPwr(const TKronMtx& KronMtx, const int& NIter, TKronMtx& OutM
     NewOutMtx.Swap(OutMtx);
   }
 
+}
+
+void TKronMtx::Dump(ofstream& TFile) const{
+	double Sum=0.0;
+	TFltV ValV = SeedMtx;
+	for (int i = 0; i < ValV.Len(); i++) {
+		TFile << ValV[i]() << " ";
+		Sum += ValV[i];
+		if ((i+1) % GetDim() == 0) TFile << endl; 
+	}
+	TFile << " (sum: " << Sum << ")" << endl;
 }
 
 void TKronMtx::Dump(const TStr& MtxNm, const bool& Sort) const {
