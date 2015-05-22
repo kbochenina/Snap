@@ -319,7 +319,7 @@ int GetMaxDeg(const PNGraph& G)
 }
 
 
-void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV& outDegAvgKronM, const PNGraph& G, double ModelClustCf = 0.0){
+void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV& outDegAvgKronM, const PNGraph& G, const int NEigen, double ModelClustCf = 0.0){
 	Env = TEnv(args, TNotify::StdNotify);
 	TExeTm execTime;
 	// number of Kronecker graphs to generate
@@ -458,12 +458,12 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 		int maxDeg = GetMaxDeg(kron);
 		printf("Nodes count: %d, nodes with non-zero degree %d, edges count %d\n max deg = %d\n", kron->GetNodes(), TSnap::CntNonZNodes(kron), kron->GetEdges(), maxDeg);
 		if (i == NKron - 1){
-			TFile << "Clustering coefficient: " << TSnap::GetClustCf(kron) << endl;
+			//TFile << "Clustering coefficient: " << TSnap::GetClustCf(kron) << endl;
 			TSnap::PlotClustCf(kron,"kronSingle");
 			TSnap::PlotHops(kron, "kronSingle");
 			KronEigen.Clr();
 			PrintLargestEigenVal(kron, TFile, "Kron");
-			//TSnap::PlotEigValRank(TSnap::ConvertGraph<PUNGraph>(kron), 50, "KronEigen", KronEigen);
+			TSnap::PlotEigValRank(TSnap::ConvertGraph<PUNGraph>(kron), NEigen, "KronEigen", KronEigen);
 		}
 		AddDegreesStat(inDegAvgKronM, samplesIn, kron, true);
 		AddDegreesStat(outDegAvgKronM, samplesOut, kron, false);
@@ -525,22 +525,23 @@ TFlt GetAvgScaleCf(const TFltV& ModelEigValV, const TFltV& G2EigValV, const TInt
 	TInt NEigen = 0;
 	for (int i = 0; i < ModelEigValV.Len(); i++){
 		if (G2EigValV[i].Val < 0 || ModelEigValV[i].Val < 0) break;
-		TFlt ScaleRatio = (G2EigValV[i].Val / ModelEigValV[i].Val) / N;
+		//TFlt ScaleRatio = (G2EigValV[i].Val / ModelEigValV[i].Val) / N;
+		TFlt ScaleRatio = log10(G2EigValV[i].Val) / log10(ModelEigValV[i].Val);
 		ScaleCfV.Add(ScaleRatio);
-		//AvgScaleCf += ScaleRatio;
+		AvgScaleCf += ScaleRatio;
 		NEigen = NEigen + 1;
 	}
-	//AvgScaleCf = AvgScaleCf / NEigen;
+	AvgScaleCf = AvgScaleCf / NEigen;
 
-	TFlt MaxEigenVal = ModelEigValV[0].Val;
-	TInt SampleCountSum = 0;
-	for (int i = 0; i < NEigen; i++){
-		TInt SampleCount = ModelEigValV[i].Val / MaxEigenVal * NEigen;
-		//printf("%f %d\n", ModelEigValV[i].Val / MaxEigenVal, SampleCount);
-		AvgScaleCf += ScaleCfV[i] * SampleCount;
-		SampleCountSum += SampleCount;
-	}
-	AvgScaleCf = AvgScaleCf / SampleCountSum;
+	//TFlt MaxEigenVal = ModelEigValV[0].Val;
+	//TInt SampleCountSum = 0;
+	//for (int i = 0; i < NEigen; i++){
+	//	TInt SampleCount = ModelEigValV[i].Val / MaxEigenVal * NEigen;
+	//	//printf("%f %d\n", ModelEigValV[i].Val / MaxEigenVal, SampleCount);
+	//	AvgScaleCf += ScaleCfV[i] * SampleCount;
+	//	SampleCountSum += SampleCount;
+	//}
+	//AvgScaleCf = AvgScaleCf / SampleCountSum;
 
 	TFile << "AvgScaleCf: " << AvgScaleCf << endl;
 
@@ -566,22 +567,32 @@ void TestScalingEigen(const TInt& ScaleCount, const TInt& ScaleSize, const TFlt&
 		PNGraph G;
 		NewN = NewN * ScaleSize;
 		printf("NewN = %d\n", NewN);
-		TStr NewStr = GetModifiedStr(GraphGenStr, (NewN / InitN));
+		TInt SizeRatio = NewN / InitN;
+		TStr NewStr = GetModifiedStr(GraphGenStr, SizeRatio);
 		// produce and plot model graph
 		GetModel(NewStr, G, "time.tab", "none");
 		TFltV GEigValV;
 		TSnap::PlotEigValRank(TSnap::ConvertGraph<PUNGraph>(G), NEigen, "ModelEigen" + i.GetStr(), GEigValV);
-		TFlt ScaleCoeff = pow(AvgScaleCf * ScaleSize, i + 1);
+		//TFlt ScaleCoeff = pow(AvgScaleCf * ScaleSize, i + 1);
 		//printf("ScaleCoeff: %f\n", ScaleCoeff.Val);
+		TFlt ScaleCoeff = AvgScaleCf * SizeRatio / ScaleSize;
 		TFltV ApproxEigValV;
-		TFlt ApproxE = ModelEdges * ScaleCoeff;
+		//TFlt ApproxE = ModelEdges * ScaleCoeff;
+		TFlt ApproxE = pow(ModelEdges, ScaleCoeff);
 		ofstream F = OpenFile("ApproxEigen" + i.GetStr() + ".tab");
 		F << "#" << endl;
 		F << " ApproxEigen. G(" << NewN << ", " << ApproxE.Val << "). ";
 		printf("NEigen = %d\n", NEigen);
 		for (int j = 0; j < NEigen; j++){
-			ScaleCoeff = pow(ScaleCfV[j] * ScaleSize, i + 1);
-			TFlt ApproxEigenVal = ModelEigValV[j] * ScaleCoeff;
+			//ScaleCoeff = pow(ScaleCfV[j] * ScaleSize, i + 1);
+			//ScaleCoeff = ScaleCfV[j] * SizeRatio / ScaleSize;
+			//TFlt ApproxEigenVal = ModelEigValV[j] * ScaleCoeff;
+			TFlt ApproxEigenVal = ModelEigValV[j];
+			printf("ApproxEigenVal = %f ScaleCfV[j] = %f SizeRatio / ScaleSize = %d\n", ApproxEigenVal, ScaleCfV[j], SizeRatio / ScaleSize);
+			for (int i = 0; i < SizeRatio / ScaleSize; i++){
+				ApproxEigenVal = pow(ApproxEigenVal, ScaleCfV[j]);
+				printf("ApproxEigenVal = %f ScaleCfV[j] = %f SizeRatio / ScaleSize = %d\n", ApproxEigenVal, ScaleCfV[j], SizeRatio / ScaleSize);
+			}
 			if (j == 0){
 				F << "Largest eig val = " << ApproxEigenVal.Val << endl << "#" << endl << "# Rank	Eigen value" << endl;
 			}
@@ -599,13 +610,17 @@ void GetGraphs(vector <TStr>& parameters, vector<TFltPrV>& distrIn, vector<TFltP
 	const TStr& Plt = parameters[PLT];
 	const TStr& PType = parameters[PTYPE];
 	const TStr& NEigenStr = parameters[NEIGEN];
-		
+	const TStr& ScaleSizeStr = parameters[SCALE_SIZE];
+	const TStr& ScaleCountStr = parameters[SCALE_COUNT];
+
+	const TInt& ScaleSize = ScaleSizeStr.GetInt();
+	const TInt& ScaleCount = ScaleCountStr.GetInt();
+
 	GetModel(parameters[GRAPHGEN], G, name, parameters[PLT]);
 	TFltV ModelEigValV;
 	TSnap::PlotEigValRank(TSnap::ConvertGraph<PUNGraph>(G), NEigenStr.GetInt(), "ModelEigen", ModelEigValV);
 
-	const TInt ScaleSize = 2;
-	TStr ModifiedStr = GetModifiedStr(parameters[GRAPHGEN], ScaleSize);
+	/*TStr ModifiedStr = GetModifiedStr(parameters[GRAPHGEN], ScaleSize);
 	PNGraph G2;
 	GetModel(ModifiedStr, G2, name, parameters[PLT]);
 	TFltV G2EigValV;
@@ -613,8 +628,7 @@ void GetGraphs(vector <TStr>& parameters, vector<TFltPrV>& distrIn, vector<TFltP
 	TFltV ScaleCfV;
 	TFlt AvgScaleCf = GetAvgScaleCf(ModelEigValV, G2EigValV, ScaleSize, ScaleCfV);
 
-	TInt ScaleCount = 7;
-	TestScalingEigen(ScaleCount, ScaleSize, AvgScaleCf, parameters[GRAPHGEN], ModelEigValV, G->GetEdges(), ScaleCfV);
+	TestScalingEigen(ScaleCount, ScaleSize, AvgScaleCf, parameters[GRAPHGEN], ModelEigValV, G->GetEdges(), ScaleCfV);*/
 
 	double ModelClustCf = 0.0;
 
@@ -624,10 +638,10 @@ void GetGraphs(vector <TStr>& parameters, vector<TFltPrV>& distrIn, vector<TFltP
 		TSnap::GetInDegCnt(G, mDegIn);
 		TSnap::GetOutDegCnt(G, mDegOut);
 		distrIn.push_back(mDegIn); distrOut.push_back(mDegOut); names.Add(name + "Sparse");
-		ModelClustCf = TSnap::GetClustCf(G);
+		//ModelClustCf = TSnap::GetClustCf(G);
 		TExeTm execTime;
-		TFile << "Clustering coefficient: " << ModelClustCf << endl;
-		TSnap::PlotClustCf(G, name);
+		//TFile << "Clustering coefficient: " << ModelClustCf << endl;
+		//TSnap::PlotClustCf(G, name);
 		TSnap::PlotHops(G, name);
 		TFile << "Time of calculating the metrics: " << execTime.GetTmStr() << endl;
 	}
@@ -642,7 +656,7 @@ void GetGraphs(vector <TStr>& parameters, vector<TFltPrV>& distrIn, vector<TFltP
 		// in and out average degree distribution for kronM (non-accumulated)
 		TFltPrV inDegAvgKron, outDegAvgKron;
 		
-		GenKron(parameters[KRONGEN], FitMtxM, inDegAvgKron, outDegAvgKron, G, ModelClustCf);
+		GenKron(parameters[KRONGEN], FitMtxM, inDegAvgKron, outDegAvgKron, G, NEigenStr.GetInt());
 		if ( PType == "full" || PType == "all" ){
 		PlotPoints(inDegAvgKron, outDegAvgKron, name, Plt);
 		}
@@ -686,6 +700,10 @@ void KroneckerByConf(vector<TStr> commandLineArgs){
 	const TStr MSPlt = Env.GetIfArgPrefixStr("-msplt:", "kron", "Plotting of small model and/or its Kronecker product (model, kron, model+kron)");
 	// number of eigenvalues to investigate
 	const TStr NEigen = Env.GetIfArgPrefixStr("-neigen:", "10", "Number of eigenvalues");
+	// scale size
+	const TStr ScaleSize = Env.GetIfArgPrefixStr("-ss:", "2", "Scale size");
+	// scale count
+	const TStr ScaleCount = Env.GetIfArgPrefixStr("-sc:", "5", "Scale count");
 
 	CheckParams(ModelGen, ModelPlt);
 	CheckParams(MSGen, MSPlt);
@@ -703,7 +721,7 @@ void KroneckerByConf(vector<TStr> commandLineArgs){
 		vector <TStr> parameters;
 		for (size_t i = 1; i <= NPARCOPY; i++)
 			parameters.push_back(commandLineArgs[i]);
-		parameters.push_back(PType); parameters.push_back(Plt); parameters.push_back("Model"); parameters.push_back(NEigen);
+		parameters.push_back(PType); parameters.push_back(Plt); parameters.push_back("Model"); parameters.push_back(NEigen); parameters.push_back(ScaleSize); parameters.push_back(ScaleCount);
 		GetGraphs(parameters, distrIn, distrOut, names, ModelGen, ModelPlt);
 	}
 	
@@ -712,7 +730,7 @@ void KroneckerByConf(vector<TStr> commandLineArgs){
 		vector <TStr> parameters;
 		for (size_t i = NPARCOPY + 1; i <= 2 * NPARCOPY; i++)
 			parameters.push_back(commandLineArgs[i]);
-		parameters.push_back(PType); parameters.push_back(Plt); parameters.push_back("Small"); parameters.push_back(NEigen);
+		parameters.push_back(PType); parameters.push_back(Plt); parameters.push_back("Small"); parameters.push_back(NEigen); parameters.push_back(ScaleSize); parameters.push_back(ScaleCount);
 		GetGraphs(parameters, distrIn, distrOut, names, MSGen, MSPlt);
 	}
 
