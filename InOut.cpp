@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "Error.h"
 
 void DefaultSettings(vector<TStr>& out){
 	out.clear();
@@ -145,4 +146,41 @@ void ReadMtx(const TStr& Mtx, const TInt& MtxSize, TKronMtx& FitMtx){
 	GetMtxFromSepLine(Mtx, ";", matrix);
 	FitMtx.GenMtx(matrix.Len() / MtxSize);
 	FitMtx.SetMtx(matrix);
+}
+
+void MakeDatFile(const TStr& Name, const TStr& AddStr, const TStrV& ColumnNames, const vector<vector<double>>& Data, const int& Nodes, const int& Edges){
+	if (Data.size() == 0)
+		Error("MakeDatFile", "Data array is empty");
+	int ColumnsCount = ColumnNames.Len();
+	if (Data.size() != ColumnsCount)
+		Error("MakeDatFile", "Data array is inconsistent with columns count");
+	for (int i = 0; i < Data.size()-1; i++){
+		if (Data[i].size() != Data[i+1].size())
+			Error("MakeDatFile", "The sizes of data arrays don't match together");
+	}
+	
+	time_t ltime;  time(&ltime);
+    char* TimeStr = ctime(&ltime);  TimeStr[strlen(TimeStr) - 1] = 0;
+	TStr FileName = Name;
+	FileName.InsStr(FileName.Len(), ".tab");
+	ofstream F(FileName.CStr());
+	F << "#\n";
+	F << Name.CStr() << ". ";
+	if (Nodes != 0)
+		F << "G(" << Nodes << "," << Edges << "). ";
+	F << AddStr.CStr() << " (" << TimeStr << ") ";
+	F << "\n#\n# ";
+
+	for (int i = 0; i < ColumnsCount; i++)
+		F << ColumnNames[i].CStr() << " ";
+	F << "\n";
+	int DataSize = Data[0].size();
+	for (int i = 0; i < DataSize; i++){
+		for (int j = 0; j < ColumnsCount; j++){
+			F << Data[j][i] << " ";
+		}
+		F << "\n";
+	}
+
+	F.close();
 }

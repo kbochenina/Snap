@@ -552,15 +552,22 @@ PNGraph TKronMtx::GenKronecker(const TKronMtx& SeedMtx, const int& NIter, const 
   return Graph;
 }
 
-double TKronMtx::GetMaxEigen(const int& NIter){
+double TKronMtx::GetEigMax(){
 	double A = At(0,0), B = At(0,1), C = At(1,0), D = At(1,1);
 	double X = (A + D) / 2, Y =  sqrt(pow(A+D,2) - 4 * (A * D - B*C)) / 2;
 	double EigMax = X + Y;
-	double EigMin = X - Y;
+	/*double EigMin = X - Y;
 	double Member = sqrt(NIter * pow(A + B, NIter));
 	printf("EigMax + Member: %f\n", EigMax + Member);
-	printf("EigMin: %f\n", EigMin);
-	return pow (EigMax, NIter);
+	printf("EigMin: %f\n", EigMin);*/
+	return EigMax;
+}
+
+double TKronMtx::GetEigMin(){
+	double A = At(0,0), B = At(0,1), C = At(1,0), D = At(1,1);
+	double X = (A + D) / 2, Y =  sqrt(pow(A+D,2) - 4 * (A * D - B*C)) / 2;
+	double EigMin = X - Y;
+	return EigMin;
 }
 
 int TKronMtx::AddEdges(const TKronMtx& SeedMtx, const int&NIter, const bool& IsDir, TRnd& Rnd, PNGraph& G, const int& NEdges, const int&InDegMax, const int& OutDegMax, double ModelClustCf){

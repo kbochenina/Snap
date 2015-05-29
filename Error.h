@@ -1,0 +1,1 @@
+void Error(const TStr& FuncName, const TStr& ErrorMsg);
