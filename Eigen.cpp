@@ -43,3 +43,40 @@ void GetEigVProbMtx(const double& EigMax, const double& EigMin, const int& NIter
 	//sort(EigV.begin(), EigV.end(), std::greater<double>());
 }
 
+void PrintEigen(const TKronMtx& FitMtx, const int &NIter, const int& NEigen){
+	vector<double> EigProbMtx, Mult;
+	TFlt EigMax = FitMtx.GetEigMax(), EigMin = FitMtx.GetEigMin();
+	printf("EigMax = %f, EigMin = %f\n", EigMax, EigMin);
+	GetEigVProbMtx(EigMax, EigMin, NIter, EigProbMtx, Mult);
+	if (EigProbMtx.size() == 0)
+		Error("GenKron", "EigProbMtx has zero size");
+	TStrV ColumnNames; ColumnNames.Add("Rank");ColumnNames.Add("EigVal");
+	vector<vector<double>> Data;
+
+	vector<double> EigMult;
+	
+	int ValuesAdded = 0;
+
+	for (int i = 0; i < EigProbMtx.size(); i++){
+		for (int j = 0; j < Mult[i]; j++){
+			ValuesAdded++;
+			if (ValuesAdded == NEigen / 2)
+				break;
+			EigMult.push_back(EigProbMtx[i]);
+		}
+		if (ValuesAdded == NEigen / 2)
+			break;
+	}
+
+	vector<double> Rank;
+	for (int i = 0; i < EigMult.size(); i++)
+		Rank.push_back(i + 1);
+	Data.push_back(Rank);
+	Data.push_back(EigMult);
+
+	TFlt EigMaxProb = pow(EigMax, NIter);
+	TStr AddStr("Largest eigen val = "), AddVal(EigMaxProb.GetStr());
+	AddStr.InsStr(AddStr.Len(), AddVal);
+
+	MakeDatFile("eigVal.ProbMtx", AddStr, ColumnNames, Data);
+}

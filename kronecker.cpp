@@ -99,11 +99,65 @@ void TKronMtx::SetForEdgesNoCut(const int& Nodes, const int& Edges) {
    }
 }
 
-int TKronMtx::GetMinMaxPossibleDeg(const int& NIter)
+double TKronMtx::GetMax() const {
+	double Val = 0.0;
+	if(At(0,0) > At(0,1))
+		Val = At(0,0);
+	else Val = At(0,1);
+	if (Val < At(1,0))
+		Val = At(1,0);
+	if (Val < At(1,1))
+		Val = At(1,1);
+	return Val;
+}
+
+int TKronMtx::GetMaxExpectedDeg(const int& NIter, const int& MinDeg)
 {
-	double Sum = GetMtxSum();
+	/*double Sum = GetMtxSum();
 	double Val = 2 * pow( Sum / 2, NIter );
-	return ceil(Val);
+	return ceil(Val);*/
+	double SumRow1 = At(0,0) + At(0,1);
+	double SumRow2 = At(1,0) + At(1,1);
+	double MaxSum = SumRow1 > SumRow2 ? SumRow1 : SumRow2;
+	double SumDeg = 0;
+	if (MinDeg != 0){
+		FILE *f = fopen("prob.dat", "w");
+		double A = At(0,0), B = At(0,1), C = At(1,0), D = At(1,1);
+		fprintf(f, "%f %f %f %f\n", A, B, C, D);
+		int MaxExpDeg = 0;
+		int Nodes = pow(static_cast<double>(GetDim()), NIter);
+		for (int i = 0; i < Nodes; i++){
+			double Prob = 0.0;
+			for (int j = 0; j < Nodes; j++){
+				if (j != i){
+					int a1 = 0, b1 = 0, c1 = 0, d1 = 0;
+					for (int k = 0; k < NIter; k++){
+						// compare k-th bit of i and j
+						int ci = (i >> k) & 1;
+						int cj = (j >> k) & 1;
+						if (ci == 0)
+							if (cj == 0) a1++;
+							else b1++;
+						else {
+							if (cj == 0) c1++;
+							else d1++;
+						}
+					}
+					Prob += pow(A,a1) * pow(B,b1) * pow(C,c1) * pow(D,d1);
+					//fprintf(f, "%d %d %d %d %f\n", a1, b1, c1, d1, Prob);
+				}
+			}
+			fprintf(f, "%d %f\n", i, Prob);
+			int ExpDeg = MinDeg + MinDeg * Prob;
+			SumDeg += ExpDeg;
+			if (ExpDeg > MaxExpDeg) MaxExpDeg = ExpDeg;
+		}
+		fprintf(f, "SumDeg = %f\n", SumDeg - Nodes);
+		fclose(f);
+		return MaxExpDeg;
+		
+	}
+	return pow(MaxSum, NIter);
 }
 
 void TKronMtx::Normalize()
@@ -552,7 +606,7 @@ PNGraph TKronMtx::GenKronecker(const TKronMtx& SeedMtx, const int& NIter, const 
   return Graph;
 }
 
-double TKronMtx::GetEigMax(){
+double TKronMtx::GetEigMax() const{
 	double A = At(0,0), B = At(0,1), C = At(1,0), D = At(1,1);
 	double X = (A + D) / 2, Y =  sqrt(pow(A+D,2) - 4 * (A * D - B*C)) / 2;
 	double EigMax = X + Y;
@@ -563,7 +617,7 @@ double TKronMtx::GetEigMax(){
 	return EigMax;
 }
 
-double TKronMtx::GetEigMin(){
+double TKronMtx::GetEigMin() const {
 	double A = At(0,0), B = At(0,1), C = At(1,0), D = At(1,1);
 	double X = (A + D) / 2, Y =  sqrt(pow(A+D,2) - 4 * (A * D - B*C)) / 2;
 	double EigMin = X - Y;
@@ -893,11 +947,11 @@ int TKronMtx::AddUnDir(const TIntPr& DegR, PNGraph& G, const TKronMtx& SeedMtx, 
 				G->AddEdge(Col, Row);
 				//printf("(%d %d)\t", Col, Row);
 				EdgesAdded++;
-				if (CheckClustCf(G, Row, Col, ModelClustCf, Rnd, false, ClustCollision)){
+				/*if (CheckClustCf(G, Row, Col, ModelClustCf, Rnd, false, ClustCollision)){
 				  EdgesAdded++;
 				  EdgesAdded++;
 				  ClosedTriads++;
-			    }
+			    }*/
 			}
 			else {Collision++; j--;}//printf("Collision1\n"); }	
 		}
@@ -944,7 +998,6 @@ PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, co
 	}
 	else 
 		Collisions += AddUnDir(InDegR, Graph, SeedMtx, NIter, Rnd, ModelClustCf);
-	//const int Least = NEdges - Graph->GetEdges();
 	const int Least = NEdges - Graph->GetEdges();
 	Collisions += AddEdges(SeedMtx, NIter, IsDir, Rnd, Graph, Least, InDegR.Val2, OutDegR.Val2, ModelClustCf);
 	printf("             collisions: %d (%.4f)\n", Collisions, Collisions/(double)Graph->GetEdges());

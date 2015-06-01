@@ -46,11 +46,12 @@ public:
   TStr GetMtxStr() const;
   void SetForMaxDeg(const int& MaxDeg, const int& NIter);
   int GetMaxDeg(const int& NIter);
-  int GetMinMaxPossibleDeg(const int& NIter);
+  int GetMaxExpectedDeg(const int& NIter, const int& MinDeg = 0);
   void SetForEdgesNoCut(const int& Nodes, const int& Edges);
   void Normalize();
-  double GetEigMax();
-  double GetEigMin();
+  double GetEigMax() const;
+  double GetEigMin() const;
+  double GetMax() const;
   void SetForMaxEigen(const double K, const int& NIter);
 
   const double& At(const int& Row, const int& Col) const { return SeedMtx[MtxDim*Row+Col].Val; }

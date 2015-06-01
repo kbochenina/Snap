@@ -358,7 +358,7 @@ void ScaleFitMtx(TKronMtx& FitMtx, const TInt& NIter, const int& InitModelNodes,
 	// check ceil()
 	double ModelIter = ceil(log10((double)InitModelNodes) / log10((double)FitMtx.GetDim()));
 	// rename function and variable
-	int MinMaxDeg = FitMtx.GetMinMaxPossibleDeg(NIter);
+	int MinMaxDeg = FitMtx.GetMaxExpectedDeg(NIter);
 	TFile << "Expected model maximum degree: " << MaxModelDeg << endl << "Expected Kronecker maximum degree: "<<  MinMaxDeg << endl;
 	FitMtx.SetForMaxDeg(MaxModelDeg, ModelIter);
 	TFile << "After scaling " << endl;
@@ -397,68 +397,31 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 	// check function
 	int MaxModelDeg = GetMaxDeg(G);
 	TFile << "Maximum degree in model graph: " << MaxModelDeg << endl;
-
-	vector<double> EigProbMtx, Mult;
-	TFlt EigMax = FitMtx.GetEigMax(), EigMin = FitMtx.GetEigMin();
-	printf("EigMax = %f, EigMin = %f\n", EigMax, EigMin);
-	GetEigVProbMtx(EigMax, EigMin, NIter, EigProbMtx, Mult);
-	if (EigProbMtx.size() == 0)
-		Error("GenKron", "EigProbMtx has zero size");
-	TStrV ColumnNames; ColumnNames.Add("Rank");ColumnNames.Add("EigVal");
-	vector<vector<double>> Data;
-
-	vector<double> EigMult;
-	
-	int ValuesAdded = 0;
-
-	for (int i = 0; i < EigProbMtx.size(); i++){
-		for (int j = 0; j < Mult[i]; j++){
-			ValuesAdded++;
-			if (ValuesAdded == NEigen / 2)
-				break;
-			EigMult.push_back(EigProbMtx[i]);
-		}
-		if (ValuesAdded == NEigen / 2)
-			break;
-	}
-
-	vector<double> Rank;
-	for (int i = 0; i < EigMult.size(); i++)
-		Rank.push_back(i + 1);
-	Data.push_back(Rank);
-	Data.push_back(EigMult);
-
-	TFlt EigMaxProb = pow(EigMax, NIter);
-	TStr AddStr("Largest eigen val = "), AddVal(EigMaxProb.GetStr());
-	AddStr.InsStr(AddStr.Len(), AddVal);
-
-	MakeDatFile("eigVal.ProbMtx", AddStr, ColumnNames, Data);
-
+	//TFile << "Maximum expected degree in kron graph: " << FitMtx.GetMinMaxPossibleDeg(NIter) << endl;
 
 	if (ScaleMtx == "true"){
 		ScaleFitMtx(FitMtx, NIter, ModelNodes, ExpectedModelEdges, MaxModelDeg);
 		//ScaleFitMtxForEdges(FitMtx, NIter, ExpectedModelEdges);	
 	}
 
+	if (NEigen != 0)
+		PrintEigen(FitMtx, NIter, NEigen);
 
 	// Kronecker model of graph
 	PNGraph kron;
 	TIntPrV samplesIn, samplesOut;
 	double sec = 0.0;
 	
-	try {
-		int Nodes = FitMtx.GetNodes(NIter);
-		int Edges = FitMtx.GetEdges(NIter);
-		if (InDegR.Val1 * Nodes > Edges || OutDegR.Val1 * Nodes > Edges || InDegR.Val2 < InDegR.Val1 || OutDegR.Val2 < OutDegR.Val1) 
-			throw exception("FastKronecker() exception. Constraints do not match to the number of edges");
-		if (IsDir == "false" && (InDegR.Val1 != OutDegR.Val1 || InDegR.Val2 != OutDegR.Val2))
-			throw exception("FastKronecker() exception. InDegR and OutDegR should be the same for undirected graph");
+	int Nodes = FitMtx.GetNodes(NIter);
+	int Edges = FitMtx.GetEdges(NIter);
+	if (InDegR.Val1 * Nodes > Edges || OutDegR.Val1 * Nodes > Edges || InDegR.Val2 < InDegR.Val1 || OutDegR.Val2 < OutDegR.Val1) 
+		Error("GenKron", "Constraints do not match to the number of edges");
+	if (IsDir == "false" && (InDegR.Val1 != OutDegR.Val1 || InDegR.Val2 != OutDegR.Val2))
+		Error("GenKron", "InDegR and OutDegR should be the same for undirected graph");
+	if (IsDir == "false"){
+		TFile << "Maximum expected degree in kron graph: " << FitMtx.GetMaxExpectedDeg(NIter, OutDegR.Val1) << endl;
 	}
-	catch (const exception e) {
-		cerr << e.what() << endl;
-		system("pause");
-		exit(0);
-	}
+		
 
 	TFltV KronEigen;
 	int AverageMaxDeg = 0, MinMaxDeg = 0, MaxMaxDeg = 0;
@@ -478,10 +441,12 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 			//TFile << "Clustering coefficient: " << TSnap::GetClustCf(kron) << endl;
 			//TSnap::PlotClustCf(kron,"kronSingle");
 			//TSnap::PlotHops(kron, "kronSingle");
-			KronEigen.Clr();
 			//PrintLargestEigenVal(kron, TFile, "Kron");
-			TSnap::PlotEigValRank(TSnap::ConvertGraph<PUNGraph>(kron), NEigen, "KronEigen", KronEigen);
-			TFile << "Maximum eigenvalue in kron graph: " << KronEigen[0].Val << endl;
+			if (NEigen != 0){
+				KronEigen.Clr();
+				TSnap::PlotEigValRank(TSnap::ConvertGraph<PUNGraph>(kron), NEigen, "KronEigen", KronEigen);
+				TFile << "Maximum eigenvalue in kron graph: " << KronEigen[0].Val << endl;
+			}
 			TFile << "Maximum degree in kron graph: " << "from " << MinMaxDeg << " to " << MaxMaxDeg << " (average: " << (double)AverageMaxDeg / (double)NKron << ")" << endl;
 		}
 		AddDegreesStat(inDegAvgKronM, samplesIn, kron, true);
@@ -636,9 +601,12 @@ void GetGraphs(vector <TStr>& parameters, vector<TFltPrV>& distrIn, vector<TFltP
 	const TInt& ScaleCount = ScaleCountStr.GetInt();
 
 	GetModel(parameters[GRAPHGEN], G, name, parameters[PLT]);
-	TFltV ModelEigValV;
-	TSnap::PlotEigValRank(TSnap::ConvertGraph<PUNGraph>(G), NEigenStr.GetInt(), "ModelEigen", ModelEigValV);
-	TFile << "Maximum eigenvalue in model graph: " << ModelEigValV[0].Val << endl;
+	int NEigen = NEigenStr.GetInt();
+	if (NEigen != 0){
+		TFltV ModelEigValV;
+		TSnap::PlotEigValRank(TSnap::ConvertGraph<PUNGraph>(G), NEigenStr.GetInt(), "ModelEigen", ModelEigValV);
+		TFile << "Maximum eigenvalue in model graph: " << ModelEigValV[0].Val << endl;
+	}
 
 	/*TStr ModifiedStr = GetModifiedStr(parameters[GRAPHGEN], ScaleSize);
 	PNGraph G2;
