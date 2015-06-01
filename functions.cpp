@@ -153,12 +153,26 @@ int InitKronecker(const TStr args, PNGraph &GD, TKronMtx& FitMtx){
 
 void RemoveZeroDegreeNodes(PNGraph& out){
 	TRnd rnd;
+	rnd.GetUniDev();
 	int nodesCount = out->GetNodes();
+	int edgesCount = out->GetEdges();
 	for (int i = 0; i < nodesCount; i++){
 		if (out->GetNI(i).GetInDeg() == 0){
-			double val = rnd.GetUniDev();
-			int nodeId = static_cast<int>(val * nodesCount);
-			out->AddEdge(nodeId, i);
+			while (1){
+				double val = rnd.GetUniDev();
+				int nodeId = static_cast<int>(val * nodesCount);
+				auto NI = out->GetNI(nodeId);
+				int OutDeg = NI.GetOutDeg();
+				if (OutDeg == 0) continue;
+				int NbId = static_cast<int>(rnd.GetUniDev() * (OutDeg - 1));
+				int NbOutId = NI.GetNbrNId(NbId);
+				if (out->GetNI(NbOutId).GetInDeg() == 1) continue;
+				// check!
+				out->DelEdge(nodeId, NbOutId, false);
+				out->AddEdge(nodeId, i);
+				out->AddEdge(i,nodeId);
+				break;
+			}
 		}
 	}
 }
@@ -184,7 +198,7 @@ int KroneckerGen(const TInt NIter, const TKronMtx& FitMtx, PNGraph& out, const T
 		TKronMtx::GenFastKronecker(SeedMtx, NIter, Dir, 0, InDegR, OutDegR, out, ModelClustCf);
 	}
 
-	//RemoveZeroDegreeNodes(out);
+	RemoveZeroDegreeNodes(out);
 
 	// save edge list
 	//TSnap::SaveEdgeList(out, OutFNm, TStr::Fmt("Kronecker Graph: seed matrix [%s]", FitMtx.GetMtxStr().CStr()));
