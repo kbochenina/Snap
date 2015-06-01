@@ -419,7 +419,7 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 	if (IsDir == "false" && (InDegR.Val1 != OutDegR.Val1 || InDegR.Val2 != OutDegR.Val2))
 		Error("GenKron", "InDegR and OutDegR should be the same for undirected graph");
 	if (IsDir == "false"){
-		TFile << "Maximum expected degree in kron graph: " << FitMtx.GetMaxExpectedDeg(NIter, OutDegR.Val1) << endl;
+		TFile << "Maximum expected degree in kron graph: " << FitMtx.GetMaxExpectedDeg(NIter) << endl;
 	}
 		
 

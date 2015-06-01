@@ -112,28 +112,10 @@ double TKronMtx::GetMax() const {
 	return Val;
 }
 
-int TKronMtx::GetMaxExpectedDeg(const int& NIter, const int& MinDeg)
+int TKronMtx::GetMaxExpectedDeg(const int& NIter)
 {
-	/*double Sum = GetMtxSum();
-	double Val = 2 * pow( Sum / 2, NIter );
-	return ceil(Val);*/
-	//double SumRow1 = At(0,0) + At(0,1);
-	//double SumRow2 = At(1,0) + At(1,1);
-	//double MaxSum = SumRow1 > SumRow2 ? SumRow1 : SumRow2;
-
-	double Sum0 = pow(At(0,0) + At(0,1), NIter)/2 + pow(At(0,0) + At(1,0), NIter)/2,
-			Sum1 = pow(At(0,0) + At(0,1), NIter)/2 + pow(At(0,1) + At(1,1), NIter)/2,
-			Sum2 = pow(At(1,0) + At(1,1), NIter)/2 + pow(At(1,0) + At(0,0), NIter)/2,
-			Sum3 = pow(At(1,0) + At(1,1), NIter)/2 + pow(At(1,1) + At(0,1), NIter)/2;
-		
-	printf("%f %f %f %f\n", Sum0, Sum1, Sum2, Sum3);
-	double MaxSum = 0;
-	if (Sum0 > Sum1 && Sum0 > Sum2 && Sum0 > Sum3) MaxSum = Sum0;
-	else if (Sum1 > Sum0 && Sum1 > Sum2 && Sum1 > Sum3) MaxSum = Sum1;
-	else if (Sum2 > Sum0 && Sum2 > Sum1 && Sum2 > Sum3) MaxSum = Sum2;
-	else if (Sum3 > Sum0 && Sum3 > Sum1 && Sum3 > Sum2) MaxSum = Sum3;
-
-	return (MaxSum + 0.5);
+	int BestRow, BestCol;
+	return GetMaxExpectedDeg(At(0,0), At(0,1), At(1,0), At(1,1), NIter, BestRow, BestCol);
 }
 
 void TKronMtx::Normalize()
@@ -158,67 +140,161 @@ void TKronMtx::Normalize()
 	//	printf("Error while normalizing\n");
 }
 
-int TKronMtx::GetMaxDeg(const int& NIter){
-	int MinI = 0, MinJ = 0;
-	double Sum0 = pow(At(0,0) + At(0,1), NIter) + pow(At(0,0) + At(1,0), NIter),
-			Sum1 = pow(At(0,0) + At(0,1), NIter) + pow(At(0,1) + At(1,1), NIter),
-			Sum2 = pow(At(1,0) + At(1,1), NIter) + pow(At(1,0) + At(0,0), NIter),
-			Sum3 = pow(At(1,0) + At(1,1), NIter) + pow(At(1,1) + At(0,1), NIter);
+
+ int TKronMtx::GetMaxExpectedDeg(const double&A, const double&B, const double&C, const double&D, const int& NIter, int& BestRow, int&BestCol){
+	double Sum0 = pow(A + B, NIter)/2 + pow(A + C, NIter)/2,
+		Sum1 = pow(A + B, NIter)/2 + pow(B + D, NIter)/2,
+		Sum2 = pow(C + D, NIter)/2 + pow(C + A, NIter)/2,
+		Sum3 = pow(C + D, NIter)/2 + pow(D + B, NIter)/2;
 		
 	printf("%f %f %f %f\n", Sum0, Sum1, Sum2, Sum3);
+	double MaxSum = 0;
+	if (Sum0 > Sum1 && Sum0 > Sum2 && Sum0 > Sum3) {MaxSum = Sum0; BestRow = 0; BestCol = 0;}
+	else if (Sum1 > Sum0 && Sum1 > Sum2 && Sum1 > Sum3) {MaxSum = Sum1; BestRow = 0; BestCol = 1;}
+	else if (Sum2 > Sum0 && Sum2 > Sum1 && Sum2 > Sum3) {MaxSum = Sum2; BestRow = 1; BestCol = 0;}
+	else if (Sum3 > Sum0 && Sum3 > Sum1 && Sum3 > Sum2) {MaxSum = Sum3; BestRow = 1; BestCol = 1;}
 
-	double MaxSum = 0.0;
-
-	if ( Sum0 > Sum1 && Sum0 > Sum2 && Sum0 > Sum3) { MinI = 1; MinJ = 1; MaxSum = Sum0;}
-	if ( Sum1 > Sum0 && Sum1 > Sum2 && Sum1 > Sum3) { MinI = 1; MinJ = 0; MaxSum = Sum1;}
-	if ( Sum2 > Sum0 && Sum2 > Sum1 && Sum2 > Sum3) { MinI = 0; MinJ = 1; MaxSum = Sum2;}
-	if ( Sum3 > Sum0 && Sum3 > Sum1 && Sum3 > Sum2) { MinI = 0; MinJ = 0; MaxSum = Sum3;}
-	return floor(MaxSum);
-}
-
+	return (MaxSum + 0.5);
+ }
 
 // works only for 2x2 size matrix!
 void TKronMtx::SetForMaxDeg(const int& MaxDeg, const int& NIter)
 {
-	int BestRow = (At(0,0) + At(0,1) > At(1,0) + At(1,1)) ? 0 : 1;
-	int LeastRow = (BestRow == 0) ? 1 : 0;
-	double A = At(BestRow,0), B = At(BestRow,1), C = At(LeastRow, 0), D = At(LeastRow, 1), DeltaA = 0, DeltaB = 0;
+	double A = At(0,0), B = At(0,1), C = At(1, 0), D = At(1, 1), DeltaA = 0, DeltaB = 0;
+	int BestRow = 0, BestCol = 0;
+	int MaxExpDeg = GetMaxExpectedDeg(A,B,C,D, NIter, BestRow, BestCol);
+	
+	if (MaxExpDeg == MaxDeg) return;
+	TIntPr Corner, Diag1, Diag2, Least;
+	Corner.Val1 = BestRow; Corner.Val2 = BestCol;
+	Diag1.Val1 = BestRow; Diag1.Val2 = (BestCol == 1) ? 0 : 1;
+	Diag2.Val1 = (BestRow == 1) ? 0 : 1; Diag2.Val2 = BestCol;
+	Least.Val1 = (BestRow == 1) ? 0 : 1; Least.Val2 = (BestCol == 1) ? 0 : 1;
+	double CornerV = At(Corner.Val1, Corner.Val2),
+		Diag1V = At(Diag1.Val1, Diag1.Val2),
+		Diag2V = At(Diag2.Val1, Diag2.Val2),
+		LeastV = At(Least.Val1, Least.Val2);
+
 	bool DecFound = false;
-	double MaxDeltaA = (1 - A < D) ? 1 - A : D, MaxDeltaB = (1 - B < C) ? 1 - B : C;
 	double Step = 0.001;
-	for (double i = Step; i <= MaxDeltaA; i+= Step){
-		DeltaA = i;
-		printf("%f\n", pow(A + DeltaA + B + DeltaB, NIter));
-		if (static_cast<int>(pow(A + DeltaA + B, NIter)) == MaxDeg){
+
+	// increase Corner, decrease Diag1 and Diag2
+	// if MaxExpDeg begins to decrease, stop
+	for (CornerV = CornerV + Step; CornerV <= 1; CornerV += Step){
+		Diag1V = Diag1V - Step / 2;
+		Diag2V = Diag2V - Step / 2;
+		int CurrMaxDeg = static_cast<int>(pow(CornerV + Diag1V, NIter) / 2 + pow(CornerV + Diag2V, NIter) / 2 + 0.5);
+		if (CurrMaxDeg < MaxExpDeg){
+			// reset values for previous step
+			CornerV -= Step;
+			Diag1V += Step / 2; Diag2V += Step / 2;
+			break;
+		}
+		else 
+			MaxExpDeg = CurrMaxDeg;
+		if (CurrMaxDeg == MaxDeg){
 			DecFound = true;
 			break;
 		}
 	}
+	
+	printf("MaxDeg after step 1: %f\n", pow(CornerV + Diag1V, NIter) / 2 + pow(CornerV + Diag2V, NIter) / 2);
+
+	// fix Corner, increase Diag1 and Diag2, decrease Least
 	if (!DecFound){
-		for (double i = Step; i <= MaxDeltaB; i+=Step){
-			DeltaB = i;
-			printf("%f\n", pow(A + DeltaA + B + DeltaB, NIter));
-			if (static_cast<int>(pow(A + DeltaA + B + DeltaB, NIter)) == MaxDeg){
+		for (LeastV = LeastV - Step; LeastV >= 0; LeastV -= Step){
+			Diag1V = Diag1V + Step / 2;
+			Diag2V = Diag2V + Step / 2;
+			MaxExpDeg = (pow(CornerV + Diag1V, NIter) / 2 + pow(CornerV + Diag2V, NIter) / 2 + 0.5);
+			if (MaxExpDeg == MaxDeg){
 				DecFound = true;
 				break;
 			}
 		}
 	}
 	
+	printf("MaxDeg after step 2: %f\n", pow(CornerV + Diag1V, NIter) / 2 + pow(CornerV + Diag2V, NIter) / 2);
+
+	// increase max(Diag1, Diag2), decrease min(Diag1,Diag2)
+	// if MaxExpDeg begins to decrease, stop
+	if (!DecFound){
+		double MaxDiag = (Diag1V > Diag2V) ? Diag1V : Diag2V,
+			MinDiag = (MaxDiag == Diag1V) ? Diag2V : Diag1V;
+		for (MaxDiag = MaxDiag + Step; MaxDiag <= 1; MaxDiag += Step){
+			if (MinDiag - Step < 0)
+				break;
+			MinDiag -= Step;
+			int CurrMaxDeg = static_cast<int>(pow(CornerV + MaxDiag, NIter) / 2 + pow(CornerV + MinDiag, NIter) / 2 + 0.5);
+			if (CurrMaxDeg < MaxExpDeg){
+				// reset values for previous step
+				if (Diag1 > Diag2){
+					Diag1V = MaxDiag - Step;
+					Diag2V = MinDiag + Step;
+				}
+				else {
+					Diag2V = MaxDiag - Step;
+					Diag1V = MinDiag + Step;
+				}
+				break;
+			}
+			else 
+			MaxExpDeg = CurrMaxDeg;
+			if (MaxExpDeg == MaxDeg){
+				DecFound = true;
+				break;
+			}
+		}
+	}
+
+	printf("MaxDeg after step 3: %f\n", pow(CornerV + Diag1V, NIter) / 2 + pow(CornerV + Diag2V, NIter) / 2);
+
+	//int BestRow = (At(0,0) + At(0,1) > At(1,0) + At(1,1)) ? 0 : 1;
+	//int LeastRow = (BestRow == 0) ? 1 : 0;
+	//double A = At(BestRow,0), B = At(BestRow,1), C = At(LeastRow, 0), D = At(LeastRow, 1), DeltaA = 0, DeltaB = 0;
+	//bool DecFound = false;
+	//double MaxDeltaA = (1 - A < D) ? 1 - A : D, MaxDeltaB = (1 - B < C) ? 1 - B : C;
+	//double Step = 0.001;
+	//for (double i = Step; i <= MaxDeltaA; i+= Step){
+	//	DeltaA = i;
+	//	printf("%f\n", pow(A + DeltaA + B + DeltaB, NIter));
+	//	if (static_cast<int>(pow(A + DeltaA + B, NIter)) == MaxDeg){
+	//		DecFound = true;
+	//		break;
+	//	}
+	//}
+	//if (!DecFound){
+	//	for (double i = Step; i <= MaxDeltaB; i+=Step){
+	//		DeltaB = i;
+	//		printf("%f\n", pow(A + DeltaA + B + DeltaB, NIter));
+	//		if (static_cast<int>(pow(A + DeltaA + B + DeltaB, NIter)) == MaxDeg){
+	//			DecFound = true;
+	//			break;
+	//		}
+	//	}
+	//}
+	
 	if (DecFound == false){
-		printf("%f %f MaxDeg: %f\n", A + DeltaA, B + DeltaB, pow(A + DeltaA + B + DeltaB, NIter));
+		printf("%f %f %f MaxDeg: %f\n", CornerV, Diag1V, Diag2V, pow(CornerV + Diag1V, NIter) / 2 + pow(CornerV + Diag2V, NIter) / 2);
 		Error("SetForMaxDeg", "Cannot find solution");
 	}
-	if (A + DeltaA > 1)
+	if (CornerV > 1 || CornerV < 0)
+		Error("SetForMaxDeg", "CornerV > 1 || CornerV < 0");
+	if (Diag1V > 1 || Diag1V < 0)
+		Error("SetForMaxDeg", "Diag1V > 1 || Diag1V < 0");
+	if (Diag2V > 1 || Diag2V < 0)
+		Error("SetForMaxDeg", "Diag2V > 1 || Diag2V < 0");
+	if (LeastV > 1 || LeastV < 0)
+		Error("SetForMaxDeg", "LeastV > 1 || LeastV < 0");
+	/*if (A + DeltaA > 1)
 		Error("SetForMaxDeg", "A + DeltaA > 1");
 	if (B + DeltaB > 1)
 		Error("SetForMaxDeg", "B + DeltaB > 1");
 	if (C - DeltaB < 0)
 		Error("SetForMaxDeg", "C - DeltaB < 0");
 	if (D - DeltaA < 0)
-		Error("SetForMaxDeg", "A + DeltaA > 1");
-	At(BestRow,0) = A + DeltaA; At(BestRow, 1) = B + DeltaB; At(LeastRow,0) = C - DeltaB; At(LeastRow, 1) = D - DeltaA; 
-	GetMaxExpectedDeg(NIter);
+		Error("SetForMaxDeg", "A + DeltaA > 1");*/
+	At(Corner.Val1,Corner.Val2) = CornerV; At(Diag1.Val1, Diag1.Val2) = Diag1V; At(Diag2.Val1,Diag2.Val2) = Diag2V; At(Least.Val1, Least.Val2) = LeastV; 
+	printf("Maximum expected degree: %f\n", GetMaxExpectedDeg(NIter));
 }
 
 void TKronMtx::AddRndNoise(const double& SDev) {

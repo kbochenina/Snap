@@ -45,8 +45,8 @@ public:
   void AddRndNoise(const double& SDev);
   TStr GetMtxStr() const;
   void SetForMaxDeg(const int& MaxDeg, const int& NIter);
-  int GetMaxDeg(const int& NIter);
-  int GetMaxExpectedDeg(const int& NIter, const int& MinDeg = 0);
+  int GetMaxExpectedDeg(const int& NIter);
+  int GetMaxExpectedDeg(const double&A, const double&B, const double&C, const double&D, const int&NIter, int& BestRow, int& BestCol);
   void SetForEdgesNoCut(const int& Nodes, const int& Edges);
   void Normalize();
   double GetEigMax() const;
