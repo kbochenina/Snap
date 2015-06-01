@@ -172,7 +172,7 @@ int KroneckerGen(const TInt NIter, const TKronMtx& FitMtx, PNGraph& out, const T
 	SeedMtx.Dump();
 	printf("\n*** Kronecker:\n");
 	// slow but exact O(n^2) algorightm
-	//out = TKronMtx::GenKronecker(SeedMtx, NIter, true, 0); 
+	//out = TKronMtx::GenKronecker(SeedMtx, NIter, false, 0); 
 	// fast O(e) approximate algorithm
 	// if we need to save clustering coefficient
 	bool Dir = IsDir == "true" ? true: false;
@@ -429,6 +429,7 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 	for (int i = 0; i < NKron; i++){
 		execTime.Tick();
 		// ModelClustCf!
+		FitMtx.Dump();
 		KroneckerGen(NIter, FitMtx, kron, OutFnm, InDegR, OutDegR, IsDir, ModelClustCf);
 		sec += execTime.GetSecs();
 		int MaxDeg = GetMaxDeg(kron);

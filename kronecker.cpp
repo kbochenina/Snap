@@ -117,48 +117,23 @@ int TKronMtx::GetMaxExpectedDeg(const int& NIter, const int& MinDeg)
 	/*double Sum = GetMtxSum();
 	double Val = 2 * pow( Sum / 2, NIter );
 	return ceil(Val);*/
-	double SumRow1 = At(0,0) + At(0,1);
-	double SumRow2 = At(1,0) + At(1,1);
-	double MaxSum = SumRow1 > SumRow2 ? SumRow1 : SumRow2;
-	double SumDeg = 0;
-	if (MinDeg != 0){
-		FILE *f = fopen("prob.dat", "w");
-		double A = At(0,0), B = At(0,1), C = At(1,0), D = At(1,1);
-		fprintf(f, "%f %f %f %f\n", A, B, C, D);
-		int MaxExpDeg = 0;
-		int Nodes = pow(static_cast<double>(GetDim()), NIter);
-		for (int i = 0; i < Nodes; i++){
-			double Prob = 0.0;
-			for (int j = 0; j < Nodes; j++){
-				if (j != i){
-					int a1 = 0, b1 = 0, c1 = 0, d1 = 0;
-					for (int k = 0; k < NIter; k++){
-						// compare k-th bit of i and j
-						int ci = (i >> k) & 1;
-						int cj = (j >> k) & 1;
-						if (ci == 0)
-							if (cj == 0) a1++;
-							else b1++;
-						else {
-							if (cj == 0) c1++;
-							else d1++;
-						}
-					}
-					Prob += pow(A,a1) * pow(B,b1) * pow(C,c1) * pow(D,d1);
-					//fprintf(f, "%d %d %d %d %f\n", a1, b1, c1, d1, Prob);
-				}
-			}
-			fprintf(f, "%d %f\n", i, Prob);
-			int ExpDeg = MinDeg + MinDeg * Prob;
-			SumDeg += ExpDeg;
-			if (ExpDeg > MaxExpDeg) MaxExpDeg = ExpDeg;
-		}
-		fprintf(f, "SumDeg = %f\n", SumDeg - Nodes);
-		fclose(f);
-		return (MaxExpDeg + 0.5);
+	//double SumRow1 = At(0,0) + At(0,1);
+	//double SumRow2 = At(1,0) + At(1,1);
+	//double MaxSum = SumRow1 > SumRow2 ? SumRow1 : SumRow2;
+
+	double Sum0 = pow(At(0,0) + At(0,1), NIter)/2 + pow(At(0,0) + At(1,0), NIter)/2,
+			Sum1 = pow(At(0,0) + At(0,1), NIter)/2 + pow(At(0,1) + At(1,1), NIter)/2,
+			Sum2 = pow(At(1,0) + At(1,1), NIter)/2 + pow(At(1,0) + At(0,0), NIter)/2,
+			Sum3 = pow(At(1,0) + At(1,1), NIter)/2 + pow(At(1,1) + At(0,1), NIter)/2;
 		
-	}
-	return pow(MaxSum, NIter);
+	printf("%f %f %f %f\n", Sum0, Sum1, Sum2, Sum3);
+	double MaxSum = 0;
+	if (Sum0 > Sum1 && Sum0 > Sum2 && Sum0 > Sum3) MaxSum = Sum0;
+	else if (Sum1 > Sum0 && Sum1 > Sum2 && Sum1 > Sum3) MaxSum = Sum1;
+	else if (Sum2 > Sum0 && Sum2 > Sum1 && Sum2 > Sum3) MaxSum = Sum2;
+	else if (Sum3 > Sum0 && Sum3 > Sum1 && Sum3 > Sum2) MaxSum = Sum3;
+
+	return (MaxSum + 0.5);
 }
 
 void TKronMtx::Normalize()
@@ -201,31 +176,6 @@ int TKronMtx::GetMaxDeg(const int& NIter){
 	return floor(MaxSum);
 }
 
-bool FindDelta(const double& A, const double & B, const double& C, const double& D, const double& MaxDeltaA, const double& MaxDeltaB, const double& MaxDeg, const int& NIter, double& DeltaA, double& DeltaB){
-	double Step = 0.001;
-	for (double i = Step; i <= MaxDeltaA; i += Step){
-		double EqC = i * (A + D) - i * i;
-		double Discr = (B + C) * (B + C) - 4 * EqC;
-		if (Discr < 0)
-			Error("SetForMaxDeg", "D < 0");
-		double DeltaB1 = ((B + C) + sqrt(Discr)) / 2,
-			   DeltaB2 = ((B + C) - sqrt(Discr)) / 2;
-		if (DeltaB1 < 0 && DeltaB2 < 0)
-			Error("SetForMaxDeg", "Delta < 0");
-		// what if both DeltaB1 and DeltaB2 > 0
-		if (DeltaB1 > DeltaB2 && DeltaB1 > 0 && DeltaB1 < MaxDeltaB) 
-			DeltaB = DeltaB1;
-		else if (DeltaB2 > 0 && DeltaB2 < MaxDeltaB)
-			DeltaB = DeltaB2;
-		else
-			return false;
-		DeltaA = i;
-		printf("%f %f %f %f %f\n", A + DeltaA, B + DeltaB, C - DeltaB, D - DeltaA, pow ( A + DeltaA + B + DeltaB, NIter ));
-		if (pow ( A + DeltaA + B + DeltaB, NIter ) == MaxDeg){
-			return true;
-		}
-	}
-}
 
 // works only for 2x2 size matrix!
 void TKronMtx::SetForMaxDeg(const int& MaxDeg, const int& NIter)
@@ -235,12 +185,30 @@ void TKronMtx::SetForMaxDeg(const int& MaxDeg, const int& NIter)
 	double A = At(BestRow,0), B = At(BestRow,1), C = At(LeastRow, 0), D = At(LeastRow, 1), DeltaA = 0, DeltaB = 0;
 	bool DecFound = false;
 	double MaxDeltaA = (1 - A < D) ? 1 - A : D, MaxDeltaB = (1 - B < C) ? 1 - B : C;
-	DecFound = FindDelta(A, B, C, D, MaxDeltaA, MaxDeltaB, MaxDeg, NIter, DeltaA, DeltaB);
-	if (!DecFound)
-		DecFound = FindDelta(B + DeltaB, A + DeltaA, D - DeltaA, C - DeltaB, MaxDeltaB, MaxDeltaA, MaxDeg, NIter, DeltaB, DeltaA);
+	double Step = 0.001;
+	for (double i = Step; i <= MaxDeltaA; i+= Step){
+		DeltaA = i;
+		printf("%f\n", pow(A + DeltaA + B + DeltaB, NIter));
+		if (static_cast<int>(pow(A + DeltaA + B, NIter)) == MaxDeg){
+			DecFound = true;
+			break;
+		}
+	}
+	if (!DecFound){
+		for (double i = Step; i <= MaxDeltaB; i+=Step){
+			DeltaB = i;
+			printf("%f\n", pow(A + DeltaA + B + DeltaB, NIter));
+			if (static_cast<int>(pow(A + DeltaA + B + DeltaB, NIter)) == MaxDeg){
+				DecFound = true;
+				break;
+			}
+		}
+	}
 	
-	if (DecFound == false)
+	if (DecFound == false){
+		printf("%f %f MaxDeg: %f\n", A + DeltaA, B + DeltaB, pow(A + DeltaA + B + DeltaB, NIter));
 		Error("SetForMaxDeg", "Cannot find solution");
+	}
 	if (A + DeltaA > 1)
 		Error("SetForMaxDeg", "A + DeltaA > 1");
 	if (B + DeltaB > 1)
@@ -250,6 +218,7 @@ void TKronMtx::SetForMaxDeg(const int& MaxDeg, const int& NIter)
 	if (D - DeltaA < 0)
 		Error("SetForMaxDeg", "A + DeltaA > 1");
 	At(BestRow,0) = A + DeltaA; At(BestRow, 1) = B + DeltaB; At(LeastRow,0) = C - DeltaB; At(LeastRow, 1) = D - DeltaA; 
+	GetMaxExpectedDeg(NIter);
 }
 
 void TKronMtx::AddRndNoise(const double& SDev) {
@@ -772,6 +741,7 @@ int TKronMtx::AddFirstDir(bool IsOut, const TIntPr& InDegR, const TIntPr& OutDeg
 	const int NNodes = SeedMtx.GetNodes(NIter);
 	const int NEdges = SeedMtx.GetEdges(NIter);
 	const TInt& InMin = InDegR.Val1, & InMax = InDegR.Val2, & OutMin = OutDegR.Val1, & OutMax = OutDegR.Val2;
+	if (InMin == 0) return 0;
 	TKronMtx Mtx(SeedMtx);
 	// for in-degree transpose the initiator matrix
 	if (!IsOut) Transpose(Mtx);
