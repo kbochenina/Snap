@@ -177,6 +177,8 @@ void TKronMtx::SetForMaxDeg(const int& MaxDeg, const int& NIter)
 
 	bool DecFound = false;
 	double Step = 0.0001;
+	if (MaxDeg < MaxExpDeg) 
+		Step *= -1;
 
 	// increase Corner, decrease Diag1 and Diag2
 	// if MaxExpDeg begins to decrease, stop
@@ -974,7 +976,7 @@ void TKronMtx::RemoveZeroDegreeNodes(PNGraph& out, const TKronMtx& Mtx, const in
 					if (OutDeg == 0) continue;
 					int NbId = static_cast<int>(rnd.GetUniDev() * (OutDeg - 1));
 					int NbOutId = NI.GetNbrNId(NbId);
-					if (out->GetNI(NbOutId).GetInDeg() <= MinDeg) continue;
+					if (out->GetNI(NbOutId).GetInDeg() <= MinDeg || out->GetNI(NbOutId).GetInDeg() >= MaxDeg) continue;
 					// check!
 					out->DelEdge(nodeId, NbOutId, false);
 					out->AddEdge(nodeId, i);
@@ -984,8 +986,11 @@ void TKronMtx::RemoveZeroDegreeNodes(PNGraph& out, const TKronMtx& Mtx, const in
 			}
 		}
 		else if (InDeg > MaxDeg){
-			int EToChange = rnd.GetUniDev() * (MaxDeg - (InDeg - MaxDeg)) + InDeg - MaxDeg;
+			int EToChange = rnd.GetUniDev() * (MaxDeg - MinDeg) + InDeg - MaxDeg;
+			//printf("EToChange = %d InDeg - MaxDeg = %d\n", EToChange, InDeg - MaxDeg);
+			
 			auto CurrNode = out->GetNI(i);
+			//printf("Current node degree %d\n", CurrNode.GetInDeg());
 			// rewire EToChange edges
 			for (int j = InDeg-1; j >=0 ; j--){
 				// rewire nodes from the end of list of edges (check!)
@@ -1004,6 +1009,15 @@ void TKronMtx::RemoveZeroDegreeNodes(PNGraph& out, const TKronMtx& Mtx, const in
 					}
 				}
 				out->DelEdge(i, NodeToRewire, false);
+				//printf("%d Edge was deleted\n", EToChange);
+				if (out->GetNI(i).GetInDeg() < MinDeg){
+					printf("Current node degree is less than min deg: %d < %d InDeg = %d EToChange=%d\n", CurrNode.GetInDeg(), MinDeg, InDeg, EToChange);
+					system("pause");
+				}
+				if (out->GetNI(NodeToRewire).GetInDeg() < MinDeg){
+					printf("Node to rewire degree is less than min deg:%d < %d\n", out->GetNI(NodeToRewire).GetInDeg(), MinDeg);
+					system("pause");
+				}
 				EToChange--;
 				if (EToChange == 0) break;
 			}
