@@ -176,7 +176,7 @@ void TKronMtx::SetForMaxDeg(const int& MaxDeg, const int& NIter)
 		LeastV = At(Least.Val1, Least.Val2);
 
 	bool DecFound = false;
-	double Step = 0.001;
+	double Step = 0.0001;
 
 	// increase Corner, decrease Diag1 and Diag2
 	// if MaxExpDeg begins to decrease, stop
@@ -184,6 +184,7 @@ void TKronMtx::SetForMaxDeg(const int& MaxDeg, const int& NIter)
 		Diag1V = Diag1V - Step / 2;
 		Diag2V = Diag2V - Step / 2;
 		int CurrMaxDeg = static_cast<int>(pow(CornerV + Diag1V, NIter) / 2 + pow(CornerV + Diag2V, NIter) / 2 + 0.5);
+		printf("CurrMaxDeg = %d CornerV = %f\n", CurrMaxDeg, CornerV);
 		if (CurrMaxDeg < MaxExpDeg){
 			// reset values for previous step
 			CornerV -= Step;
@@ -197,7 +198,7 @@ void TKronMtx::SetForMaxDeg(const int& MaxDeg, const int& NIter)
 			break;
 		}
 	}
-	
+	if (CornerV > 1) CornerV -= Step;
 	printf("MaxDeg after step 1: %f\n", pow(CornerV + Diag1V, NIter) / 2 + pow(CornerV + Diag2V, NIter) / 2);
 
 	// fix Corner, increase Diag1 and Diag2, decrease Least
@@ -212,9 +213,10 @@ void TKronMtx::SetForMaxDeg(const int& MaxDeg, const int& NIter)
 			}
 		}
 	}
-	
-	printf("MaxDeg after step 2: %f\n", pow(CornerV + Diag1V, NIter) / 2 + pow(CornerV + Diag2V, NIter) / 2);
+	if (LeastV < 0) LeastV += Step;
 
+	printf("MaxDeg after step 2: %f\n", pow(CornerV + Diag1V, NIter) / 2 + pow(CornerV + Diag2V, NIter) / 2);
+	printf("CornerV = %f\n", CornerV);
 	// increase max(Diag1, Diag2), decrease min(Diag1,Diag2)
 	// if MaxExpDeg begins to decrease, stop
 	if (!DecFound){
@@ -277,6 +279,7 @@ void TKronMtx::SetForMaxDeg(const int& MaxDeg, const int& NIter)
 		printf("%f %f %f MaxDeg: %f\n", CornerV, Diag1V, Diag2V, pow(CornerV + Diag1V, NIter) / 2 + pow(CornerV + Diag2V, NIter) / 2);
 		Error("SetForMaxDeg", "Cannot find solution");
 	}
+	printf("CornerV = %f\n", CornerV);
 	if (CornerV > 1 || CornerV < 0)
 		Error("SetForMaxDeg", "CornerV > 1 || CornerV < 0");
 	if (Diag1V > 1 || Diag1V < 0)
@@ -294,7 +297,7 @@ void TKronMtx::SetForMaxDeg(const int& MaxDeg, const int& NIter)
 	if (D - DeltaA < 0)
 		Error("SetForMaxDeg", "A + DeltaA > 1");*/
 	At(Corner.Val1,Corner.Val2) = CornerV; At(Diag1.Val1, Diag1.Val2) = Diag1V; At(Diag2.Val1,Diag2.Val2) = Diag2V; At(Least.Val1, Least.Val2) = LeastV; 
-	printf("Maximum expected degree: %f\n", GetMaxExpectedDeg(NIter));
+	printf("Maximum expected degree: %d\n", GetMaxExpectedDeg(NIter));
 }
 
 void TKronMtx::AddRndNoise(const double& SDev) {
@@ -950,6 +953,64 @@ int TKronMtx::AddUnDir(const TIntPr& DegR, PNGraph& G, const TKronMtx& SeedMtx, 
 	return Collision;
 }
 
+void TKronMtx::RemoveZeroDegreeNodes(PNGraph& out, const TKronMtx& Mtx, const int& NIter, const int& MinDeg, const int&MaxDeg){
+	TRnd rnd;
+	rnd.GetUniDev();
+	int nodesCount = out->GetNodes();
+	int edgesCount = out->GetEdges();
+	TVec<TVec<TFltIntIntTr>> RowProbCumV, ColProbCumV;
+	GetRowProbCumV(Mtx, RowProbCumV);
+	for (int i = 0; i < nodesCount; i++){
+		int InDeg = out->GetNI(i).GetInDeg();
+		if (InDeg < MinDeg){
+			int EdgesToAdd = MinDeg - InDeg;
+			for (int j = 0; j < EdgesToAdd; j++){
+				while (1){
+					double val = rnd.GetUniDev();
+					// get neighbour node using probability matrix
+					int nodeId = GetCol(RowProbCumV, i, NIter, rnd);
+					auto NI = out->GetNI(nodeId);
+					int OutDeg = NI.GetOutDeg();
+					if (OutDeg == 0) continue;
+					int NbId = static_cast<int>(rnd.GetUniDev() * (OutDeg - 1));
+					int NbOutId = NI.GetNbrNId(NbId);
+					if (out->GetNI(NbOutId).GetInDeg() <= MinDeg) continue;
+					// check!
+					out->DelEdge(nodeId, NbOutId, false);
+					out->AddEdge(nodeId, i);
+					out->AddEdge(i,nodeId);
+					break;
+				}
+			}
+		}
+		else if (InDeg > MaxDeg){
+			int EToChange = rnd.GetUniDev() * (MaxDeg - (InDeg - MaxDeg)) + InDeg - MaxDeg;
+			auto CurrNode = out->GetNI(i);
+			// rewire EToChange edges
+			for (int j = InDeg-1; j >=0 ; j--){
+				// rewire nodes from the end of list of edges (check!)
+				int NodeToRewire = CurrNode.GetNbrNId(j);
+				while (1){
+					// get neighbour node using probability matrix
+					//int NbNode = GetCol(RowProbCumV, NodeToRewire, NIter, rnd);
+					// get random neighbour node
+					int NbNode = rnd.GetUniDev() * nodesCount;
+					if (NbNode == i) continue;
+					// if neighbour node degree is less than MaxDeg, rewire NodeToRewire
+					if (out->GetNI(NbNode).GetInDeg() < MaxDeg){
+						out->AddEdge(NodeToRewire, NbNode);
+						out->AddEdge(NbNode,NodeToRewire);
+						break;
+					}
+				}
+				out->DelEdge(i, NodeToRewire, false);
+				EToChange--;
+				if (EToChange == 0) break;
+			}
+		}
+	}
+}
+
 PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& Seed, const TIntPr& InDegR, const TIntPr& OutDegR, PNGraph& Graph, double ModelClustCf){
 	const int NNodes = SeedMtx.GetNodes(NIter);
 	const int NEdges = SeedMtx.GetEdges(NIter);
@@ -972,6 +1033,7 @@ PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, co
 	const int Least = NEdges - Graph->GetEdges();
 	Collisions += AddEdges(SeedMtx, NIter, IsDir, Rnd, Graph, Least, InDegR.Val2, OutDegR.Val2, ModelClustCf);
 	printf("             collisions: %d (%.4f)\n", Collisions, Collisions/(double)Graph->GetEdges());
+	RemoveZeroDegreeNodes(Graph, SeedMtx, NIter, InDegR.Val1, InDegR.Val2);
 	//system("pause");
 	return Graph;
 }

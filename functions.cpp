@@ -151,31 +151,6 @@ int InitKronecker(const TStr args, PNGraph &GD, TKronMtx& FitMtx){
 	return 0;
 }
 
-void RemoveZeroDegreeNodes(PNGraph& out){
-	TRnd rnd;
-	rnd.GetUniDev();
-	int nodesCount = out->GetNodes();
-	int edgesCount = out->GetEdges();
-	for (int i = 0; i < nodesCount; i++){
-		if (out->GetNI(i).GetInDeg() == 0){
-			while (1){
-				double val = rnd.GetUniDev();
-				int nodeId = static_cast<int>(val * nodesCount);
-				auto NI = out->GetNI(nodeId);
-				int OutDeg = NI.GetOutDeg();
-				if (OutDeg == 0) continue;
-				int NbId = static_cast<int>(rnd.GetUniDev() * (OutDeg - 1));
-				int NbOutId = NI.GetNbrNId(NbId);
-				if (out->GetNI(NbOutId).GetInDeg() == 1) continue;
-				// check!
-				out->DelEdge(nodeId, NbOutId, false);
-				out->AddEdge(nodeId, i);
-				out->AddEdge(i,nodeId);
-				break;
-			}
-		}
-	}
-}
 
 int KroneckerGen(const TInt NIter, const TKronMtx& FitMtx, PNGraph& out, const TStr& OutFNm, const TIntPr& InDegR, const TIntPr& OutDegR, const TStr& IsDir, double ModelClustCf){
 	Env.PrepArgs(TStr::Fmt("Kronecker graphs. build: %s, %s. Time: %s", __TIME__, __DATE__, TExeTm::GetCurTm()));
@@ -198,7 +173,7 @@ int KroneckerGen(const TInt NIter, const TKronMtx& FitMtx, PNGraph& out, const T
 		TKronMtx::GenFastKronecker(SeedMtx, NIter, Dir, 0, InDegR, OutDegR, out, ModelClustCf);
 	}
 
-	RemoveZeroDegreeNodes(out);
+	//RemoveZeroDegreeNodes(out);
 
 	// save edge list
 	//TSnap::SaveEdgeList(out, OutFNm, TStr::Fmt("Kronecker Graph: seed matrix [%s]", FitMtx.GetMtxStr().CStr()));
@@ -367,6 +342,7 @@ void ScaleFitMtxForEdges(TKronMtx& FitMtx, const TInt& NIter, const int& Expecte
 }
 
 void ScaleFitMtx(TKronMtx& FitMtx, const TInt& NIter, const int& InitModelNodes, const int& ExpectedModelEdges, const int& MaxModelDeg){
+	ScaleFitMtxForEdges(FitMtx, NIter, ExpectedModelEdges);	
 	TFile << "Before scaling " << endl;
 	FitMtx.Dump(TFile);
 	// check ceil()
@@ -377,7 +353,6 @@ void ScaleFitMtx(TKronMtx& FitMtx, const TInt& NIter, const int& InitModelNodes,
 	FitMtx.SetForMaxDeg(MaxModelDeg, ModelIter);
 	TFile << "After scaling " << endl;
 	FitMtx.Dump(TFile);
-	ScaleFitMtxForEdges(FitMtx, NIter, ExpectedModelEdges);	
 }
 
 void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV& outDegAvgKronM, const PNGraph& G, const int NEigen, double ModelClustCf = 0.0){
@@ -433,6 +408,7 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 	if (IsDir == "false" && (InDegR.Val1 != OutDegR.Val1 || InDegR.Val2 != OutDegR.Val2))
 		Error("GenKron", "InDegR and OutDegR should be the same for undirected graph");
 	if (IsDir == "false"){
+		FitMtx.Dump(TFile);
 		TFile << "Maximum expected degree in kron graph: " << FitMtx.GetMaxExpectedDeg(NIter) << endl;
 	}
 		

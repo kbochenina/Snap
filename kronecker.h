@@ -53,6 +53,7 @@ public:
   double GetEigMin() const;
   double GetMax() const;
   void SetForMaxEigen(const double K, const int& NIter);
+  static void RemoveZeroDegreeNodes(PNGraph& out, const TKronMtx& Mtx, const int& NIter, const int& MinDeg, const int& MaxDeg);
 
   const double& At(const int& Row, const int& Col) const { return SeedMtx[MtxDim*Row+Col].Val; }
   double& At(const int& Row, const int& Col) { return SeedMtx[MtxDim*Row+Col].Val; }
