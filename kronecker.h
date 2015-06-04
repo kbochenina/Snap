@@ -104,7 +104,8 @@ public:
   static int AddSecondDir(bool OutFirst, const TIntPr& InDegR, const TIntPr& OutDegR, PNGraph& G, const TKronMtx& SeedMtx, const int&NIter, TRnd&Rnd);
   static int AddUnDir(const TIntPr& DegR, PNGraph& G, const TKronMtx& SeedMtx, const int& NIter, TRnd& Rnd, double ModelClustCf);
   static void GetRowProbCumV(const TKronMtx& Mtx, TVec<TVec<TFltIntIntTr>>& RowProbCumV);
-  static PNGraph GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& Seed=0, double ModelClustCf = 0.0);
+  static void GetNoisedProbV(TVec<TVec<TFltIntIntTr>>&ProbToRCPosV, const TFlt& NoiseCoeff, TRnd& Rnd, const int& NIter, const TKronMtx& SeedMtx);
+  static PNGraph GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& Seed=0, double NoiseCoeff = 0.0);
   static PNGraph GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, const int& Edges, const bool& IsDir, const int& Seed=0);
   static PNGraph GenDetKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir);
   static void PlotCmpGraphs(const TKronMtx& SeedMtx, const PNGraph& Graph, const TStr& OutFNm, const TStr& Desc);

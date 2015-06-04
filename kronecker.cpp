@@ -988,7 +988,7 @@ void TKronMtx::RemoveZeroDegreeNodes(PNGraph& out, const TKronMtx& Mtx, const in
 					if (out->GetNI(NbOutId).GetInDeg() <= MinDeg) continue;
 					// check!
 
-					//out->DelEdge(nodeId, NbOutId, false);
+					out->DelEdge(nodeId, NbOutId, false);
 					/*printf("Edge (%d,%d) was deleted\n", nodeId, NbOutId);
 					printf("Edge (%d,%d) was added\n", nodeId, i);*/
 
@@ -1003,16 +1003,16 @@ void TKronMtx::RemoveZeroDegreeNodes(PNGraph& out, const TKronMtx& Mtx, const in
 		}
 	}
 
-	for (int i = 0; i < EdgesToDel; i++){
+	/*for (int i = 0; i < EdgesToDel; i++){
 		int nodeId = rnd.GetUniDev() * (nodesCount-1);
 		auto NI = out->GetNI(nodeId);
 		int OutDeg = NI.GetOutDeg();
-		if (OutDeg <= MinDeg) continue;
+		if (OutDeg <= MinDeg) {i--;continue;}
 		int NbId = static_cast<int>(rnd.GetUniDev() * (OutDeg - 1));
 		int NbOutId = NI.GetNbrNId(NbId);
-		if (out->GetNI(NbOutId).GetInDeg() <= MinDeg) continue;
+		if (out->GetNI(NbOutId).GetInDeg() <= MinDeg) {i--;continue;}
 		out->DelEdge(nodeId, NbOutId, false);
-	}
+	}*/
 	
 	for (int i = 0; i < nodesCount; i++){
 		DegAfter.Add(out->GetNI(i).GetInDeg());
@@ -1023,46 +1023,47 @@ void TKronMtx::RemoveZeroDegreeNodes(PNGraph& out, const TKronMtx& Mtx, const in
 		fprintf(f, "%d\t%d\t%d\n", i, DegBefore[i], DegAfter[i]);
 	}
 	fclose(f);
-	//for (int i = 0; i < nodesCount; i++){
-	//	int InDeg = out->GetNI(i).GetInDeg();
-	//	if (InDeg > MaxDeg){
-	//		int EToChange = rnd.GetUniDev() * (MaxDeg - MinDeg) + InDeg - MaxDeg;
-	//		//printf("EToChange = %d InDeg - MaxDeg = %d\n", EToChange, InDeg - MaxDeg);
-	//		
-	//		auto CurrNode = out->GetNI(i);
-	//		//printf("Current node degree %d\n", CurrNode.GetInDeg());
-	//		// rewire EToChange edges
-	//		for (int j = InDeg-1; j >=0 ; j--){
-	//			// rewire nodes from the end of list of edges (check!)
-	//			int NodeToRewire = CurrNode.GetNbrNId(j);
-	//			while (1){
-	//				// get neighbour node using probability matrix
-	//				//int NbNode = GetCol(RowProbCumV, NodeToRewire, NIter, rnd);
-	//				// get random neighbour node
-	//				int NbNode = rnd.GetUniDev() * nodesCount;
-	//				if (NbNode == i) continue;
-	//				// if neighbour node degree is less than MaxDeg, rewire NodeToRewire
-	//				//if (out->GetNI(NbNode).GetInDeg() < MaxDeg){
-	//					out->AddEdge(NodeToRewire, NbNode);
-	//					out->AddEdge(NbNode,NodeToRewire);
-	//					break;
-	//				//}
-	//			}
-	//			out->DelEdge(i, NodeToRewire, false);
-	//			//printf("%d Edge was deleted\n", EToChange);
-	//			if (out->GetNI(i).GetInDeg() < MinDeg){
-	//				printf("Current node degree is less than min deg: %d < %d InDeg = %d EToChange=%d\n", CurrNode.GetInDeg(), MinDeg, InDeg, EToChange);
-	//				system("pause");
-	//			}
-	//			if (out->GetNI(NodeToRewire).GetInDeg() < MinDeg){
-	//				printf("Node to rewire degree is less than min deg:%d < %d\n", out->GetNI(NodeToRewire).GetInDeg(), MinDeg);
-	//				system("pause");
-	//			}
-	//			EToChange--;
-	//			if (EToChange == 0) break;
-	//		}
-	//	}
-	//}
+	for (int i = 0; i < nodesCount; i++){
+		int InDeg = out->GetNI(i).GetInDeg();
+		if (InDeg > MaxDeg){
+			//int EToChange = rnd.GetUniDev() * (MaxDeg - MinDeg) + InDeg - MaxDeg;
+			int EToChange = InDeg - MaxDeg;
+			//printf("EToChange = %d InDeg - MaxDeg = %d\n", EToChange, InDeg - MaxDeg);
+			
+			auto CurrNode = out->GetNI(i);
+			//printf("Current node degree %d\n", CurrNode.GetInDeg());
+			// rewire EToChange edges
+			for (int j = InDeg-1; j >=0 ; j--){
+				// rewire nodes from the end of list of edges (check!)
+				int NodeToRewire = CurrNode.GetNbrNId(j);
+				while (1){
+					// get neighbour node using probability matrix
+					int NbNode = GetCol(RowProbCumV, NodeToRewire, NIter, rnd);
+					// get random neighbour node
+					//int NbNode = rnd.GetUniDev() * nodesCount;
+					if (NbNode == i || out->IsEdge(NodeToRewire,NbNode)) continue;
+					// if neighbour node degree is less than MaxDeg, rewire NodeToRewire
+					//if (out->GetNI(NbNode).GetInDeg() < MaxDeg){
+						out->AddEdge(NodeToRewire, NbNode);
+						out->AddEdge(NbNode,NodeToRewire);
+						break;
+					//}
+				}
+				out->DelEdge(i, NodeToRewire, false);
+				//printf("%d Edge was deleted\n", EToChange);
+				if (out->GetNI(i).GetInDeg() < MinDeg){
+					printf("Current node degree is less than min deg: %d < %d InDeg = %d EToChange=%d\n", CurrNode.GetInDeg(), MinDeg, InDeg, EToChange);
+					system("pause");
+				}
+				if (out->GetNI(NodeToRewire).GetInDeg() < MinDeg){
+					printf("Node to rewire degree is less than min deg:%d < %d\n", out->GetNI(NodeToRewire).GetInDeg(), MinDeg);
+					system("pause");
+				}
+				EToChange--;
+				if (EToChange == 0) break;
+			}
+		}
+	}
 }
 
 PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& Seed, const TIntPr& InDegR, const TIntPr& OutDegR, PNGraph& Graph, double ModelClustCf){
@@ -1124,8 +1125,42 @@ int TKronMtx::CheckClustCf(const PNGraph& Graph, int Row, int Col, double ModelC
 	return 0;
 }
 
+// works for 2x2 matrix
+void TKronMtx::GetNoisedProbV(TVec<TVec<TFltIntIntTr>>&ProbToRCPosV, const TFlt& NoiseCoeff, TRnd& Rnd, const int& NIter, const TKronMtx& SeedMtx){
+	double T1 = SeedMtx.At(0,0), T2 = SeedMtx.At(0,1), T3 = SeedMtx.At(1,0), T4 = SeedMtx.At(1,1);
+	double MtxSum = T1 + T2 + T3 + T4;
+	double B = (T1 + T4) / 2 < T2 ? (T1 + T4) / 2 : T2;
+	B *= NoiseCoeff.Val;
+	for (int i = 0; i < NIter; i++){
+		double Mu = B * (-1) + Rnd.GetUniDev() * (2 * B);
+		TVec<TFltIntIntTr> MtxVec;
+		double CumProb = 0.0;
+		double ModMtxSum = 0;
+		for (int r = 0; r < SeedMtx.GetDim(); r++) {
+			for (int c = 0; c < SeedMtx.GetDim(); c++) {
+				double Prob = SeedMtx.At(r, c);
+				if (r == 0 && c == 0)
+					Prob -= (2 * Mu * T1) / (T1 + T4);
+				if (r == 0 && c == 1)
+					Prob += Mu;
+				if (r == 1 && c == 0)
+					Prob -= (2 * Mu * T4) / (T1 + T4);
+				if (r == 1 && c == 1)
+					Prob += Mu;
+				ModMtxSum += Prob;
+				if (Prob > 0.0) {
+					CumProb += Prob;
+					MtxVec.Add(TFltIntIntTr(CumProb/MtxSum, r, c));
+				}
+			}
+		}
+		
+		ProbToRCPosV.Add(MtxVec);
+	}
+}
+
 // use RMat like recursive descent to quickly generate a Kronecker graph
-PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& Seed, double ModelClustCf) {
+PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& Seed, double NoiseCoeff) {
   const TKronMtx& SeedGraph = SeedMtx;
   const int MtxDim = SeedGraph.GetDim();
   const double MtxSum = SeedGraph.GetMtxSum();
@@ -1137,18 +1172,9 @@ PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, co
   PNGraph Graph = TNGraph::New(NNodes, -1);
   TRnd Rnd(Seed);
   TExeTm ExeTm;
-  // prepare cell probability vector
-  TVec<TFltIntIntTr> ProbToRCPosV; // row, col position
-  double CumProb = 0.0;
-  for (int r = 0; r < MtxDim; r++) {
-    for (int c = 0; c < MtxDim; c++) {
-      const double Prob = SeedGraph.At(r, c);
-      if (Prob > 0.0) {
-        CumProb += Prob;
-        ProbToRCPosV.Add(TFltIntIntTr(CumProb/MtxSum, r, c));
-      }
-    }
-  }
+  TVec<TVec<TFltIntIntTr>> ProbToRCPosV;
+  GetNoisedProbV(ProbToRCPosV, NoiseCoeff, Rnd, NIter, SeedMtx);
+  
   // add nodes
   for (int i = 0; i < NNodes; i++) {
     Graph->AddNode(i); }
@@ -1160,9 +1186,9 @@ PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, co
     Rng=NNodes;  Row=0;  Col=0;
     for (int iter = 0; iter < NIter; iter++) {
       const double& Prob = Rnd.GetUniDev();
-      n = 0; while(Prob > ProbToRCPosV[n].Val1) { n++; }
-      const int MtxRow = ProbToRCPosV[n].Val2;
-      const int MtxCol = ProbToRCPosV[n].Val3;
+      n = 0; while(Prob > ProbToRCPosV[iter][n].Val1) { n++; }
+      const int MtxRow = ProbToRCPosV[iter][n].Val2;
+      const int MtxCol = ProbToRCPosV[iter][n].Val3;
       Rng /= MtxDim;
       Row += MtxRow * Rng;
       Col += MtxCol * Rng;
@@ -1173,17 +1199,10 @@ PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, co
         Graph->AddEdge(Col, Row);
         edges++;
       }
-	  if (CheckClustCf(Graph, Row, Col, ModelClustCf, Rnd, IsDir, ClustCollision)){
-		  edges++;
-		  ClosedTriads++;
-		  if (!IsDir) edges++;
-	  }
-	  
-	  
     } else { Collision++; }
     //if (edges % 1000 == 0) printf("\r...%dk", edges/1000);
   }
-  //printf("             %d edges [%s]\n", Graph->GetEdges(), ExeTm.GetTmStr());
+  printf("             %d edges [%s]\n", Graph->GetEdges(), ExeTm.GetTmStr());
   printf("             collisions: %d (%.4f)\n", Collision, Collision/(double)Graph->GetEdges());
   printf("ClosedTriads %d ClustCollision %d\n", ClosedTriads, ClustCollision);
   return Graph;
