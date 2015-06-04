@@ -961,68 +961,108 @@ void TKronMtx::RemoveZeroDegreeNodes(PNGraph& out, const TKronMtx& Mtx, const in
 	int nodesCount = out->GetNodes();
 	int edgesCount = out->GetEdges();
 	TVec<TVec<TFltIntIntTr>> RowProbCumV, ColProbCumV;
+	TIntV DegBefore, DegAfter;
+	for (int i = 0; i < nodesCount; i++){
+		DegBefore.Add(out->GetNI(i).GetInDeg());
+	}
 	GetRowProbCumV(Mtx, RowProbCumV);
+	int EdgesToDel = 0;
 	for (int i = 0; i < nodesCount; i++){
 		int InDeg = out->GetNI(i).GetInDeg();
 		if (InDeg < MinDeg){
-			int EdgesToAdd = MinDeg - InDeg;
+			int EdgesToAdd = MinDeg - InDeg + rnd.GetUniDev() * (MinDeg - InDeg);
+			EdgesToDel += EdgesToAdd;
+			//printf("Edges to add: %d\n", EdgesToAdd);
 			for (int j = 0; j < EdgesToAdd; j++){
 				while (1){
 					double val = rnd.GetUniDev();
 					// get neighbour node using probability matrix
 					int nodeId = GetCol(RowProbCumV, i, NIter, rnd);
+					//int nodeId = rnd.GetUniDev() * (nodesCount-1);
+					if (nodeId == i || out->IsEdge(nodeId,i)) continue;
 					auto NI = out->GetNI(nodeId);
 					int OutDeg = NI.GetOutDeg();
 					if (OutDeg == 0) continue;
 					int NbId = static_cast<int>(rnd.GetUniDev() * (OutDeg - 1));
 					int NbOutId = NI.GetNbrNId(NbId);
-					if (out->GetNI(NbOutId).GetInDeg() <= MinDeg || out->GetNI(NbOutId).GetInDeg() >= MaxDeg) continue;
+					if (out->GetNI(NbOutId).GetInDeg() <= MinDeg) continue;
 					// check!
-					out->DelEdge(nodeId, NbOutId, false);
+
+					//out->DelEdge(nodeId, NbOutId, false);
+					/*printf("Edge (%d,%d) was deleted\n", nodeId, NbOutId);
+					printf("Edge (%d,%d) was added\n", nodeId, i);*/
+
 					out->AddEdge(nodeId, i);
 					out->AddEdge(i,nodeId);
+					//printf("Degrees after: i: %d node: %d nb: %d\n", out->GetNI(i).GetInDeg(), out->GetNI(nodeId).GetInDeg(), out->GetNI(NbOutId).GetInDeg());
+					//system("pause");
 					break;
 				}
 			}
-		}
-		else if (InDeg > MaxDeg){
-			int EToChange = rnd.GetUniDev() * (MaxDeg - MinDeg) + InDeg - MaxDeg;
-			//printf("EToChange = %d InDeg - MaxDeg = %d\n", EToChange, InDeg - MaxDeg);
-			
-			auto CurrNode = out->GetNI(i);
-			//printf("Current node degree %d\n", CurrNode.GetInDeg());
-			// rewire EToChange edges
-			for (int j = InDeg-1; j >=0 ; j--){
-				// rewire nodes from the end of list of edges (check!)
-				int NodeToRewire = CurrNode.GetNbrNId(j);
-				while (1){
-					// get neighbour node using probability matrix
-					//int NbNode = GetCol(RowProbCumV, NodeToRewire, NIter, rnd);
-					// get random neighbour node
-					int NbNode = rnd.GetUniDev() * nodesCount;
-					if (NbNode == i) continue;
-					// if neighbour node degree is less than MaxDeg, rewire NodeToRewire
-					if (out->GetNI(NbNode).GetInDeg() < MaxDeg){
-						out->AddEdge(NodeToRewire, NbNode);
-						out->AddEdge(NbNode,NodeToRewire);
-						break;
-					}
-				}
-				out->DelEdge(i, NodeToRewire, false);
-				//printf("%d Edge was deleted\n", EToChange);
-				if (out->GetNI(i).GetInDeg() < MinDeg){
-					printf("Current node degree is less than min deg: %d < %d InDeg = %d EToChange=%d\n", CurrNode.GetInDeg(), MinDeg, InDeg, EToChange);
-					system("pause");
-				}
-				if (out->GetNI(NodeToRewire).GetInDeg() < MinDeg){
-					printf("Node to rewire degree is less than min deg:%d < %d\n", out->GetNI(NodeToRewire).GetInDeg(), MinDeg);
-					system("pause");
-				}
-				EToChange--;
-				if (EToChange == 0) break;
-			}
+
 		}
 	}
+
+	for (int i = 0; i < EdgesToDel; i++){
+		int nodeId = rnd.GetUniDev() * (nodesCount-1);
+		auto NI = out->GetNI(nodeId);
+		int OutDeg = NI.GetOutDeg();
+		if (OutDeg <= MinDeg) continue;
+		int NbId = static_cast<int>(rnd.GetUniDev() * (OutDeg - 1));
+		int NbOutId = NI.GetNbrNId(NbId);
+		if (out->GetNI(NbOutId).GetInDeg() <= MinDeg) continue;
+		out->DelEdge(nodeId, NbOutId, false);
+	}
+	
+	for (int i = 0; i < nodesCount; i++){
+		DegAfter.Add(out->GetNI(i).GetInDeg());
+	}
+	FILE *f = fopen("DegTest.dat", "w");
+	fprintf(f, "Node\tDegree before\tDegree after\n");
+	for (int i = 0; i < nodesCount; i++){
+		fprintf(f, "%d\t%d\t%d\n", i, DegBefore[i], DegAfter[i]);
+	}
+	fclose(f);
+	//for (int i = 0; i < nodesCount; i++){
+	//	int InDeg = out->GetNI(i).GetInDeg();
+	//	if (InDeg > MaxDeg){
+	//		int EToChange = rnd.GetUniDev() * (MaxDeg - MinDeg) + InDeg - MaxDeg;
+	//		//printf("EToChange = %d InDeg - MaxDeg = %d\n", EToChange, InDeg - MaxDeg);
+	//		
+	//		auto CurrNode = out->GetNI(i);
+	//		//printf("Current node degree %d\n", CurrNode.GetInDeg());
+	//		// rewire EToChange edges
+	//		for (int j = InDeg-1; j >=0 ; j--){
+	//			// rewire nodes from the end of list of edges (check!)
+	//			int NodeToRewire = CurrNode.GetNbrNId(j);
+	//			while (1){
+	//				// get neighbour node using probability matrix
+	//				//int NbNode = GetCol(RowProbCumV, NodeToRewire, NIter, rnd);
+	//				// get random neighbour node
+	//				int NbNode = rnd.GetUniDev() * nodesCount;
+	//				if (NbNode == i) continue;
+	//				// if neighbour node degree is less than MaxDeg, rewire NodeToRewire
+	//				//if (out->GetNI(NbNode).GetInDeg() < MaxDeg){
+	//					out->AddEdge(NodeToRewire, NbNode);
+	//					out->AddEdge(NbNode,NodeToRewire);
+	//					break;
+	//				//}
+	//			}
+	//			out->DelEdge(i, NodeToRewire, false);
+	//			//printf("%d Edge was deleted\n", EToChange);
+	//			if (out->GetNI(i).GetInDeg() < MinDeg){
+	//				printf("Current node degree is less than min deg: %d < %d InDeg = %d EToChange=%d\n", CurrNode.GetInDeg(), MinDeg, InDeg, EToChange);
+	//				system("pause");
+	//			}
+	//			if (out->GetNI(NodeToRewire).GetInDeg() < MinDeg){
+	//				printf("Node to rewire degree is less than min deg:%d < %d\n", out->GetNI(NodeToRewire).GetInDeg(), MinDeg);
+	//				system("pause");
+	//			}
+	//			EToChange--;
+	//			if (EToChange == 0) break;
+	//		}
+	//	}
+	//}
 }
 
 PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& Seed, const TIntPr& InDegR, const TIntPr& OutDegR, PNGraph& Graph, double ModelClustCf){
@@ -1042,8 +1082,10 @@ PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, co
 		Collisions += AddFirstDir(IsOut, InDegR, OutDegR, Graph, SeedMtx, NIter, Rnd);
 		Collisions += AddSecondDir(!IsOut, InDegR, OutDegR, Graph, SeedMtx, NIter, Rnd);
 	}
-	else 
-		Collisions += AddUnDir(InDegR, Graph, SeedMtx, NIter, Rnd, ModelClustCf);
+	else {
+		TIntPr F; F.Val1 = 0; F.Val2 = 0;
+		Collisions += AddUnDir(F, Graph, SeedMtx, NIter, Rnd, ModelClustCf);
+	}
 	const int Least = NEdges - Graph->GetEdges();
 	Collisions += AddEdges(SeedMtx, NIter, IsDir, Rnd, Graph, Least, InDegR.Val2, OutDegR.Val2, ModelClustCf);
 	printf("             collisions: %d (%.4f)\n", Collisions, Collisions/(double)Graph->GetEdges());

@@ -170,10 +170,11 @@ int KroneckerGen(const TInt NIter, const TKronMtx& FitMtx, PNGraph& out, const T
 	if (InDegR.Val1 == numeric_limits<int>::lowest() && InDegR.Val2 == INT_MAX && OutDegR.Val1 == numeric_limits<int>::lowest() && INT_MAX)
 		out = TKronMtx::GenFastKronecker(SeedMtx, NIter, Dir, 0, ModelClustCf);
 	else {
-		TKronMtx::GenFastKronecker(SeedMtx, NIter, Dir, 0, InDegR, OutDegR, out, ModelClustCf);
+		out = TKronMtx::GenFastKronecker(SeedMtx, NIter, Dir, 0, ModelClustCf);
+		//TKronMtx::GenFastKronecker(SeedMtx, NIter, Dir, 0, InDegR, OutDegR, out, ModelClustCf);
 	}
 
-	//RemoveZeroDegreeNodes(out);
+	TKronMtx::RemoveZeroDegreeNodes(out, SeedMtx, NIter, InDegR.Val1, InDegR.Val2);
 
 	// save edge list
 	//TSnap::SaveEdgeList(out, OutFNm, TStr::Fmt("Kronecker Graph: seed matrix [%s]", FitMtx.GetMtxStr().CStr()));
@@ -341,8 +342,7 @@ void ScaleFitMtxForEdges(TKronMtx& FitMtx, const TInt& NIter, const int& Expecte
 	FitMtx.Dump(TFile);
 }
 
-void ScaleFitMtx(TKronMtx& FitMtx, const TInt& NIter, const int& InitModelNodes, const int& ExpectedModelEdges, const int& MaxModelDeg){
-	ScaleFitMtxForEdges(FitMtx, NIter, ExpectedModelEdges);	
+void ScaleFitMtx(TKronMtx& FitMtx, const TInt& NIter, const int& InitModelNodes, const int& MaxModelDeg){
 	TFile << "Before scaling " << endl;
 	FitMtx.Dump(TFile);
 	// check ceil()
@@ -388,8 +388,9 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 	TFile << "Maximum degree in model graph: " << MaxModelDeg << endl;
 	//TFile << "Maximum expected degree in kron graph: " << FitMtx.GetMinMaxPossibleDeg(NIter) << endl;
 
+	ScaleFitMtxForEdges(FitMtx, NIter, ExpectedModelEdges);	
 	if (ScaleMtx == "true"){
-		ScaleFitMtx(FitMtx, NIter, ModelNodes, ExpectedModelEdges, MaxModelDeg);
+		ScaleFitMtx(FitMtx, NIter, ModelNodes, MaxModelDeg);
 		//ScaleFitMtxForEdges(FitMtx, NIter, ExpectedModelEdges);	
 	}
 
