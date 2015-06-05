@@ -982,6 +982,43 @@ int TKronMtx::AddUnDir(const TIntPr& DegR, PNGraph& G, const TKronMtx& SeedMtx, 
 	return Collision;
 }
 
+//void TKronMtx::DelEdges(PNGraph& Graph, const TKronMtx& Mtx, const int& NIter, const int& NEdges){
+//  TRnd Rnd(0);
+//  TExeTm ExeTm;
+//  // prepare cell probability vector
+//  TVec<TFltIntIntTr> ProbToRCPosV; // row, col position
+//  double CumProb = 0.0;
+//  for (int r = 0; r < MtxDim; r++) {
+//    for (int c = 0; c < MtxDim; c++) {
+//      const double Prob = Mtx.At(r, c);
+//      if (Prob > 0.0) {
+//        CumProb += Prob;
+//        ProbToRCPosV.Add(TFltIntIntTr(CumProb/Mtx.GetMtxSum(), r, c));
+//      }
+//    }
+//  }
+// 
+//  int NNodes = pow(static_cast<double>(2), NIter);
+//
+//  int Rng, Row, Col, Collision=0, n = 0;
+//  for (int edges = 0; edges < NEdges; ) {
+//    Rng=NNodes;  Row=0;  Col=0;
+//    for (int iter = 0; iter < NIter; iter++) {
+//      const double& Prob = Rnd.GetUniDev();
+//      n = 0; while(Prob > ProbToRCPosV[n].Val1) { n++; }
+//      const int MtxRow = ProbToRCPosV[n].Val2;
+//      const int MtxCol = ProbToRCPosV[n].Val3;
+//      Rng /= MtxDim;
+//      Row += MtxRow * Rng;
+//      Col += MtxCol * Rng;
+//    }
+//    if (Graph->IsEdge(Row, Col)) { // allow self-loops
+//      Graph->DelEdge(Row, Col,false);  edges++;
+//    } else { Collision++; }
+//    //if (edges % 1000 == 0) printf("\r...%dk", edges/1000);
+//  }
+//}
+
 void TKronMtx::RemoveZeroDegreeNodes(PNGraph& out, const TKronMtx& Mtx, const int& NIter, const int& MinDeg, const int&MaxDeg){
 	TRnd rnd;
 	rnd.GetUniDev();
@@ -1015,7 +1052,7 @@ void TKronMtx::RemoveZeroDegreeNodes(PNGraph& out, const TKronMtx& Mtx, const in
 					if (out->GetNI(NbOutId).GetInDeg() <= MinDeg) continue;
 					// check!
 
-					out->DelEdge(nodeId, NbOutId, false);
+					//out->DelEdge(nodeId, NbOutId, false);
 					/*printf("Edge (%d,%d) was deleted\n", nodeId, NbOutId);
 					printf("Edge (%d,%d) was added\n", nodeId, i);*/
 
@@ -1030,16 +1067,15 @@ void TKronMtx::RemoveZeroDegreeNodes(PNGraph& out, const TKronMtx& Mtx, const in
 		}
 	}
 
-	/*for (int i = 0; i < EdgesToDel; i++){
+	
+	for (int i = 0; i < EdgesToDel; i++){
 		int nodeId = rnd.GetUniDev() * (nodesCount-1);
 		auto NI = out->GetNI(nodeId);
 		int OutDeg = NI.GetOutDeg();
-		if (OutDeg <= MinDeg) {i--;continue;}
 		int NbId = static_cast<int>(rnd.GetUniDev() * (OutDeg - 1));
 		int NbOutId = NI.GetNbrNId(NbId);
-		if (out->GetNI(NbOutId).GetInDeg() <= MinDeg) {i--;continue;}
 		out->DelEdge(nodeId, NbOutId, false);
-	}*/
+	}
 	
 	/*for (int i = 0; i < nodesCount; i++){
 		DegAfter.Add(out->GetNI(i).GetInDeg());
@@ -1180,46 +1216,56 @@ double TKronMtx::GetNoisedProbV(TVec<TVec<TFltIntIntTr>>&ProbToRCPosV, const TFl
 	double T1 = SeedMtx.At(0,0), T2 = SeedMtx.At(0,1), T3 = SeedMtx.At(1,0), T4 = SeedMtx.At(1,1);
 	TKronMtx BaseMtx(SeedMtx);
 	double BaseExpectedDeg = BaseMtx.GetMaxExpectedDeg(),
-		MinPossibleDeg = BaseMtx.GetMinPossibleDeg(), MaxPossibleDeg = BaseMtx.GetMaxPossibleDeg();
-	/*double MtxSum = T1 + T2 + T3 + T4;
-	double B = (T1 + T4) / 2 < T2 ? (T1 + T4) / 2 : T2;
+		MinPossibleDeg = BaseMtx.GetMinPossibleDeg(), MaxPossibleDeg = BaseMtx.GetMaxPossibleDeg(),
+		UpperLimit = MaxPossibleDeg - BaseExpectedDeg, LowerLimit =  BaseExpectedDeg - MinPossibleDeg;
+	double Limit = (UpperLimit < LowerLimit) ? UpperLimit : LowerLimit;
+	//double Limit = MaxPossibleDeg / 2;
+	double MtxSum = T1 + T2 + T3 + T4;
+	/*double B = (T1 + T4) / 2 < T2 ? (T1 + T4) / 2 : T2;
 	B *= NoiseCoeff.Val;*/
-	double B = (BaseExpected)
+	Limit *= NoiseCoeff.Val;
 	double AvgExpectedDeg = 1;
-	double NextExpectedDeg = 0;
+	double PrevDeg = 0, CurrentDeg = 0;
 	for (int i = 0; i < NIter; i++){
 		TKronMtx NewMtx(BaseMtx);
 		// if i == NIter-1 and i is even, leave the matrix without change
 		if (i % 2 == 0 && i != NIter-1){
-			double Mu = 0; 
-			do{
-				Mu = B * (-1) + Rnd.GetUniDev() * (2 * B);
-				//printf("Mu = %f\n", Mu);
-			}
-			while (!CheckMu(T1, T2, T3, T4, Mu));
+			//[Base - Limit; Base + Limit]
+			CurrentDeg = BaseExpectedDeg - Limit + Rnd.GetUniDev() * 2 * Limit;
+			//if (CurrentDeg < BaseExpectedDeg) CurrentDeg *= 1.05;
+			NewMtx.SetForMaxDeg(CurrentDeg, 1);
+			//double Mu = 0; 
+			//do{
+			//	Mu = B * (-1) + Rnd.GetUniDev() * (2 * B);
+			//	//printf("Mu = %f\n", Mu);
+			//}
+			//while (!CheckMu(T1, T2, T3, T4, Mu));
 		
-			NewMtx.At(0,0) -= (2 * Mu * T1) / (T1 + T4);
-			NewMtx.At(0,1) += Mu;
-			NewMtx.At(1,0) += Mu;
-			NewMtx.At(1,1) -= (2 * Mu * T4) / (T1 + T4);
+			//NewMtx.At(0,0) -= (2 * Mu * T1) / (T1 + T4);
+			//NewMtx.At(0,1) += Mu;
+			//NewMtx.At(1,0) += Mu;
+			//NewMtx.At(1,1) -= (2 * Mu * T4) / (T1 + T4);
 		}
 		else {
-			NewMtx.SetForMaxDeg(NextExpectedDeg, 1);
+			CurrentDeg = BaseExpectedDeg / (CurrentDeg / BaseExpectedDeg );
+			//if (CurrentDeg < BaseExpectedDeg) CurrentDeg *= 1.05;
+			NewMtx.SetForMaxDeg(CurrentDeg, 1);
 		}
 		
 		FILE *f = fopen("NoiseMtx.tab", "a");
 		NewMtx.Dump(f);
-		double ExpectedDeg = NewMtx.GetMaxExpectedDeg();
-		AvgExpectedDeg *= ExpectedDeg;
-		fprintf(f, "Maximum expected degree: %f\n", ExpectedDeg);
+		AvgExpectedDeg *= CurrentDeg;
+		fprintf(f, "Maximum expected degree: %f\n", CurrentDeg);
 		fclose(f);
 
-		if (i % 2 == 0){
-			//int DegDiff = pow(static_cast<double>(BaseExpectedDeg), 1.00/static_cast<double>(NIter)) - ExpectedDeg;
-			double DegRatio = BaseExpectedDeg / ExpectedDeg;
-			//NextExpectedDeg = BaseExpectedDeg + pow(static_cast<double>(DegDiff), NIter);
-			NextExpectedDeg = BaseExpectedDeg * DegRatio;
-		}
+		//if (i % 2 == 0){
+		//	//int DegDiff = pow(static_cast<double>(BaseExpectedDeg), 1.00/static_cast<double>(NIter)) - ExpectedDeg;
+		//	double DegRatio = BaseExpectedDeg / CurrentDeg;
+		//	//NextExpectedDeg = BaseExpectedDeg + pow(static_cast<double>(DegDiff), NIter);
+		//	NextExpectedDeg = BaseExpectedDeg * DegRatio;
+		//	if (ExpectedDeg > MaxPossibleDeg)
+		//		NextExpectedDeg *= ExpectedDeg / MaxPossibleDeg;			
+		//}
 		//NewMtx.Dump();
 
 		/*int BestRow, BestCol;
@@ -1233,11 +1279,9 @@ double TKronMtx::GetNoisedProbV(TVec<TVec<TFltIntIntTr>>&ProbToRCPosV, const TFl
 
 		TVec<TFltIntIntTr> MtxVec;
 		double CumProb = 0.0;
-		double ModMtxSum = 0;
 		for (int r = 0; r < NewMtx.GetDim(); r++) {
 			for (int c = 0; c < NewMtx.GetDim(); c++) {
 				double Prob = NewMtx.At(r, c);
-				ModMtxSum += Prob;
 				if (Prob > 0.0) {
 					CumProb += Prob;
 					MtxVec.Add(TFltIntIntTr(CumProb/MtxSum, r, c));
