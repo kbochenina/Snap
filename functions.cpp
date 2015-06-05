@@ -152,7 +152,7 @@ int InitKronecker(const TStr args, PNGraph &GD, TKronMtx& FitMtx){
 }
 
 
-int KroneckerGen(const TInt NIter, const TKronMtx& FitMtx, PNGraph& out, const TStr& OutFNm, const TIntPr& InDegR, const TIntPr& OutDegR, const TStr& IsDir, double NoisePart){
+double KroneckerGen(const TInt NIter, const TKronMtx& FitMtx, PNGraph& out, const TStr& OutFNm, const TIntPr& InDegR, const TIntPr& OutDegR, const TStr& IsDir, double NoisePart){
 	Env.PrepArgs(TStr::Fmt("Kronecker graphs. build: %s, %s. Time: %s", __TIME__, __DATE__, TExeTm::GetCurTm()));
 	TExeTm ExeTm;
 	Try
@@ -165,22 +165,22 @@ int KroneckerGen(const TInt NIter, const TKronMtx& FitMtx, PNGraph& out, const T
 	// fast O(e) approximate algorithm
 	// if we need to save clustering coefficient
 	bool Dir = IsDir == "true" ? true: false;
+	double AvgExpectedDeg = 0.0;
 	// if we don't have constraints on degrees, run basic algorithm
 	if (InDegR.Val1 == numeric_limits<int>::lowest() && InDegR.Val2 == INT_MAX && OutDegR.Val1 == numeric_limits<int>::lowest() && INT_MAX)
-		out = TKronMtx::GenFastKronecker(SeedMtx, NIter, Dir, 0, NoisePart);
+		out = TKronMtx::GenFastKronecker(SeedMtx, NIter, Dir, AvgExpectedDeg, 0, NoisePart);
 	else {
-		out = TKronMtx::GenFastKronecker(SeedMtx, NIter, Dir, 0, NoisePart);
+		out = TKronMtx::GenFastKronecker(SeedMtx, NIter, Dir, AvgExpectedDeg, 0, NoisePart);
 		//TKronMtx::GenFastKronecker(SeedMtx, NIter, Dir, 0, InDegR, OutDegR, out, ModelClustCf);
 	}
 
 	TKronMtx::RemoveZeroDegreeNodes(out, SeedMtx, NIter, InDegR.Val1, InDegR.Val2);
 	 printf("             %d edges [%s]\n",out->GetEdges(), ExeTm.GetTmStr());
+	 return AvgExpectedDeg;
 	// save edge list
 	//TSnap::SaveEdgeList(out, OutFNm, TStr::Fmt("Kronecker Graph: seed matrix [%s]", FitMtx.GetMtxStr().CStr()));
 	Catch
 		printf("\nrun time: %s (%s)\n", ExeTm.GetTmStr(), TSecTm::GetCurTm().GetTmStr().CStr());
-	
-	return 0;
 }
 
 
@@ -376,7 +376,7 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 	const TInt OutMin = Env.GetIfArgPrefixInt("-outmin:", numeric_limits<int>::lowest(), "Out-degree minimum");
 	const TInt OutMax = Env.GetIfArgPrefixInt("-outmax:", INT_MAX, "Out-degree maximum");
 	// part of maximum possible noise to use in initiator matrix
-	const TFlt NoiseCoeff = Env.GetIfArgPrefixInt("-noise:", FLT_MAX, "NoiseCoeff");
+	const double NoiseCoeff = Env.GetIfArgPrefixFlt("-noise:", 0.5, "NoiseCoeff");
 	const TIntPr InDegR(InMin, InMax); const TIntPr OutDegR(OutMin, OutMax);
 	
 	float ModelNodes = G->GetNodes(), ModelEdges = G->GetEdges(), ExpectedNodes = FitMtx.GetNodes(NIter), ExpectedEdges = FitMtx.GetEdges(NIter);
@@ -418,11 +418,14 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 	TFltV KronEigen;
 	int AverageMaxDeg = 0, MinMaxDeg = 0, MaxMaxDeg = 0;
 
+	double TotalAvgExpectedDeg = 0.0;
+
 	for (int i = 0; i < NKron; i++){
 		execTime.Tick();
 		// ModelClustCf!
 		FitMtx.Dump();
-		KroneckerGen(NIter, FitMtx, kron, OutFnm, InDegR, OutDegR, IsDir, NoiseCoeff);
+		double AvgExpectedDeg = KroneckerGen(NIter, FitMtx, kron, OutFnm, InDegR, OutDegR, IsDir, NoiseCoeff);
+		TotalAvgExpectedDeg += AvgExpectedDeg;
 		sec += execTime.GetSecs();
 		int MaxDeg = GetMaxDeg(kron);
 		if (i == 0) MinMaxDeg = MaxDeg;
@@ -446,6 +449,7 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 		AddDegreesStat(outDegAvgKronM, samplesOut, kron, false);
 	}
 	sec /= NKron;
+	TFile << "Total average expected deg: " << TotalAvgExpectedDeg / NKron << endl;
 	if (IsSampled == "true"){
 		GetAvgDegreeStat(inDegAvgKronM, samplesIn);
 		GetAvgDegreeStat(outDegAvgKronM, samplesOut);

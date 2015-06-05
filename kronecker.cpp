@@ -112,7 +112,24 @@ double TKronMtx::GetMax() const {
 	return Val;
 }
 
-int TKronMtx::GetMaxExpectedDeg(const int& NIter)
+double TKronMtx::GetMaxExpectedDeg(){
+	double A = At(0,0), B = At(0,1), C = At(1, 0), D = At(1, 1);
+	double Sum0 = pow(A + B, 1)/2 + pow(A + C, 1)/2,
+		Sum1 = pow(A + B, 1)/2 + pow(B + D, 1)/2,
+		Sum2 = pow(C + D, 1)/2 + pow(C + A, 1)/2,
+		Sum3 = pow(C + D, 1)/2 + pow(D + B, 1)/2;
+		
+	//printf("%f %f %f %f\n", Sum0, Sum1, Sum2, Sum3);
+	double MaxSum = 0;
+	if (Sum0 > Sum1 && Sum0 > Sum2 && Sum0 > Sum3) {MaxSum = Sum0; }
+	else if (Sum1 > Sum0 && Sum1 > Sum2 && Sum1 > Sum3) {MaxSum = Sum1; }
+	else if (Sum2 > Sum0 && Sum2 > Sum1 && Sum2 > Sum3) {MaxSum = Sum2; }
+	else if (Sum3 > Sum0 && Sum3 > Sum1 && Sum3 > Sum2) {MaxSum = Sum3; }
+
+	return MaxSum;
+}
+
+double TKronMtx::GetMaxExpectedDeg(const int& NIter)
 {
 	int BestRow, BestCol;
 	return GetMaxExpectedDeg(At(0,0), At(0,1), At(1,0), At(1,1), NIter, BestRow, BestCol);
@@ -141,30 +158,37 @@ void TKronMtx::Normalize()
 }
 
 
- int TKronMtx::GetMaxExpectedDeg(const double&A, const double&B, const double&C, const double&D, const int& NIter, int& BestRow, int&BestCol){
+ double TKronMtx::GetMaxExpectedDeg(const double&A, const double&B, const double&C, const double&D, const int& NIter, int& BestRow, int&BestCol){
 	double Sum0 = pow(A + B, NIter)/2 + pow(A + C, NIter)/2,
 		Sum1 = pow(A + B, NIter)/2 + pow(B + D, NIter)/2,
 		Sum2 = pow(C + D, NIter)/2 + pow(C + A, NIter)/2,
 		Sum3 = pow(C + D, NIter)/2 + pow(D + B, NIter)/2;
 		
-	printf("%f %f %f %f\n", Sum0, Sum1, Sum2, Sum3);
+	//printf("%f %f %f %f\n", Sum0, Sum1, Sum2, Sum3);
 	double MaxSum = 0;
 	if (Sum0 > Sum1 && Sum0 > Sum2 && Sum0 > Sum3) {MaxSum = Sum0; BestRow = 0; BestCol = 0;}
 	else if (Sum1 > Sum0 && Sum1 > Sum2 && Sum1 > Sum3) {MaxSum = Sum1; BestRow = 0; BestCol = 1;}
 	else if (Sum2 > Sum0 && Sum2 > Sum1 && Sum2 > Sum3) {MaxSum = Sum2; BestRow = 1; BestCol = 0;}
 	else if (Sum3 > Sum0 && Sum3 > Sum1 && Sum3 > Sum2) {MaxSum = Sum3; BestRow = 1; BestCol = 1;}
 
-	return (MaxSum + 0.5);
+	return MaxSum;
  }
 
 // works only for 2x2 size matrix!
-void TKronMtx::SetForMaxDeg(const int& MaxDeg, const int& NIter)
+void TKronMtx::SetForMaxDeg(const double& MaxDeg, const int& NIter)
 {
+	if (MaxDeg <= 0)
+		Error("SetForMaxDeg", "MaxDeg < 0");
 	double A = At(0,0), B = At(0,1), C = At(1, 0), D = At(1, 1), DeltaA = 0, DeltaB = 0;
+	if (A > 1) Error("SetForMaxDeg", "A > 1"); if (A < 0) Error("SetForMaxDeg", "A < 0");
+	if (B > 1) Error("SetForMaxDeg", "B > 1"); if (B < 0) Error("SetForMaxDeg", "B < 0");
+	if (C > 1) Error("SetForMaxDeg", "C > 1"); if (C < 0) Error("SetForMaxDeg", "C < 0");
+	if (D > 1) Error("SetForMaxDeg", "D > 1"); if (D < 0) Error("SetForMaxDeg", "D < 0");
 	int BestRow = 0, BestCol = 0;
-	int MaxExpDeg = GetMaxExpectedDeg(A,B,C,D, NIter, BestRow, BestCol);
+	double MaxExpDeg = GetMaxExpectedDeg(A,B,C,D, NIter, BestRow, BestCol);
 	
 	if (MaxExpDeg == MaxDeg) return;
+
 	TIntPr Corner, Diag1, Diag2, Least;
 	Corner.Val1 = BestRow; Corner.Val2 = BestCol;
 	Diag1.Val1 = BestRow; Diag1.Val2 = (BestCol == 1) ? 0 : 1;
@@ -176,7 +200,8 @@ void TKronMtx::SetForMaxDeg(const int& MaxDeg, const int& NIter)
 		LeastV = At(Least.Val1, Least.Val2);
 
 	bool DecFound = false;
-	double Step = 0.0001;
+	double Step = 0.001;
+	double SensCoeff = 0.01; 
 	if (MaxDeg < MaxExpDeg) 
 		Step *= -1;
 
@@ -185,8 +210,8 @@ void TKronMtx::SetForMaxDeg(const int& MaxDeg, const int& NIter)
 	for (CornerV = CornerV + Step; CornerV <= 1; CornerV += Step){
 		Diag1V = Diag1V - Step / 2;
 		Diag2V = Diag2V - Step / 2;
-		int CurrMaxDeg = static_cast<int>(pow(CornerV + Diag1V, NIter) / 2 + pow(CornerV + Diag2V, NIter) / 2 + 0.5);
-		printf("CurrMaxDeg = %d CornerV = %f\n", CurrMaxDeg, CornerV);
+		double CurrMaxDeg = pow(CornerV + Diag1V, NIter) / 2 + pow(CornerV + Diag2V, NIter) / 2 ;
+		//printf("CurrMaxDeg = %d CornerV = %f\n", CurrMaxDeg, CornerV);
 		if (CurrMaxDeg < MaxExpDeg){
 			// reset values for previous step
 			CornerV -= Step;
@@ -195,7 +220,7 @@ void TKronMtx::SetForMaxDeg(const int& MaxDeg, const int& NIter)
 		}
 		else 
 			MaxExpDeg = CurrMaxDeg;
-		if (CurrMaxDeg == MaxDeg){
+		if (abs(CurrMaxDeg - MaxDeg) / MaxDeg <= SensCoeff){
 			DecFound = true;
 			break;
 		}
@@ -208,8 +233,8 @@ void TKronMtx::SetForMaxDeg(const int& MaxDeg, const int& NIter)
 		for (LeastV = LeastV - Step; LeastV >= 0; LeastV -= Step){
 			Diag1V = Diag1V + Step / 2;
 			Diag2V = Diag2V + Step / 2;
-			MaxExpDeg = (pow(CornerV + Diag1V, NIter) / 2 + pow(CornerV + Diag2V, NIter) / 2 + 0.5);
-			if (MaxExpDeg == MaxDeg){
+			MaxExpDeg = pow(CornerV + Diag1V, NIter) / 2 + pow(CornerV + Diag2V, NIter) / 2 ;
+			if (abs(MaxExpDeg - MaxDeg) / MaxDeg <= SensCoeff){
 				DecFound = true;
 				break;
 			}
@@ -228,7 +253,8 @@ void TKronMtx::SetForMaxDeg(const int& MaxDeg, const int& NIter)
 			if (MinDiag - Step < 0)
 				break;
 			MinDiag -= Step;
-			int CurrMaxDeg = static_cast<int>(pow(CornerV + MaxDiag, NIter) / 2 + pow(CornerV + MinDiag, NIter) / 2 + 0.5);
+			double CurrMaxDeg = pow(CornerV + MaxDiag, NIter) / 2 + pow(CornerV + MinDiag, NIter) / 2 ;
+			//printf("CurrMaxDeg: %f MaxExpDeg: %f\n", CurrMaxDeg, MaxExpDeg);
 			if (CurrMaxDeg < MaxExpDeg){
 				// reset values for previous step
 				if (Diag1 > Diag2){
@@ -240,10 +266,11 @@ void TKronMtx::SetForMaxDeg(const int& MaxDeg, const int& NIter)
 					Diag1V = MinDiag + Step;
 				}
 				break;
+				//printf("Err. CurrMaxDeg: %f MaxExpDeg: %f\n", CurrMaxDeg, MaxExpDeg);
 			}
 			else 
 			MaxExpDeg = CurrMaxDeg;
-			if (MaxExpDeg == MaxDeg){
+			if (abs(MaxExpDeg - MaxDeg) / MaxDeg <= SensCoeff){
 				DecFound = true;
 				break;
 			}
@@ -278,7 +305,7 @@ void TKronMtx::SetForMaxDeg(const int& MaxDeg, const int& NIter)
 	//}
 	
 	if (DecFound == false){
-		printf("%f %f %f MaxDeg: %f\n", CornerV, Diag1V, Diag2V, pow(CornerV + Diag1V, NIter) / 2 + pow(CornerV + Diag2V, NIter) / 2);
+		printf("%f %f %f %f MaxDeg: %f Expected: %f\n", CornerV, Diag1V, Diag2V, Least, pow(CornerV + Diag1V, NIter) / 2 + pow(CornerV + Diag2V, NIter) / 2, MaxDeg);
 		Error("SetForMaxDeg", "Cannot find solution");
 	}
 	printf("CornerV = %f\n", CornerV);
@@ -299,7 +326,7 @@ void TKronMtx::SetForMaxDeg(const int& MaxDeg, const int& NIter)
 	if (D - DeltaA < 0)
 		Error("SetForMaxDeg", "A + DeltaA > 1");*/
 	At(Corner.Val1,Corner.Val2) = CornerV; At(Diag1.Val1, Diag1.Val2) = Diag1V; At(Diag2.Val1,Diag2.Val2) = Diag2V; At(Least.Val1, Least.Val2) = LeastV; 
-	printf("Maximum expected degree: %d\n", GetMaxExpectedDeg(NIter));
+	printf("Maximum expected degree: %f\n", GetMaxExpectedDeg(NIter));
 }
 
 void TKronMtx::AddRndNoise(const double& SDev) {
@@ -961,10 +988,10 @@ void TKronMtx::RemoveZeroDegreeNodes(PNGraph& out, const TKronMtx& Mtx, const in
 	int nodesCount = out->GetNodes();
 	int edgesCount = out->GetEdges();
 	TVec<TVec<TFltIntIntTr>> RowProbCumV, ColProbCumV;
-	TIntV DegBefore, DegAfter;
+	/*TIntV DegBefore, DegAfter;
 	for (int i = 0; i < nodesCount; i++){
 		DegBefore.Add(out->GetNI(i).GetInDeg());
-	}
+	}*/
 	GetRowProbCumV(Mtx, RowProbCumV);
 	int EdgesToDel = 0;
 	for (int i = 0; i < nodesCount; i++){
@@ -1014,7 +1041,7 @@ void TKronMtx::RemoveZeroDegreeNodes(PNGraph& out, const TKronMtx& Mtx, const in
 		out->DelEdge(nodeId, NbOutId, false);
 	}*/
 	
-	for (int i = 0; i < nodesCount; i++){
+	/*for (int i = 0; i < nodesCount; i++){
 		DegAfter.Add(out->GetNI(i).GetInDeg());
 	}
 	FILE *f = fopen("DegTest.dat", "w");
@@ -1022,7 +1049,7 @@ void TKronMtx::RemoveZeroDegreeNodes(PNGraph& out, const TKronMtx& Mtx, const in
 	for (int i = 0; i < nodesCount; i++){
 		fprintf(f, "%d\t%d\t%d\n", i, DegBefore[i], DegAfter[i]);
 	}
-	fclose(f);
+	fclose(f);*/
 	for (int i = 0; i < nodesCount; i++){
 		int InDeg = out->GetNI(i).GetInDeg();
 		if (InDeg > MaxDeg){
@@ -1125,28 +1152,91 @@ int TKronMtx::CheckClustCf(const PNGraph& Graph, int Row, int Col, double ModelC
 	return 0;
 }
 
+bool CheckMu(double T1, double T2, double T3, double T4, double Mu){
+	if (Mu > (T1 + T4) / 2) 
+		return false;
+	if (Mu < (T4 - 1) * (T1 + T4) / (2 * T4)) 
+		return false;
+	if (Mu < (T1 - 1) * (T1 + T4) / (2 * T1)) 
+		return false;
+	if (Mu > 1 - T2) 
+		return false;
+	if (Mu > 1 - T3) 
+		return false;
+	return true;
+}
+
+  double TKronMtx::GetMinPossibleDeg(){
+	  double Val = GetMtxSum() / 4; 
+	  return (2 * Val);
+  }
+  double TKronMtx::GetMaxPossibleDeg(){
+	  double Val = (GetMtxSum() - 1) / 2;
+	  return (1 + Val);
+  }
+
 // works for 2x2 matrix
-void TKronMtx::GetNoisedProbV(TVec<TVec<TFltIntIntTr>>&ProbToRCPosV, const TFlt& NoiseCoeff, TRnd& Rnd, const int& NIter, const TKronMtx& SeedMtx){
+double TKronMtx::GetNoisedProbV(TVec<TVec<TFltIntIntTr>>&ProbToRCPosV, const TFlt& NoiseCoeff, TRnd& Rnd, const int& NIter, const TKronMtx& SeedMtx){
 	double T1 = SeedMtx.At(0,0), T2 = SeedMtx.At(0,1), T3 = SeedMtx.At(1,0), T4 = SeedMtx.At(1,1);
-	double MtxSum = T1 + T2 + T3 + T4;
+	TKronMtx BaseMtx(SeedMtx);
+	double BaseExpectedDeg = BaseMtx.GetMaxExpectedDeg(),
+		MinPossibleDeg = BaseMtx.GetMinPossibleDeg(), MaxPossibleDeg = BaseMtx.GetMaxPossibleDeg();
+	/*double MtxSum = T1 + T2 + T3 + T4;
 	double B = (T1 + T4) / 2 < T2 ? (T1 + T4) / 2 : T2;
-	B *= NoiseCoeff.Val;
+	B *= NoiseCoeff.Val;*/
+	double B = (BaseExpected)
+	double AvgExpectedDeg = 1;
+	double NextExpectedDeg = 0;
 	for (int i = 0; i < NIter; i++){
-		double Mu = B * (-1) + Rnd.GetUniDev() * (2 * B);
+		TKronMtx NewMtx(BaseMtx);
+		// if i == NIter-1 and i is even, leave the matrix without change
+		if (i % 2 == 0 && i != NIter-1){
+			double Mu = 0; 
+			do{
+				Mu = B * (-1) + Rnd.GetUniDev() * (2 * B);
+				//printf("Mu = %f\n", Mu);
+			}
+			while (!CheckMu(T1, T2, T3, T4, Mu));
+		
+			NewMtx.At(0,0) -= (2 * Mu * T1) / (T1 + T4);
+			NewMtx.At(0,1) += Mu;
+			NewMtx.At(1,0) += Mu;
+			NewMtx.At(1,1) -= (2 * Mu * T4) / (T1 + T4);
+		}
+		else {
+			NewMtx.SetForMaxDeg(NextExpectedDeg, 1);
+		}
+		
+		FILE *f = fopen("NoiseMtx.tab", "a");
+		NewMtx.Dump(f);
+		double ExpectedDeg = NewMtx.GetMaxExpectedDeg();
+		AvgExpectedDeg *= ExpectedDeg;
+		fprintf(f, "Maximum expected degree: %f\n", ExpectedDeg);
+		fclose(f);
+
+		if (i % 2 == 0){
+			//int DegDiff = pow(static_cast<double>(BaseExpectedDeg), 1.00/static_cast<double>(NIter)) - ExpectedDeg;
+			double DegRatio = BaseExpectedDeg / ExpectedDeg;
+			//NextExpectedDeg = BaseExpectedDeg + pow(static_cast<double>(DegDiff), NIter);
+			NextExpectedDeg = BaseExpectedDeg * DegRatio;
+		}
+		//NewMtx.Dump();
+
+		/*int BestRow, BestCol;
+		int ExpectedDeg = NewMtx.GetMaxExpectedDeg(T1, T2, T3, T4, NIter, BestRow, BestCol);
+		int ToAdd = Rnd.GetUniDev() * Mu * ExpectedDeg;
+		if (i % 2 == 0)  ExpectedDeg = 150;
+		else ExpectedDeg = 50;
+		printf("ExpectedDeg = %d\n", ExpectedDeg);
+		NewMtx.SetForMaxDeg(ExpectedDeg, NIter);
+		NewMtx.Dump();*/
+
 		TVec<TFltIntIntTr> MtxVec;
 		double CumProb = 0.0;
 		double ModMtxSum = 0;
-		for (int r = 0; r < SeedMtx.GetDim(); r++) {
-			for (int c = 0; c < SeedMtx.GetDim(); c++) {
-				double Prob = SeedMtx.At(r, c);
-				if (r == 0 && c == 0)
-					Prob -= (2 * Mu * T1) / (T1 + T4);
-				if (r == 0 && c == 1)
-					Prob += Mu;
-				if (r == 1 && c == 0)
-					Prob -= (2 * Mu * T4) / (T1 + T4);
-				if (r == 1 && c == 1)
-					Prob += Mu;
+		for (int r = 0; r < NewMtx.GetDim(); r++) {
+			for (int c = 0; c < NewMtx.GetDim(); c++) {
+				double Prob = NewMtx.At(r, c);
 				ModMtxSum += Prob;
 				if (Prob > 0.0) {
 					CumProb += Prob;
@@ -1157,10 +1247,15 @@ void TKronMtx::GetNoisedProbV(TVec<TVec<TFltIntIntTr>>&ProbToRCPosV, const TFlt&
 		
 		ProbToRCPosV.Add(MtxVec);
 	}
+	FILE *f = fopen("NoiseMtx.tab", "a");
+	fprintf(f, "------------------------------------------------");
+	fprintf(f, "Average expected deg: %f\n", AvgExpectedDeg);
+	fclose(f);
+	return AvgExpectedDeg;
 }
 
 // use RMat like recursive descent to quickly generate a Kronecker graph
-PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& Seed, double NoiseCoeff) {
+PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, double &AvgExpectedDeg, const int& Seed, double NoiseCoeff) {
   const TKronMtx& SeedGraph = SeedMtx;
   const int MtxDim = SeedGraph.GetDim();
   const double MtxSum = SeedGraph.GetMtxSum();
@@ -1173,7 +1268,7 @@ PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, co
   TRnd Rnd(Seed);
   TExeTm ExeTm;
   TVec<TVec<TFltIntIntTr>> ProbToRCPosV;
-  GetNoisedProbV(ProbToRCPosV, NoiseCoeff, Rnd, NIter, SeedMtx);
+  AvgExpectedDeg = GetNoisedProbV(ProbToRCPosV, NoiseCoeff, Rnd, NIter, SeedMtx);
   
   // add nodes
   for (int i = 0; i < NNodes; i++) {
@@ -1450,6 +1545,17 @@ void TKronMtx::Dump(ofstream& TFile) const{
 		if ((i+1) % GetDim() == 0) TFile << endl; 
 	}
 	TFile << " (sum: " << Sum << ")" << endl;
+}
+
+void TKronMtx::Dump(FILE* TFile) const{
+	double Sum=0.0;
+	TFltV ValV = SeedMtx;
+	for (int i = 0; i < ValV.Len(); i++) {
+		fprintf(TFile, "%f ",ValV[i]());
+		Sum += ValV[i];
+		if ((i+1) % GetDim() == 0) fprintf(TFile, "\n"); 
+	}
+	fprintf(TFile, " (sum: %f)\n",Sum);
 }
 
 void TKronMtx::Dump(const TStr& MtxNm, const bool& Sort) const {

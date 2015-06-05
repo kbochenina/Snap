@@ -44,9 +44,13 @@ public:
   void SetForEdges(const int& Nodes, const int& Edges); // scales the values to allow E edges
   void AddRndNoise(const double& SDev);
   TStr GetMtxStr() const;
-  void SetForMaxDeg(const int& MaxDeg, const int& NIter);
-  int GetMaxExpectedDeg(const int& NIter);
-  int GetMaxExpectedDeg(const double&A, const double&B, const double&C, const double&D, const int&NIter, int& BestRow, int& BestCol);
+  void SetForMaxDeg(const double& MaxDeg, const int& NIter);
+  double GetMinPossibleDeg();
+  double GetMaxPossibleDeg();
+  double GetMaxExpectedDeg();
+  double GetMaxExpectedDeg(const int& NIter);
+  double GetMaxExpectedDeg(const double&A, const double&B, const double&C, const double&D, const int&NIter, int& BestRow, int& BestCol);
+  int GetIntDeg(double MaxExpDeg) {return static_cast<int>(MaxExpDeg + 0.5);}
   void SetForEdgesNoCut(const int& Nodes, const int& Edges);
   void Normalize();
   double GetEigMax() const;
@@ -104,8 +108,8 @@ public:
   static int AddSecondDir(bool OutFirst, const TIntPr& InDegR, const TIntPr& OutDegR, PNGraph& G, const TKronMtx& SeedMtx, const int&NIter, TRnd&Rnd);
   static int AddUnDir(const TIntPr& DegR, PNGraph& G, const TKronMtx& SeedMtx, const int& NIter, TRnd& Rnd, double ModelClustCf);
   static void GetRowProbCumV(const TKronMtx& Mtx, TVec<TVec<TFltIntIntTr>>& RowProbCumV);
-  static void GetNoisedProbV(TVec<TVec<TFltIntIntTr>>&ProbToRCPosV, const TFlt& NoiseCoeff, TRnd& Rnd, const int& NIter, const TKronMtx& SeedMtx);
-  static PNGraph GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& Seed=0, double NoiseCoeff = 0.0);
+  static double GetNoisedProbV(TVec<TVec<TFltIntIntTr>>&ProbToRCPosV, const TFlt& NoiseCoeff, TRnd& Rnd, const int& NIter, const TKronMtx& SeedMtx);
+  static PNGraph GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, double &AvgExpectedDeg, const int& Seed=0, double NoiseCoeff = 0.0);
   static PNGraph GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, const int& Edges, const bool& IsDir, const int& Seed=0);
   static PNGraph GenDetKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir);
   static void PlotCmpGraphs(const TKronMtx& SeedMtx, const PNGraph& Graph, const TStr& OutFNm, const TStr& Desc);
@@ -117,6 +121,7 @@ public:
   static void KronPwr(const TKronMtx& KronPt, const int& NIter, TKronMtx& OutMtx);
 
   void Dump(ofstream &TFile) const;
+  void Dump(FILE* TFile) const;
   void Dump(const TStr& MtxNm = TStr(), const bool& Sort = false) const;
   static double GetAvgAbsErr(const TKronMtx& Kron1, const TKronMtx& Kron2); // avg L1 on (sorted) parameters
   static double GetAvgFroErr(const TKronMtx& Kron1, const TKronMtx& Kron2); // avg L2 on (sorted) parameters
