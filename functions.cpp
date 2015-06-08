@@ -347,7 +347,7 @@ void ScaleFitMtx(TKronMtx& FitMtx, const TInt& NIter, const int& InitModelNodes,
 	// check ceil()
 	double ModelIter = ceil(log10((double)InitModelNodes) / log10((double)FitMtx.GetDim()));
 	// rename function and variable
-	int MinMaxDeg = FitMtx.GetMaxExpectedDeg(NIter);
+	int MinMaxDeg = (FitMtx.GetMaxExpectedDeg(NIter) + 0.5);
 	TFile << "Expected model maximum degree: " << MaxModelDeg << endl << "Expected Kronecker maximum degree: "<<  MinMaxDeg << endl;
 	FitMtx.SetForMaxDeg(MaxModelDeg, ModelIter);
 	TFile << "After scaling " << endl;
