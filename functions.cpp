@@ -170,11 +170,12 @@ double KroneckerGen(const TInt NIter, const TKronMtx& FitMtx, PNGraph& out, cons
 	if (InDegR.Val1 == numeric_limits<int>::lowest() && InDegR.Val2 == INT_MAX && OutDegR.Val1 == numeric_limits<int>::lowest() && INT_MAX)
 		out = TKronMtx::GenFastKronecker(SeedMtx, NIter, Dir, AvgExpectedDeg, 0, NoisePart);
 	else {
-		out = TKronMtx::GenFastKronecker(SeedMtx, NIter, Dir, AvgExpectedDeg, 0, NoisePart);
-		//TKronMtx::GenFastKronecker(SeedMtx, NIter, Dir, 0, InDegR, OutDegR, out, ModelClustCf);
+		//out = TKronMtx::GenFastKronecker(SeedMtx, NIter, Dir, AvgExpectedDeg, 0, NoisePart);
+		TKronMtx::GenFastKronecker(SeedMtx, NIter, Dir, 0, InDegR, OutDegR, out, NoisePart);
 	}
 
-	TKronMtx::RemoveZeroDegreeNodes(out, SeedMtx, NIter, InDegR.Val1, InDegR.Val2);
+	//TKronMtx::GetLemma3Estimates(SeedMtx, NIter, AvgExpectedDeg);
+	 //TKronMtx::RemoveZeroDegreeNodes(out, SeedMtx, NIter, InDegR.Val1, InDegR.Val2);
 	 printf("             %d edges [%s]\n",out->GetEdges(), ExeTm.GetTmStr());
 	 return AvgExpectedDeg;
 	// save edge list
@@ -349,6 +350,7 @@ void ScaleFitMtx(TKronMtx& FitMtx, const TInt& NIter, const int& InitModelNodes,
 	// rename function and variable
 	int MinMaxDeg = (FitMtx.GetMaxExpectedDeg(NIter) + 0.5);
 	TFile << "Expected model maximum degree: " << MaxModelDeg << endl << "Expected Kronecker maximum degree: "<<  MinMaxDeg << endl;
+	// ModelIter instead of NIter
 	FitMtx.SetForMaxDeg(MaxModelDeg, ModelIter);
 	TFile << "After scaling " << endl;
 	FitMtx.Dump(TFile);

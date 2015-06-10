@@ -8,13 +8,16 @@ int GetBinomCoeff(const int& N, const int& K){
 		Error("GetBinomCoeff", "N or K is negative");
 	if (N < K)
 		Error("GetBinomCoeff", "N < K");
-	int Term = 1;
+	long long int Term = 1;
 	for (int i = 0; i < K; i++){
 		Term *= (N - i);
 	}
-	int Denom = 1;
+	long long int Denom = 1;
 	for (int i = 2; i <= K; i++)
 		Denom *= i;
+	int Res = Term / Denom;
+	if (Res < 0)
+		Error("GetBinomCoeff", "Res is negative");
 	return Term / Denom;
 }
 

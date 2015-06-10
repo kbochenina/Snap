@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "kronecker.h"
 #include "Error.h"
+#include "Eigen.h"
 
 void PrintDeg(const TFltPrV& distr, const TStr& OutFNm){
 	FILE *F = stdout;
@@ -1034,6 +1035,8 @@ void TKronMtx::RemoveZeroDegreeNodes(PNGraph& out, const TKronMtx& Mtx, const in
 	}
 
 	GetRowProbCumV(Mtx, RowProbCumV);
+
+	
 	int MaxAddDeg = 0;
 	int EdgesToDel = 0;
 	for (int i = 0; i < nodesCount; i++){
@@ -1041,6 +1044,7 @@ void TKronMtx::RemoveZeroDegreeNodes(PNGraph& out, const TKronMtx& Mtx, const in
 		
 		if (InDeg < MinDeg){
 			int EdgesToAdd = MinDeg - InDeg + rnd.GetUniDev() * (MinDeg - InDeg + 2 * MinDeg);
+			if (InDeg + EdgesToAdd > MaxDeg) EdgesToAdd = InDeg - MaxDeg;
 			EdgesToDel += EdgesToAdd;
 			//printf("Edges to add: %d\n", EdgesToAdd);
 			for (int j = 0; j < EdgesToAdd; j++){
@@ -1052,10 +1056,11 @@ void TKronMtx::RemoveZeroDegreeNodes(PNGraph& out, const TKronMtx& Mtx, const in
 					if (nodeId == i || out->IsEdge(nodeId,i)) continue;
 					auto NI = out->GetNI(nodeId);
 					int OutDeg = NI.GetOutDeg();
-					if (OutDeg == 0) continue;
+					if (OutDeg == 0 || OutDeg >= MaxDeg) continue;
 					int NbId = static_cast<int>(rnd.GetUniDev() * (OutDeg - 1));
 					int NbOutId = NI.GetNbrNId(NbId);
-					if (out->GetNI(NbOutId).GetInDeg() <= MinDeg || (MaxExpectedDeg - out->GetNI(NbOutId).GetInDeg()) / static_cast<double>(MaxExpectedDeg) < 0.01  ) continue;
+					if (out->GetNI(NbOutId).GetInDeg() <= MinDeg || (MaxExpectedDeg - out->GetNI(NbOutId).GetInDeg()) / static_cast<double>(MaxExpectedDeg) < 0.01  ) 
+						continue;
 
 					out->DelEdge(nodeId, NbOutId, false);
 
@@ -1073,32 +1078,8 @@ void TKronMtx::RemoveZeroDegreeNodes(PNGraph& out, const TKronMtx& Mtx, const in
 		}
 	}
 
-	/*bool IsMaxDeg = false;
-	int MaxDegNode = 0;
-	
-	for (int i = 0; i < EdgesToDel; i++){
-		int nodeId = rnd.GetUniDev() * (nodesCount - 1);
-		auto NI = out->GetNI(nodeId);
-		int OutDeg = NI.GetOutDeg();
-		double Val1 = rnd.GetUniDev(), Val2 = (OutDeg - MinDeg) / 99.0;
-		if (Val2 < Val1 || OutDeg == 99 ) {i--; continue;}
-		int NbId = static_cast<int>(rnd.GetUniDev() * (OutDeg - 1));
-		int NbOutId = NI.GetNbrNId(NbId);
-		if (rnd.GetUniDev() > (out->GetNI(NbOutId).GetInDeg() - MinDeg) / 99.0 || out->GetNI(NbOutId).GetInDeg() == 99 ) 
-		{i--; continue;}
 
-		out->DelEdge(nodeId, NbOutId, false);
-	}
-	*/
-	/*for (int i = 0; i < nodesCount; i++){
-		DegAfter.Add(out->GetNI(i).GetInDeg());
-	}
-	FILE *f = fopen("DegTest.dat", "w");
-	fprintf(f, "Node\tDegree before\tDegree after\n");
-	for (int i = 0; i < nodesCount; i++){
-		fprintf(f, "%d\t%d\t%d\n", i, DegBefore[i], DegAfter[i]);
-	}
-	fclose(f);*/
+
 	for (int i = 0; i < nodesCount; i++){
 		int InDeg = out->GetNI(i).GetInDeg();
 		if (InDeg > MaxDeg){
@@ -1141,6 +1122,33 @@ void TKronMtx::RemoveZeroDegreeNodes(PNGraph& out, const TKronMtx& Mtx, const in
 			}
 		}
 	}
+	/*bool IsMaxDeg = false;
+	int MaxDegNode = 0;
+	
+	for (int i = 0; i < EdgesToDel; i++){
+		int nodeId = rnd.GetUniDev() * (nodesCount - 1);
+		auto NI = out->GetNI(nodeId);
+		int OutDeg = NI.GetOutDeg();
+		double Val1 = rnd.GetUniDev(), Val2 = (OutDeg - MinDeg) / 99.0;
+		if (Val2 < Val1 || OutDeg == 99 ) {i--; continue;}
+		int NbId = static_cast<int>(rnd.GetUniDev() * (OutDeg - 1));
+		int NbOutId = NI.GetNbrNId(NbId);
+		if (rnd.GetUniDev() > (out->GetNI(NbOutId).GetInDeg() - MinDeg) / 99.0 || out->GetNI(NbOutId).GetInDeg() == 99 ) 
+		{i--; continue;}
+
+		out->DelEdge(nodeId, NbOutId, false);
+	}
+	*/
+	/*for (int i = 0; i < nodesCount; i++){
+		DegAfter.Add(out->GetNI(i).GetInDeg());
+	}
+	FILE *f = fopen("DegTest.dat", "w");
+	fprintf(f, "Node\tDegree before\tDegree after\n");
+	for (int i = 0; i < nodesCount; i++){
+		fprintf(f, "%d\t%d\t%d\n", i, DegBefore[i], DegAfter[i]);
+	}
+	fclose(f);*/
+	
 }
 
 PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& Seed, const TIntPr& InDegR, const TIntPr& OutDegR, PNGraph& Graph, double ModelClustCf){
@@ -1343,6 +1351,69 @@ double TKronMtx::GetNoisedProbV(TVec<TVec<TFltIntIntTr>>&ProbToRCPosV, const TFl
 	return AvgExpectedDeg;
 }
 
+void TKronMtx::GetLemma3Estimates(const TKronMtx& SeedMtx, const int& NIter, const int& MaxDeg){
+	vector<vector<double>> Data;
+	vector<double> Deg; vector<double> NC;
+	for (int i = 0; i < static_cast<int>(MaxDeg + 0.5); i++){
+		int NodesCount = TKronMtx::GetExpectedNodesCount(SeedMtx, NIter, i);
+		Deg.push_back(i);
+		NC.push_back(NodesCount);
+	}
+	Data.push_back(Deg); Data.push_back(NC);
+	TStrV RowNames; RowNames.Add("Degree"); RowNames.Add("Nodes count");
+	MakeDatFile("Lemma3", "Expected degrees", RowNames, Data, SeedMtx.GetNodes(NIter), SeedMtx.GetEdges(NIter));
+}
+
+// get E(X_d) for degree Deg
+int TKronMtx::GetExpectedNodesCount(const TKronMtx& Mtx, const int& NIter, const int& Deg){
+	if (Deg == 0) 
+		return 0;
+	double ExpDeg = 0;
+	double Dim = static_cast<double>(Mtx.GetDim());
+	if (Dim != 2)
+		Error("GetExpectedNodesCount", "Function works only with 2x2 matrix");
+	int NodesCount = pow (Dim, NIter);
+	double MtxSum = Mtx.GetMtxSum();
+	double EdgesCount = pow (MtxSum, NIter);
+	double DeltaBig = EdgesCount / NodesCount * 2;
+	// in the paper T1 is the largest value
+	int Row = 0, Col = 0;
+	double T1 = 0.0;
+	for (size_t i = 0; i < Dim; i++)
+		for (size_t j = 0; j < Dim; j++){
+			if (Mtx.At(i,j) > T1){
+				T1 = Mtx.At(i,j);
+				Row = i;
+				Col = j;
+			}
+		}
+	Col = (Col == 0) ? 1 : 0;
+	double T2 = Mtx.At(Row, Col);
+	Row = (Row == 0) ? 1 : 0;
+	double T4 = Mtx.At(Row, Col);
+	Col = (Col == 0) ? 1 : 0;
+	double T3 = Mtx.At(Row, Col);
+	// in the paper Delta = (T1 + T2) - 0.5, but MtxSum is equal to 1 in that case (use 1 instead of MtxSum)
+	double Delta = (T1 + T2) - MtxSum / 2;
+	double Tau = (MtxSum + 2 * Delta) / (MtxSum - 2 * Delta);
+	// floor() is my assumption
+	double Lambda = DeltaBig * pow(1 - 4 * Delta * Delta, NIter / 2.00);
+	double ThetaD = log(Deg / Lambda) / log(Tau);
+	int RD = floor(ThetaD);
+	double DeltaD = ThetaD - RD;
+	if (Deg < exp(1.0) * log(2.0) * NIter || Deg > pow (NodesCount, 0.5))
+		printf("Warning. Deg < e ln(2) * l or Deg > sqrt(N)\n");
+	// floor() is my assumption
+ 	if (RD >= floor(NIter / 2.00)) return 0;
+	else {
+		// floor() is my assumption
+		ExpDeg = 1 / pow(2 * M_PI * Deg, 0.5) * exp(-1 * Deg * DeltaD * DeltaD * log(Tau) * log(Tau) / 2) * GetBinomCoeff(NIter, floor(NIter / 2.00) + RD);
+		// floor() is my assumption
+		ExpDeg += 1 / pow(2 * M_PI * Deg, 0.5) * exp(-1 * Deg * (1 - DeltaD) * (1 - DeltaD) * log(Tau) * log(Tau) / 2) * GetBinomCoeff(NIter, floor(NIter / 2.00) + RD + 1);
+	}
+	return static_cast<int>(ExpDeg + 0.5);
+}
+
 // use RMat like recursive descent to quickly generate a Kronecker graph
 PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, double &AvgExpectedDeg, const int& Seed, double NoiseCoeff) {
   const TKronMtx& SeedGraph = SeedMtx;
@@ -1368,7 +1439,7 @@ PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, co
   // add edges
   int Rng, Row, Col, Collision=0, n = 0;
   
-  for (int edges = 0; edges < NEdges; ) {
+  for (int edges = 0; edges < NEdges ; ) {
     Rng=NNodes;  Row=0;  Col=0;
     for (int iter = 0; iter < NIter; iter++) {
 	  const double& Prob = Rnd.GetUniDev();
@@ -1388,6 +1459,7 @@ PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, co
     } else { Collision++; }
     //if (edges % 1000 == 0) printf("\r...%dk", edges/1000);
   }
+
   printf("             %d edges [%s]\n", Graph->GetEdges(), ExeTm.GetTmStr());
   printf("             collisions: %d (%.4f)\n", Collision, Collision/(double)Graph->GetEdges());
   printf("ClosedTriads %d ClustCollision %d\n", ClosedTriads, ClustCollision);

@@ -1,7 +1,9 @@
 #ifndef snap_kronecker_h
 #define snap_kronecker_h
+#define _USE_MATH_DEFINES
 
 #include "Snap.h"
+#include <math.h>
 #include <string>
 
 
@@ -57,8 +59,11 @@ public:
   double GetEigMin() const;
   double GetMax() const;
   void SetForMaxEigen(const double K, const int& NIter);
+  static int GetExpectedNodesCount(const TKronMtx& Mtx, const int& NIter, const int& Deg);
+  static void GetLemma3Estimates(const TKronMtx& Mtx, const int& NIter, const int& MaxDeg);
   static void RemoveZeroDegreeNodes(PNGraph& out, const TKronMtx& Mtx, const int& NIter, const int& MinDeg, const int& MaxDeg);
   //void DelEdges(PNGraph& out, const TKronMtx& Mtx, const int& NIter, const int& EdgesToDel);
+
 
   const double& At(const int& Row, const int& Col) const { return SeedMtx[MtxDim*Row+Col].Val; }
   double& At(const int& Row, const int& Col) { return SeedMtx[MtxDim*Row+Col].Val; }
