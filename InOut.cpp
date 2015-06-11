@@ -177,10 +177,71 @@ void MakeDatFile(const TStr& Name, const TStr& AddStr, const TStrV& ColumnNames,
 	int DataSize = Data[0].size();
 	for (int i = 0; i < DataSize; i++){
 		for (int j = 0; j < ColumnsCount; j++){
-			F << Data[j][i] << " ";
+			F << Data[j][i] << "\t";
 		}
 		F << "\n";
 	}
 
 	F.close();
+}
+
+int GetDigits(int i){
+	return ceil(log(static_cast<double>(i)))/log(2.00) + 1;
+}
+
+int GetWeight(int i){
+	if (i == 0) return 0;
+	else {
+		double Weight = 0;
+		for (int j = 0; j < GetDigits(i); j++)
+			Weight += (i >> j) & 1;
+		return Weight;
+	}
+}
+
+// i is the count of (i=ival, j=jval) bits in i,j
+int GetPow(int i, int j, int ival, int jval){
+	int DigitsI = GetDigits(i), DigitsJ = GetDigits(j);
+	int Digits = DigitsI > DigitsJ ? DigitsI : DigitsJ;
+	int Res = 0;
+	for (int k = 0; k < Digits; k++){
+		int IBit = (i >> k) & 1, JBit = (j >> k) & 1;
+		if (IBit == ival && JBit == jval) Res++; 
+	}
+	return Res;
+}
+
+double GetProb(const int &i, const int&j, const TKronMtx& FitMtx, const int& NIter){
+	double Prob = 1.0;
+	for (int k = 0; k < NIter; k++){
+		int IBit = (i >> k) & 1, JBit = (j >> k) & 1;
+		Prob *= FitMtx.At(IBit, JBit);
+	}
+	return Prob;
+}
+
+void PrintNodeDegrees(const PNGraph& G, const TKronMtx& FitMtx, const int& NIter){
+	vector<vector<double>> Data;
+	vector<double> NodeId; vector<double> Deg; vector<double> ExpectedDeg; vector<double> SumDeg;
+	double A = FitMtx.At(0,0), B = FitMtx.At(0,1), C = FitMtx.At(1,0), D = FitMtx.At(1,1);
+	for (int i = 0; i < G->GetNodes(); i++){
+		NodeId.push_back(i);
+		// get weight of node i (count of 1's in its binary representation)
+		int Weight = GetWeight(i);
+		Deg.push_back(G->GetNI(i).GetOutDeg());
+		ExpectedDeg.push_back(pow(A+B, NIter-Weight)*pow(C+D, Weight));
+		double SDeg = 0.0;
+		for (int j = 0; j < G->GetNodes(); j++){
+			double Prob = GetProb(i, j, FitMtx, NIter);
+			//printf("%.2f ", Prob);
+			SDeg += Prob;
+			//int PowI = GetPow(i, j, 0, 1), PowJ = GetPow(i, j, 1, 1);
+			//SDeg += pow(A, NIter - Weight - PowI) * pow(B, PowI) * pow(C, Weight - PowJ) * pow(D, PowJ);
+		}
+		//printf("\n");
+		SumDeg.push_back(SDeg);		
+	}
+	Data.push_back(NodeId); Data.push_back(Deg); Data.push_back(ExpectedDeg); Data.push_back(SumDeg);
+	TStrV ColumnNames; ColumnNames.Add("NodeId");ColumnNames.Add("Deg");ColumnNames.Add("E_N[Deg]");ColumnNames.Add("E_N[Deg](Sum)");
+	MakeDatFile("DegTest", "Node degrees", ColumnNames, Data, G->GetNodes(), G->GetEdges());
 }

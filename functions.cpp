@@ -152,6 +152,7 @@ int InitKronecker(const TStr args, PNGraph &GD, TKronMtx& FitMtx){
 }
 
 
+
 double KroneckerGen(const TInt NIter, const TKronMtx& FitMtx, PNGraph& out, const TStr& OutFNm, const TIntPr& InDegR, const TIntPr& OutDegR, const TStr& IsDir, double NoisePart){
 	Env.PrepArgs(TStr::Fmt("Kronecker graphs. build: %s, %s. Time: %s", __TIME__, __DATE__, TExeTm::GetCurTm()));
 	TExeTm ExeTm;
@@ -174,6 +175,7 @@ double KroneckerGen(const TInt NIter, const TKronMtx& FitMtx, PNGraph& out, cons
 		TKronMtx::GenFastKronecker(SeedMtx, NIter, Dir, 0, InDegR, OutDegR, out, NoisePart);
 	}
 
+	//PrintNodeDegrees(out, SeedMtx, NIter);
 	//TKronMtx::GetLemma3Estimates(SeedMtx, NIter, AvgExpectedDeg);
 	 //TKronMtx::RemoveZeroDegreeNodes(out, SeedMtx, NIter, InDegR.Val1, InDegR.Val2);
 	 printf("             %d edges [%s]\n",out->GetEdges(), ExeTm.GetTmStr());
