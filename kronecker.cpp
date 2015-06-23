@@ -971,7 +971,7 @@ int TKronMtx::AddUnDir(const TIntPr& DegR, PNGraph& G, const TKronMtx& SeedMtx, 
 	//GetRowProbCumV(Mtx, RowProbCumV); Transpose(Mtx); GetRowProbCumV(Mtx, ColProbCumV);
 	int EdgesAdded = 0, ClustCollision = 0, ClosedTriads = 0;
 
-	vector<int> NodeIDs;
+	/*vector<int> NodeIDs;
 	for (int i = 0; i < NNodes; i++) NodeIDs.push_back(i);
 	for (int i = 0; i < NNodes; i++) {
 		int Node1 = Rnd.GetUniDev() * (NNodes-1),
@@ -979,20 +979,24 @@ int TKronMtx::AddUnDir(const TIntPr& DegR, PNGraph& G, const TKronMtx& SeedMtx, 
 		int Add = NodeIDs[Node1];
 		NodeIDs[Node1] = NodeIDs[Node2];
 		NodeIDs[Node2] = Add;
-	}
+	}*/
 	
+	int MissedRows = 0;
 
-	for (int i = NNodes-1; i >= 0; i--){
-		int Row = NodeIDs[i];
+	for (int i = 0; i < NNodes; i++){
+		int Row = i;
 		int InDeg = G->GetNI(Row).GetInDeg(), OutDeg = G->GetNI(Row).GetOutDeg();
 		if (InDeg != OutDeg) printf("InDeg != OutDeg. Error");
 		//printf("InDeg %d OutDeg %d\n", InDeg, OutDeg);
-		if (InDeg >= DegReq || OutDeg >= DegReq) continue;
+		if (InDeg >= DegReq || OutDeg >= DegReq) {
+			MissedRows++; 
+			continue;
+		}
 		for (int j = 0; j < DegReq-OutDeg; j++){	
 			//printf("Collision %d\ edges added %d \n", Collision, EdgesAdded);
 			int Col = GetCol(RowProbCumV, Row, NIter, Rnd);
 			if (Row != Col && !G->IsEdge(Row, Col)){
-				int InDegCol = G->GetNI(Col).GetInDeg(), OutDegCol = G->GetNI(Col).GetOutDeg();
+				//int InDegCol = G->GetNI(Col).GetInDeg(), OutDegCol = G->GetNI(Col).GetOutDeg();
 				//if (InDegCol + 1 > DegReq || OutDegCol + 1 > DegReq) {Collision++;  j--; continue;}
 				G->AddEdge(Row,Col);
 				//printf("(%d %d)\t", Row, Col);
@@ -1007,7 +1011,8 @@ int TKronMtx::AddUnDir(const TIntPr& DegR, PNGraph& G, const TKronMtx& SeedMtx, 
 	}
 	std::string s = "Edges added=" + std::to_string((long long)EdgesAdded) +", edges to add=" + std::to_string((long long) DegReq * NNodes) + "\n";
 	printf("%s",s.c_str());
-	printf("AddUnDir: ClosedTriads %d ClustCollision %d\n", ClosedTriads, ClustCollision);
+	//printf("Missed rows: %d\n", MissedRows); system("pause");
+	//printf("AddUnDir: ClosedTriads %d ClustCollision %d\n", ClosedTriads, ClustCollision);
 	//PrintDeg(G, "AddFirst");
 
 	/*try {
@@ -1343,11 +1348,11 @@ double TKronMtx::GetNoisedProbV(TVec<TVec<TFltIntIntTr>>&ProbToRCPosV, const TFl
 		//	NewMtx.SetForMaxDeg(CurrentDeg, 1);
 		//}
 		
-		FILE *f = fopen("NoiseMtx.tab", "a");
+		/*FILE *f = fopen("NoiseMtx.tab", "a");
 		NewMtx.Dump(f);
 		AvgExpectedDeg *= CurrentDeg;
 		fprintf(f, "Maximum expected degree: %f\n", CurrentDeg);
-		fclose(f);
+		fclose(f);*/
 
 		TVec<TFltIntIntTr> MtxVec;
 		double CumProb = 0.0;
@@ -1364,10 +1369,10 @@ double TKronMtx::GetNoisedProbV(TVec<TVec<TFltIntIntTr>>&ProbToRCPosV, const TFl
 		ProbToRCPosV.Add(MtxVec);
 	}
 	printf("AccumExpected = %f, AccumReal = %f\n", AccumExpected, AccumReal);
-	FILE *f = fopen("NoiseMtx.tab", "a");
+	/*FILE *f = fopen("NoiseMtx.tab", "a");
 	fprintf(f, "------------------------------------------------");
 	fprintf(f, "Average expected deg: %f\n", AvgExpectedDeg);
-	fclose(f);
+	fclose(f);*/
 	return AvgExpectedDeg;
 }
 
