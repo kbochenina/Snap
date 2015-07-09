@@ -160,11 +160,27 @@ void TKronMtx::Normalize()
 
 
  double TKronMtx::GetMaxExpectedDeg(const double&A, const double&B, const double&C, const double&D, const int& NIter, int& BestRow, int&BestCol){
-	double Sum0 = pow(A + B, NIter)/2 + pow(A + C, NIter)/2,
+	double E = pow(A + B + C + D, NIter);
+	double NewNIter = log10(E/2) / log10(A + B + C + D);
+
+	double Possible = pow(A + B, NewNIter);
+	double Possible1 = pow(A + B, NIter);
+
+	//double Sum0 = pow(A + B, NewNIter)/2 + pow(A + C, NewNIter)/2,
+	//	Sum1 = pow(A + B, NewNIter)/2 + pow(B + D, NewNIter)/2,
+	//	Sum2 = pow(C + D, NewNIter)/2 + pow(C + A, NewNIter)/2,
+	//	Sum3 = pow(C + D, NewNIter)/2 + pow(D + B, NewNIter)/2;
+
+	double Sum0 = pow(A + B, NIter) + pow(A + C, NIter),
+	Sum1 = pow(A + B, NIter) + pow(B + D, NIter),
+	Sum2 = pow(C + D, NIter) + pow(C + A, NIter),
+	Sum3 = pow(C + D, NIter) + pow(D + B, NIter);
+
+	/*double Sum0 = pow(A + B, NIter)/2 + pow(A + C, NIter)/2,
 		Sum1 = pow(A + B, NIter)/2 + pow(B + D, NIter)/2,
 		Sum2 = pow(C + D, NIter)/2 + pow(C + A, NIter)/2,
-		Sum3 = pow(C + D, NIter)/2 + pow(D + B, NIter)/2;
-		
+		Sum3 = pow(C + D, NIter)/2 + pow(D + B, NIter)/2;*/
+
 	//printf("%f %f %f %f\n", Sum0, Sum1, Sum2, Sum3);
 	double MaxSum = 0;
 	if (Sum0 > Sum1 && Sum0 > Sum2 && Sum0 > Sum3) {MaxSum = Sum0; BestRow = 0; BestCol = 0;}
@@ -227,7 +243,7 @@ void TKronMtx::SetForMaxDeg(const double& MaxDeg, const int& NIter)
 		}
 	}
 	if (CornerV > 1) CornerV -= Step;
-	//printf("MaxDeg after step 1: %f\n", pow(CornerV + Diag1V, NIter) / 2 + pow(CornerV + Diag2V, NIter) / 2);
+	printf("MaxDeg after step 1: %f\n", pow(CornerV + Diag1V, NIter) / 2 + pow(CornerV + Diag2V, NIter) / 2);
 
 	// fix Corner, increase Diag1 and Diag2, decrease Least
 	if (!DecFound){
@@ -940,7 +956,6 @@ int TKronMtx::AddUnDir(const TIntPr& DegR, PNGraph& G, const TKronMtx& SeedMtx, 
 	// get NIter vectors of cumulative probabilities
 	TVec<TVec<TFltIntIntTr>> ProbToRCPosV;
     double AvgExpectedDeg = GetNoisedProbV(ProbToRCPosV, NoiseCoeff, Rnd, NIter, SeedMtx);
-
 	// get row prob accum vectors [NIter x MtxDim * MtxDim]
 	TVec<TVec<TVec<TFltIntIntTr>>> RowProbCumV;
 	for (int i = 0; i < NIter; i++){
@@ -1439,6 +1454,15 @@ int TKronMtx::GetExpectedNodesCount(const TKronMtx& Mtx, const int& NIter, const
 	return static_cast<int>(ExpDeg + 0.5);
 }
 
+void ProbToRCPosVDump(const TVec<TVec<TFltIntIntTr>>& Prob, const int& MtxDim, const int& NIter){
+	for (int i = 0; i < NIter; i++){
+		for (int j = 0; j < MtxDim * MtxDim; j++){
+			printf("%f ", Prob[i][j].Val1);
+		}
+		printf("\n");
+	}
+}
+
 // use RMat like recursive descent to quickly generate a Kronecker graph
 PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, double &AvgExpectedDeg, const int& Seed, double NoiseCoeff) {
   const TKronMtx& SeedGraph = SeedMtx;
@@ -1454,8 +1478,9 @@ PNGraph TKronMtx::GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, co
   TExeTm ExeTm;
   TVec<TVec<TFltIntIntTr>> ProbToRCPosV;
   AvgExpectedDeg = GetNoisedProbV(ProbToRCPosV, NoiseCoeff, Rnd, NIter, SeedMtx);
-
   
+  //ProbToRCPosVDump(ProbToRCPosV, MtxDim, NIter);
+
   // add nodes
   for (int i = 0; i < NNodes; i++) {
     Graph->AddNode(i); }

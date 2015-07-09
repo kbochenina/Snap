@@ -167,15 +167,19 @@ double KroneckerGen(const TInt NIter, const TKronMtx& FitMtx, PNGraph& out, cons
 	// if we need to save clustering coefficient
 	bool Dir = IsDir == "true" ? true: false;
 	double AvgExpectedDeg = 0.0;
-	// if we don't have constraints on degrees, run basic algorithm
-	if (InDegR.Val1 == numeric_limits<int>::lowest() && InDegR.Val2 == INT_MAX && OutDegR.Val1 == numeric_limits<int>::lowest() && INT_MAX)
-		out = TKronMtx::GenFastKronecker(SeedMtx, NIter, Dir, AvgExpectedDeg, 0, NoisePart);
-	else {
-		//out = TKronMtx::GenFastKronecker(SeedMtx, NIter, Dir, AvgExpectedDeg, 0, NoisePart);
+	// if we have constraints on degrees, run corresponding algorithm
+	if (InDegR.Val1 != 0 || OutDegR.Val1 != 0) {
 		TKronMtx::GenFastKronecker(SeedMtx, NIter, Dir, 0, InDegR, OutDegR, out, NoisePart);
 	}
+	else {
+		out = TKronMtx::GenFastKronecker(SeedMtx, NIter, Dir, AvgExpectedDeg, 0, NoisePart);
+		// initial version
+		//out = TKronMtx::GenFastKronecker(SeedMtx, NIter, static_cast<int>(pow(SeedMtx.GetMtxSum(), NIter)), Dir, 0);
+		// slow and exact version
+		//out = TKronMtx::GenKronecker(SeedMtx, NIter, Dir, 0);
+	}
 
-	//PrintNodeDegrees(out, SeedMtx, NIter);
+	PrintNodeDegrees(out, SeedMtx, NIter);
 	//TKronMtx::GetLemma3Estimates(SeedMtx, NIter, AvgExpectedDeg);
 	 //TKronMtx::RemoveZeroDegreeNodes(out, SeedMtx, NIter, InDegR.Val1, InDegR.Val2);
 	 printf("             %d edges [%s]\n",out->GetEdges(), ExeTm.GetTmStr());
@@ -303,10 +307,26 @@ bool GetMtx(const TStr& MtxArgs, TKronMtx& FitMtxModel){
 	return true;
 }
 
-int GetMaxDeg(const PNGraph& G)
+int GetMaxDeg(const PNGraph& G, const TStr& IsDir)
 {
 	TIntPrV DegCnt;
-	TSnap::GetDegCnt(TSnap::ConvertGraph<PUNGraph>(G), DegCnt);
+	if (IsDir == "false"){
+		TSnap::GetDegCnt(TSnap::ConvertGraph<PUNGraph>(G), DegCnt);
+	}
+	else
+		TSnap::GetDegCnt(G, DegCnt);
+	// sort in descending order
+	DegCnt.Sort(false);
+	return DegCnt[0].Val1;
+}
+
+int GetMaxInDeg(const PNGraph& G, const TStr& IsDir){
+	TIntPrV DegCnt;
+	if (IsDir == "false"){
+		TSnap::GetInDegCnt(TSnap::ConvertGraph<PUNGraph>(G), DegCnt);
+	}
+	else
+		TSnap::GetInDegCnt(G, DegCnt);
 	// sort in descending order
 	DegCnt.Sort(false);
 	return DegCnt[0].Val1;
@@ -358,6 +378,19 @@ void ScaleFitMtx(TKronMtx& FitMtx, const TInt& NIter, const int& InitModelNodes,
 	FitMtx.Dump(TFile);
 }
 
+void CompareDeg(const int i, const int MaxDeg, int& MinMaxDeg, int& MaxMaxDeg, int& AvgMaxDeg){
+	if (i == 0) { 
+		MinMaxDeg = MaxDeg;
+	}
+	else if (MaxDeg < MinMaxDeg){
+		MinMaxDeg = MaxDeg;
+	}
+	if (MaxDeg > MaxMaxDeg) {
+		MaxMaxDeg = MaxDeg;
+	}
+	AvgMaxDeg += MaxDeg;
+}
+
 void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV& outDegAvgKronM, const PNGraph& G, const int NEigen, double NoisePart = 0.0){
 	Env = TEnv(args, TNotify::StdNotify);
 	TExeTm execTime;
@@ -381,6 +414,8 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 	const TInt OutMax = Env.GetIfArgPrefixInt("-outmax:", INT_MAX, "Out-degree maximum");
 	// part of maximum possible noise to use in initiator matrix
 	const double NoiseCoeff = Env.GetIfArgPrefixFlt("-noise:", 0.5, "NoiseCoeff");
+	// scaling factor for maximum expected degree
+	const double MinScale = Env.GetIfArgPrefixFlt("-minscale:", 0.1, "MinScale");
 	const TIntPr InDegR(InMin, InMax); const TIntPr OutDegR(OutMin, OutMax);
 	
 	float ModelNodes = G->GetNodes(), ModelEdges = G->GetEdges(), ExpectedNodes = FitMtx.GetNodes(NIter), ExpectedEdges = FitMtx.GetEdges(NIter);
@@ -389,8 +424,10 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 	TFile << "Expected model nodes: " << ExpectedNodes << ", expected model edges: " << ExpectedModelEdges << endl;
 	TFile << "Expected nodes: " << ExpectedNodes << ", expected edges: " << ExpectedEdges << endl;
 	// check function
-	int MaxModelDeg = GetMaxDeg(G);
+	int MaxModelDeg = GetMaxDeg(G, IsDir);
 	TFile << "Maximum degree in model graph: " << MaxModelDeg << endl;
+	MaxModelDeg += MaxModelDeg * MinScale;
+	TFile << "Maximum degree after scaling: " << MaxModelDeg << endl;
 	//TFile << "Maximum expected degree in kron graph: " << FitMtx.GetMinMaxPossibleDeg(NIter) << endl;
 
 	ScaleFitMtxForEdges(FitMtx, NIter, ExpectedModelEdges);	
@@ -420,22 +457,21 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 		
 
 	TFltV KronEigen;
-	int AverageMaxDeg = 0, MinMaxDeg = 0, MaxMaxDeg = 0;
+	int AvgMaxDeg = 0, AvgMaxInDeg = 0, MinMaxDeg = 0, MaxMaxDeg = 0, MinMaxInDeg = 0, MaxMaxInDeg = 0;
 
 	double TotalAvgExpectedDeg = 0.0;
 
 	for (int i = 0; i < NKron; i++){
 		execTime.Tick();
 		// ModelClustCf!
-		FitMtx.Dump();
+		//FitMtx.Dump();
 		double AvgExpectedDeg = KroneckerGen(NIter, FitMtx, kron, OutFnm, InDegR, OutDegR, IsDir, NoiseCoeff);
 		TotalAvgExpectedDeg += AvgExpectedDeg;
 		sec += execTime.GetSecs();
-		int MaxDeg = GetMaxDeg(kron);
-		if (i == 0) MinMaxDeg = MaxDeg;
-		else if (MaxDeg < MinMaxDeg) MinMaxDeg = MaxDeg;
-		if (MaxDeg > MaxMaxDeg) MaxMaxDeg = MaxDeg;
-		AverageMaxDeg += MaxDeg;
+		int MaxDeg = GetMaxDeg(kron, IsDir), MaxInDeg = GetMaxInDeg(kron, IsDir);
+		CompareDeg(i, MaxDeg, MinMaxDeg, MaxMaxDeg, AvgMaxDeg);
+		CompareDeg(i, MaxInDeg, MinMaxInDeg, MaxMaxInDeg, AvgMaxInDeg);
+
 		printf("Nodes count: %d, nodes with non-zero degree %d, edges count %d\n max deg = %d\n", kron->GetNodes(), TSnap::CntNonZNodes(kron), kron->GetEdges(), MaxDeg);
 		if (i == NKron - 1){
 			//TFile << "Clustering coefficient: " << TSnap::GetClustCf(kron) << endl;
@@ -447,13 +483,14 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 				TSnap::PlotEigValRank(TSnap::ConvertGraph<PUNGraph>(kron), NEigen, "KronEigen", KronEigen);
 				TFile << "Maximum eigenvalue in kron graph: " << KronEigen[0].Val << endl;
 			}
-			TFile << "Maximum degree in kron graph: " << "from " << MinMaxDeg << " to " << MaxMaxDeg << " (average: " << (double)AverageMaxDeg / (double)NKron << ")" << endl;
+			TFile << "Maximum degree in kron graph: " << "from " << MinMaxDeg << " to " << MaxMaxDeg << " (average: " << (double)AvgMaxDeg / (double)NKron << ")" << endl;
+			TFile << "Maximum input degree in kron graph: " << "from " << MinMaxInDeg << " to " << MaxMaxInDeg << " (average: " << (double)AvgMaxInDeg / (double)NKron << ")" << endl;
 		}
 		AddDegreesStat(inDegAvgKronM, samplesIn, kron, true);
 		AddDegreesStat(outDegAvgKronM, samplesOut, kron, false);
 	}
 	sec /= NKron;
-	TFile << "Total average expected deg: " << TotalAvgExpectedDeg / NKron << endl;
+	//TFile << "Total average expected deg: " << TotalAvgExpectedDeg / NKron << endl;
 	if (IsSampled == "true"){
 		GetAvgDegreeStat(inDegAvgKronM, samplesIn);
 		GetAvgDegreeStat(outDegAvgKronM, samplesOut);
