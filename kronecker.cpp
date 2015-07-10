@@ -218,18 +218,21 @@ void TKronMtx::SetForMaxDeg(const double& MaxDeg, const int& NIter)
 
 	bool DecFound = false;
 	double Step = 0.001;
-	double SensCoeff = 0.01; 
-	if (MaxDeg < MaxExpDeg) 
+	double SensCoeff = 0.01; bool ToIncrease = true;
+	if (MaxDeg < MaxExpDeg) {
 		Step *= -1;
+		ToIncrease = false;
+	}
 
 	// increase Corner, decrease Diag1 and Diag2
 	// if MaxExpDeg begins to decrease, stop
-	for (CornerV = CornerV + Step; CornerV <= 1; CornerV += Step){
+	for (CornerV = CornerV + Step; ; CornerV += Step){
 		Diag1V = Diag1V - Step / 2;
 		Diag2V = Diag2V - Step / 2;
-		double CurrMaxDeg = pow(CornerV + Diag1V, NIter) / 2 + pow(CornerV + Diag2V, NIter) / 2 ;
+		//double CurrMaxDeg = pow(CornerV + Diag1V, NIter) / 2 + pow(CornerV + Diag2V, NIter) / 2 ;
+		double CurrMaxDeg = pow(CornerV + Diag1V, NIter) + pow(CornerV + Diag2V, NIter) ;
 		//printf("CurrMaxDeg = %d CornerV = %f\n", CurrMaxDeg, CornerV);
-		if (CurrMaxDeg < MaxExpDeg){
+		if ((CurrMaxDeg < MaxExpDeg && ToIncrease) || (CurrMaxDeg > MaxExpDeg && !ToIncrease)){
 			// reset values for previous step
 			CornerV -= Step;
 			Diag1V += Step / 2; Diag2V += Step / 2;
@@ -241,38 +244,43 @@ void TKronMtx::SetForMaxDeg(const double& MaxDeg, const int& NIter)
 			DecFound = true;
 			break;
 		}
+		if ((CornerV > 1 && ToIncrease) || (CornerV < 0 && !ToIncrease)) { 
+			CornerV -= Step; break; }
 	}
-	if (CornerV > 1) CornerV -= Step;
-	printf("MaxDeg after step 1: %f\n", pow(CornerV + Diag1V, NIter) / 2 + pow(CornerV + Diag2V, NIter) / 2);
+	//printf("MaxDeg after step 1: %f\n", pow(CornerV + Diag1V, NIter) / 2 + pow(CornerV + Diag2V, NIter) / 2);
+	printf("MaxDeg after step 1: %f\n", pow(CornerV + Diag1V, NIter) + pow(CornerV + Diag2V, NIter) );
 
 	// fix Corner, increase Diag1 and Diag2, decrease Least
 	if (!DecFound){
-		for (LeastV = LeastV - Step; LeastV >= 0; LeastV -= Step){
+		for (LeastV = LeastV - Step; ; LeastV -= Step){
 			Diag1V = Diag1V + Step / 2;
 			Diag2V = Diag2V + Step / 2;
-			MaxExpDeg = pow(CornerV + Diag1V, NIter) / 2 + pow(CornerV + Diag2V, NIter) / 2 ;
+			//MaxExpDeg = pow(CornerV + Diag1V, NIter) / 2 + pow(CornerV + Diag2V, NIter) / 2 ;
+			double MaxNonDiag = (CornerV > LeastV) ? CornerV : LeastV;
+			MaxExpDeg = pow(MaxNonDiag + Diag1V, NIter)  + pow(MaxNonDiag + Diag2V, NIter) ;
 			if (abs(MaxExpDeg - MaxDeg) / MaxDeg <= SensCoeff){
 				DecFound = true;
 				break;
 			}
+			if ((LeastV < 0 && ToIncrease) || (LeastV > 1 && !ToIncrease)) { LeastV += Step; break;}
 		}
 	}
-	if (LeastV < 0) LeastV += Step;
-
-	//printf("MaxDeg after step 2: %f\n", pow(CornerV + Diag1V, NIter) / 2 + pow(CornerV + Diag2V, NIter) / 2);
+	double MaxNonDiag = (CornerV > LeastV) ? CornerV : LeastV;
+	printf("MaxDeg after step 2: %f\n", pow(MaxNonDiag + Diag1V, NIter)  + pow(MaxNonDiag + Diag2V, NIter) );
 	//printf("CornerV = %f\n", CornerV);
 	// increase max(Diag1, Diag2), decrease min(Diag1,Diag2)
 	// if MaxExpDeg begins to decrease, stop
 	if (!DecFound){
 		double MaxDiag = (Diag1V > Diag2V) ? Diag1V : Diag2V,
 			MinDiag = (MaxDiag == Diag1V) ? Diag2V : Diag1V;
-		for (MaxDiag = MaxDiag + Step; MaxDiag <= 1; MaxDiag += Step){
+		for (MaxDiag = MaxDiag + Step; ; MaxDiag += Step){
 			if (MinDiag - Step < 0)
 				break;
 			MinDiag -= Step;
-			double CurrMaxDeg = pow(CornerV + MaxDiag, NIter) / 2 + pow(CornerV + MinDiag, NIter) / 2 ;
+			//double CurrMaxDeg = pow(CornerV + MaxDiag, NIter) / 2 + pow(CornerV + MinDiag, NIter) / 2 ;
+			double CurrMaxDeg = pow(CornerV + MaxDiag, NIter) + pow(CornerV + MinDiag, NIter)  ;
 			//printf("CurrMaxDeg: %f MaxExpDeg: %f\n", CurrMaxDeg, MaxExpDeg);
-			if (CurrMaxDeg < MaxExpDeg){
+			if ((CurrMaxDeg < MaxExpDeg && ToIncrease) || (CurrMaxDeg > MaxExpDeg && !ToIncrease)){
 				// reset values for previous step
 				if (Diag1 > Diag2){
 					Diag1V = MaxDiag - Step;
@@ -291,10 +299,11 @@ void TKronMtx::SetForMaxDeg(const double& MaxDeg, const int& NIter)
 				DecFound = true;
 				break;
 			}
+			if ((MaxDiag > 1 && ToIncrease) || (MaxDiag < 0 && !ToIncrease)) { break; }
 		}
 	}
 
-	//printf("MaxDeg after step 3: %f\n", pow(CornerV + Diag1V, NIter) / 2 + pow(CornerV + Diag2V, NIter) / 2);
+	printf("MaxDeg after step 3: %f\n", pow(CornerV + Diag1V, NIter)  + pow(CornerV + Diag2V, NIter) );
 
 	//int BestRow = (At(0,0) + At(0,1) > At(1,0) + At(1,1)) ? 0 : 1;
 	//int LeastRow = (BestRow == 0) ? 1 : 0;
@@ -322,7 +331,8 @@ void TKronMtx::SetForMaxDeg(const double& MaxDeg, const int& NIter)
 	//}
 	
 	if (DecFound == false){
-		printf("%f %f %f %f MaxDeg: %f Expected: %f\n", CornerV, Diag1V, Diag2V, Least, pow(CornerV + Diag1V, NIter) / 2 + pow(CornerV + Diag2V, NIter) / 2, MaxDeg);
+		printf("%f %f %f %f MaxDeg: %f Expected: %f\n", CornerV, Diag1V, Diag2V, Least, pow(CornerV + Diag1V, NIter)  + pow(CornerV + Diag2V, NIter), MaxDeg);
+		printf("%f %f %f %f Sum: %f\n", A, B, C, D, A + B + C + D);
 		Error("SetForMaxDeg", "Cannot find solution");
 	}
 	printf("CornerV = %f\n", CornerV);
@@ -999,6 +1009,7 @@ int TKronMtx::AddUnDir(const TIntPr& DegR, PNGraph& G, const TKronMtx& SeedMtx, 
 	int MissedRows = 0;
 
 	for (int i = 0; i < NNodes; i++){
+		//printf("i = %d\n", i);
 		int Row = i;
 		int InDeg = G->GetNI(Row).GetInDeg(), OutDeg = G->GetNI(Row).GetOutDeg();
 		if (InDeg != OutDeg) printf("InDeg != OutDeg. Error");
@@ -1019,7 +1030,6 @@ int TKronMtx::AddUnDir(const TIntPr& DegR, PNGraph& G, const TKronMtx& SeedMtx, 
 				G->AddEdge(Col, Row);
 				//printf("(%d %d)\t", Col, Row);
 				EdgesAdded++;
-				
 			}
 			else {Collision++; j--;}//printf("Collision1\n"); }	
 		}
@@ -1339,7 +1349,7 @@ double TKronMtx::GetNoisedProbV(TVec<TVec<TFltIntIntTr>>&ProbToRCPosV, const TFl
 				NewMtx.At(1,1) -= (2 * Mu * T4) / (T1 + T4);
 				CurrentDeg = NewMtx.GetMaxExpectedDeg();
 			}
-			if (i == NIter - 1){
+			if (i == NIter - 1 && NoiseCoeff.Val != 0){
 				double RequiredDeg = AccumExpected * Step / AccumReal;
 				if (RequiredDeg > MaxPossibleDeg){
 					RequiredDeg = MaxPossibleDeg;
