@@ -46,12 +46,14 @@ public:
   void SetForEdges(const int& Nodes, const int& Edges); // scales the values to allow E edges
   void AddRndNoise(const double& SDev);
   TStr GetMtxStr() const;
+  void EqualizeBC();
   void SetForMaxDeg(const double& MaxDeg, const int& NIter);
   double GetMinPossibleDeg();
   double GetMaxPossibleDeg();
   double GetMaxExpectedDeg();
   double GetMaxExpectedDeg(const int& NIter);
   double GetMaxExpectedDeg(const double&A, const double&B, const double&C, const double&D, const int&NIter, int& BestRow, int& BestCol);
+  double GetMaxExpectedDeg(const int& NIter, const TStr& IsDir, bool IsIn);
   int GetIntDeg(double MaxExpDeg) {return static_cast<int>(MaxExpDeg + 0.5);}
   void SetForEdgesNoCut(const int& Nodes, const int& Edges);
   void Normalize();

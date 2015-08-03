@@ -314,7 +314,7 @@ int GetMaxDeg(const PNGraph& G, const TStr& IsDir)
 		TSnap::GetDegCnt(TSnap::ConvertGraph<PUNGraph>(G), DegCnt);
 	}
 	else
-		TSnap::GetDegCnt(G, DegCnt);
+		TSnap::GetOutDegCnt(G, DegCnt);
 	// sort in descending order
 	DegCnt.Sort(false);
 	return DegCnt[0].Val1;
@@ -365,6 +365,11 @@ void ScaleFitMtxForEdges(TKronMtx& FitMtx, const TInt& NIter, const int& Expecte
 	FitMtx.Dump(TFile);*/
 }
 
+void ScaleFitMtxForUnDir(TKronMtx& FitMtx){
+	TFile << "Equalizing B and C..." << endl;
+	FitMtx.EqualizeBC();
+}
+
 void ScaleFitMtx(TKronMtx& FitMtx, const TInt& NIter, const int& InitModelNodes, const int& MaxModelDeg){
 	TFile << "Before scaling: " << endl;
 	FitMtx.Dump(TFile);
@@ -407,7 +412,7 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 	// output file name
 	const TStr ScaleMtx = Env.GetIfArgPrefixStr("-scalemtx:", "true", "Scale init matrix to match number of edges");
 	// output file name
-	const TStr IsDir = Env.GetIfArgPrefixStr("-isdir:", "false", "Produce directed graph (true, false)");
+	TStr IsDir = Env.GetIfArgPrefixStr("-isdir:", "false", "Produce directed graph (true, false)");
 	// restrictions to in- and out- degrees count for 1 vertex
 	const TInt InMin = Env.GetIfArgPrefixInt("-inmin:", numeric_limits<int>::lowest(), "In-degree minimum");
 	const TInt InMax = Env.GetIfArgPrefixInt("-inmax:", INT_MAX, "In-degree maximum");
@@ -432,10 +437,17 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 	//TFile << "Maximum expected degree in kron graph: " << FitMtx.GetMinMaxPossibleDeg(NIter) << endl;
 
 	ScaleFitMtxForEdges(FitMtx, NIter, ExpectedModelEdges);	
+	if (IsDir == "false"){
+		cout << "WARNING. B and C is not equal for an undirected graph. B and C will be eqialized" << endl;
+		ScaleFitMtxForUnDir(FitMtx);
+		//IsDir = "true"; 
+	}
+
 	if (ScaleMtx == "true"){
 		ScaleFitMtx(FitMtx, NIter, ModelNodes, MaxModelDeg);
 		//ScaleFitMtxForEdges(FitMtx, NIter, ExpectedModelEdges);	
 	}
+
 
 	if (NEigen != 0)
 		PrintEigen(FitMtx, NIter, NEigen);
@@ -451,7 +463,8 @@ void GenKron(const TStr& args, TKronMtx& FitMtx, TFltPrV& inDegAvgKronM, TFltPrV
 		Error("GenKron", "Constraints do not match to the number of edges");
 	if (IsDir == "false" && (InDegR.Val1 != OutDegR.Val1 || InDegR.Val2 != OutDegR.Val2))
 		Error("GenKron", "InDegR and OutDegR should be the same for undirected graph");
-	TFile << "Expected Kronecker maximum degree: " << FitMtx.GetMaxExpectedDeg(NIter) << endl;
+	TFile << "Expected Kronecker maximum in-degree: " << FitMtx.GetMaxExpectedDeg(NIter, IsDir, true) << endl;
+	TFile << "Expected Kronecker maximum out-degree: " << FitMtx.GetMaxExpectedDeg(NIter, IsDir, false) << endl;
 	
 
 	TFltV KronEigen;
@@ -705,7 +718,7 @@ void GetGraphs(vector <TStr>& parameters, vector<TFltPrV>& distrIn, vector<TFltP
 // and compare it to big network
 void KroneckerByConf(vector<TStr> commandLineArgs){
 	Try
-	Env = TEnv(commandLineArgs[KRONTEST], TNotify::StdNotify);
+	Env = TEnv(commandLineArgs[KRONTEST], TNotify::NullNotify);
 	// type of plots
 	const TStr Plt = Env.GetIfArgPrefixStr("-plt:", "all", "Type of plots (cum, noncum, all)");
 	// full - all points of distrib will be plotted; expbin - exponential binning
@@ -713,7 +726,7 @@ void KroneckerByConf(vector<TStr> commandLineArgs){
 	// radix of binning
 	const TInt BinRadix = Env.GetIfArgPrefixInt("-bin:", 2, "Radix for exponential binning");
 	// time estimates file name
-	const TStr TimeFile = Env.GetIfArgPrefixStr("-ot:", "time.tab", "Name of output file with time estimates");
+	const TStr TimeFile = Env.GetIfArgPrefixStr("-ot:", "stat.tab", "Name of output file with statistics");
 	// generation of big model and its Kronecker product is required
 	const TStr ModelGen = Env.GetIfArgPrefixStr("-mgen:", "model", "Generation of big model and/or its Kronecker product (model, kron, model+kron)");
 	// generation of big model and its Kronecker product is required

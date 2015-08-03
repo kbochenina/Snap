@@ -24,3 +24,5 @@ void KroneckerByConf(vector<TStr> commandLineArgs);
 void PrintDegDistr(const TFltPrV& distr, const TStr& OutFNm);
 void PrintDegDistr(const TIntPrV& distr, const TStr& OutFNm);
 void RemoveUnusedNodes(PNGraph& out, const int& MinDeg);
+// scaling initiator matrix
+void ScaleFitMtxForUnDir(TKronMtx& FitMtx);
