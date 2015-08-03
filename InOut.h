@@ -11,3 +11,4 @@ void ReadMtx(const TStr& Mtx, const TInt& MtxSize, TKronMtx& FitMtx);
 double PrintLargestEigenVal(const PNGraph& G, ofstream& F, const TStr& GName);
 void MakeDatFile(const TStr& Name, const TStr& AddStr, const TStrV& ColumnNames, const vector<vector<double>>& Data, const int& Nodes = 0, const int& Edges = 0);
 void PrintNodeDegrees(const PNGraph& G, const TKronMtx& FitMtx, const int& NIter);
+

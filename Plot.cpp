@@ -5,8 +5,6 @@ void SaveAndPlot(const PNGraph& G, const TStr& name, bool isCum){
 	TSnap::GetInDegCnt(G, in);
 	TSnap::GetOutDegCnt(G, out);
 	int nodes = G->GetNodes(), edges = G->GetEdges();
-	/*TSnap::PlotInDegDistr(G, name, name, isCum, false);
-	TSnap::PlotOutDegDistr(G, name, name, isCum, false);*/
 	TSnap::PlotDegDistr(in, nodes, edges, name, name, isCum, false, true);
 	TSnap::PlotDegDistr(out, nodes, edges, name, name, isCum, false, false);
 }
@@ -94,23 +92,26 @@ void GetNodesEdgesCountFromAccDegDistr(const TFltPrV& deg, int& nodes, int& edge
 	//	edges /= 2; as Deg = inDeg + outDeg
 }
 
-void SaveDegree(const TFltPrV& deg, const TStr& n, bool isIn, bool isCum, bool calcCum){
+void SaveDegree(const TFltPrV& deg, const TStr& n, bool isIn, bool isCum){
 	TFltPrV d(deg);
 	d.Sort();
 	int nodes, edges;
 	GetNodesEdgesCountFromDegDistr(d, nodes, edges);
-	TSnap::PlotDegDistr(d, nodes, edges, n, n, isCum, false, isIn, calcCum);
+	if (isCum){
+		d = TGUtil::GetCCdf(d);
+	}
+	TSnap::PlotDegDistr(d, nodes, edges, n, n, isCum, false, isIn);
 }
 
 // plot all points without binning
 void PlotPoints(const TFltPrV& in, const TFltPrV& out, const TStr& name, const TStr& Plt){
 		if (Plt == "cum" || Plt == "all"){
-			SaveDegree(in, "kron" + name, true, true);
-			SaveDegree(out, "kron" + name, false, true);
+			SaveDegree(in, name, true, true);
+			SaveDegree(out, name, false, true);
 		}
 		if (Plt == "noncum" || Plt == "all"){
-			SaveDegree(in, "kron" + name, true, false);
-			SaveDegree(out, "kron" + name, false, false);
+			SaveDegree(in, name, true, false);
+			SaveDegree(out, name, false, false);
 		}
 }
 
@@ -142,15 +143,51 @@ void SaveSparse(const TFltPrV& G, const int& BinRadix, bool isIn, const TStr&nam
 	PrintDegDistr(degSparse, "degSparseTest.Tab");
 	}*/
 	//printf("%s: Nodes %d, edges %d\n", name.CStr(), nodes, edges);
-	SaveDegree(degSparse, name, isIn, isCum, false);
+	SaveDegree(degSparse, name, isIn, isCum);
 }
 
-void PlotSparse(const vector<TFltPrV>& distr, const TStrV& names, bool isIn, const TStr& Plt, const TInt& BinRadix){
-	for (size_t i = 0; i < distr.size(); i++){
-		if (Plt == "cum" || Plt == "all"){
-			SaveSparse(distr[i], BinRadix, isIn, names[i], true);
-		}
-		if (Plt == "noncum" || Plt == "all")
-			SaveSparse(distr[i], BinRadix, isIn, names[i], false);
+void PlotSparse(const TFltPrV& distr, const TStr& name, bool isIn, const TStr& Plt, const TInt& BinRadix){
+	if (Plt == "cum" || Plt == "all")
+		SaveSparse(distr, BinRadix, isIn, name, true);
+	if (Plt == "noncum" || Plt == "all")
+		SaveSparse(distr, BinRadix, isIn, name, false);
+}
+
+void PlotDegrees(const vector <TStr>& Parameters, const TFltPrV& In, const TFltPrV& Out, const TStr& Type){
+	const TStr& Name = Parameters[NAME];
+	const TStr& Plt = Parameters[PLT];
+	const TStr& PType = Parameters[PTYPE];
+	const TStr& BinRadix = Parameters[BINRADIX];
+	const TInt BinRadixV = BinRadix.GetInt();
+
+	if ( PType == "full" || PType == "all" ){
+		PlotPoints(In, Out, Type + Name, Plt);
 	}
+
+	if ( PType == "exp" || PType == "all" )
+	{
+		PlotSparse(In, Type + Name + "Sparse", true, Plt, BinRadixV);
+		PlotSparse(Out, Type + Name + "Sparse", false, Plt, BinRadixV);
+	}
+}
+
+void PlotMetrics(const vector <TStr>& Parameters, const PNGraph& G, const TStr& Type, std::ofstream& TFile){
+	const TStr& Name = Parameters[NAME];
+	const TStr& Hops = Parameters[HOPS];
+	const TStr& Clust = Parameters[CLUST];
+
+	TExeTm execTime;
+
+	if (Hops == "plot"){
+		TSnap::PlotHops(G, Type + Name);
+	}
+	if (Clust == "yes" || Clust == "yes+plot"){
+		double ClustCf = TSnap::GetClustCf(G);
+		TFile << "Clustering coefficient (" << (Type+Name).CStr() << "):" << ClustCf << endl;
+	}
+	if (Clust == "plot" || Clust == "yes+plot"){
+		TSnap::PlotClustCf(G, Type + Name);
+	}
+
+	TFile << "Time of calculating the metrics: " << execTime.GetTmStr() << endl;
 }

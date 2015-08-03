@@ -247,14 +247,14 @@ void GenNewMtx(PNGraph& model, const TStr& args, TKronMtx& FitMtx){
 
 
 // get model graph according to args
-void GetModel(const TStr& args, PNGraph& G, const TStr& name, const TStr& Plt){
-	Env = TEnv(args, TNotify::StdNotify);
+void GetModel(const TStr& Args, PNGraph& G, const TStr& Name, const TStr& Plt){
+	Env = TEnv(Args, TNotify::NullNotify);
 	const TStr Gen = Env.GetIfArgPrefixStr("-g:", "gen", "How to get model graph: read, gen, deg, genpy");
 	const TStr InFNm = Env.GetIfArgPrefixStr("-i:", "", "Input graph file (single directed edge per line)");
 	
 	TExeTm execTime;
 	if (Gen == "gen")
-		GraphGen(args, G);
+		GraphGen(Args, G);
 	else if (Gen == "read")
 		ReadPNGraphFromFile(InFNm, G);
 	else if (Gen == "deg"){
@@ -262,29 +262,25 @@ void GetModel(const TStr& args, PNGraph& G, const TStr& name, const TStr& Plt){
 		const TFlt Gamma = Env.GetIfArgPrefixFlt("-gamma:", 2.0, "Gamma");
 		TIntV DegSeqV;
 		GetPowerLawDistrib(DegSeqV, NodesCount, Gamma);
-		TExeTm t;
+		TExeTm T;
 		PUNGraph GU = TSnap::GenDegSeq(DegSeqV);
-		TFile << "Time of execution of configuration model: " <<  t.GetTmStr() << endl;
+		TFile << "Time of execution of configuration model: " <<  T.GetTmStr() << endl;
 		G = TSnap::ConvertGraph<PNGraph>(GU);
 	}
 	if (Gen == "genpy")
 	{
 		PUNGraph GU;
-		GenPy(GU, TFile, args);	
+		GenPy(GU, TFile, Args);	
 		G = TSnap::ConvertGraph<PNGraph>(GU);
 	}
-	if (Plt == "cum" || Plt == "all")
-		SaveAndPlot(G, name.CStr(), true);
-	if (Plt == "noncum" || Plt == "all")
-		SaveAndPlot(G, name.CStr(), false);
 	TFile << "Time of getting model: " <<  execTime.GetTmStr() << endl;
 	//TFile << "Model graph: " << G->GetNodes() << " nodes, " << G->GetEdges() << " edges\n";
-	TIntV DegV;
+	/*TIntV DegV;
 	TSnap::GetDegSeqV(G, DegV);
 	execTime.Tick();
 	PUNGraph Conf = TSnap::GenConfModel(DegV);
 	TFile << "Time of getting configuration model: " <<  execTime.GetTmStr() << endl;
-	cout << "Undirected configuration model: " << Conf->GetNodes() << " nodes, " << Conf->GetEdges() << " edges\n";
+	cout << "Undirected configuration model: " << Conf->GetNodes() << " nodes, " << Conf->GetEdges() << " edges\n";*/
 	//PNGraph ConfD = TSnap::ConvertGraph<PNGraph>(Conf);
 	//SaveAndPlot(ConfD, "conf", false);
 	//TFile << "Clustering coefficient of configuration model: " << TSnap::GetClustCf(ConfD) << endl;
@@ -637,79 +633,45 @@ void TestScalingEigen(const TInt& ScaleCount, const TInt& ScaleSize, const TFlt&
 	}
 }
 
-void GetGraphs(vector <TStr>& parameters, vector<TFltPrV>& distrIn, vector<TFltPrV>& distrOut, TStrV& names, const TStr& ModelGen, const TStr&ModelPlt)
+void GetGraphs(const vector <TStr>& Parameters, const TStr& ModelGen, const TStr&ModelPlt)
 {
 	PNGraph G;
-	const TStr& name = parameters[NAME];
-	const TStr& Plt = parameters[PLT];
-	const TStr& PType = parameters[PTYPE];
-	const TStr& NEigenStr = parameters[NEIGEN];
-	const TStr& ScaleSizeStr = parameters[SCALE_SIZE];
-	const TStr& ScaleCountStr = parameters[SCALE_COUNT];
-
-	const TInt& ScaleSize = ScaleSizeStr.GetInt();
-	const TInt& ScaleCount = ScaleCountStr.GetInt();
-
-	GetModel(parameters[GRAPHGEN], G, name, parameters[PLT]);
+	const TStr& NEigenStr = Parameters[NEIGEN];
+	const TStr& Name = Parameters[NAME];
+	const TStr& Plt = Parameters[PLT];
+		
+	GetModel(Parameters[GRAPHGEN], G, Name, Plt);
+	
 	int NEigen = NEigenStr.GetInt();
 	if (NEigen != 0){
 		TFltV ModelEigValV;
-		TSnap::PlotEigValRank(TSnap::ConvertGraph<PUNGraph>(G), NEigenStr.GetInt(), "ModelEigen", ModelEigValV);
-		TFile << "Maximum eigenvalue in model graph: " << ModelEigValV[0].Val << endl;
+		PlotEigen(G, NEigenStr, "model", ModelEigValV);
 	}
-
-	/*TStr ModifiedStr = GetModifiedStr(parameters[GRAPHGEN], ScaleSize);
-	PNGraph G2;
-	GetModel(ModifiedStr, G2, name, parameters[PLT]);
-	TFltV G2EigValV;
-	TSnap::PlotEigValRank(TSnap::ConvertGraph<PUNGraph>(G2), NEigenStr.GetInt(), "G2Eigen", G2EigValV);
-	TFltV ScaleCfV;
-	TFlt AvgScaleCf = GetAvgScaleCf(ModelEigValV, G2EigValV, ScaleSize, ScaleCfV);
-
-	TestScalingEigen(ScaleCount, ScaleSize, AvgScaleCf, parameters[GRAPHGEN], ModelEigValV, G->GetEdges(), ScaleCfV);*/
-
-
-	if ( PType == "exp" || PType == "all" )
-	{
-		TFltPrV mDegIn, mDegOut;
-		TSnap::GetInDegCnt(G, mDegIn);
-		TSnap::GetOutDegCnt(G, mDegOut);
-		distrIn.push_back(mDegIn); distrOut.push_back(mDegOut); names.Add(name + "Sparse");
-		//ModelClustCf = TSnap::GetClustCf(G);
-		TExeTm execTime;
-		//TFile << "Clustering coefficient: " << ModelClustCf << endl;
-		//TSnap::PlotClustCf(G, name);
-		//TSnap::PlotHops(G, name);
-		TFile << "Time of calculating the metrics: " << execTime.GetTmStr() << endl;
-	}
-
 	
-	if (ModelGen == "model+kron"){
-		// generate Kronecker initiator matrix using big graph
-		TKronMtx FitMtxM;
-		if (!GetMtx(parameters[MTXGEN], FitMtxM))
-			GenNewMtx(G, parameters[KRONFIT], FitMtxM);
+	TFltPrV MDegIn, MDegOut;
+	TSnap::GetInDegCnt(G, MDegIn);
+	TSnap::GetOutDegCnt(G, MDegOut);
 
-		// in and out average degree distribution for kronM (non-accumulated)
-		TFltPrV inDegAvgKron, outDegAvgKron;
+	PlotDegrees(Parameters, MDegIn, MDegOut, "model");
+	PlotMetrics(Parameters, G, "model", TFile);
 		
-		GenKron(parameters[KRONGEN], FitMtxM, inDegAvgKron, outDegAvgKron, G, NEigenStr.GetInt());
-		if ( PType == "full" || PType == "all" ){
-		PlotPoints(inDegAvgKron, outDegAvgKron, name, Plt);
-		}
-		if ( PType == "exp" || PType == "all"){
-			distrIn.push_back(inDegAvgKron); distrOut.push_back(outDegAvgKron); names.Add("kron" + name + "Sparse");
-		}
-		//PNGraph  K;
-		//TExeTm execTime;
-		//GetGraphFromAvgDistr(outDegAvgKron, K);
-		//TFile << "Clustering coefficient: " << TSnap::GetClustCf(K) << endl;
-		//TSnap::PlotClustCf(K, "kron" + name);
-		//TSnap::PlotHops(K, "kron" + name);
-		//TFile << "Time of calculating the metrics: " << execTime.GetTmStr() << endl;
+	if (ModelGen == "model+kron"){
+		// generate (or read) Kronecker initiator matrix
+		TKronMtx FitMtxM;
+		if (!GetMtx(Parameters[MTXGEN], FitMtxM))
+			GenNewMtx(G, Parameters[KRONFIT], FitMtxM);
+
+		// in and out average degrees of Kronecker graphs
+		TFltPrV KronDegAvgIn, KronDegAvgOut;
+		
+		GenKron(Parameters[KRONGEN], FitMtxM, KronDegAvgIn, KronDegAvgOut, G, NEigenStr.GetInt());
+
+		PlotDegrees(Parameters, KronDegAvgIn, KronDegAvgOut, "kron");
+		
+		PNGraph  K;
+		GetGraphFromAvgDistr(KronDegAvgOut, K);
+		PlotMetrics(Parameters, K, "kron", TFile);
 	}
-	
-	
 }
 
 
@@ -726,7 +688,7 @@ void KroneckerByConf(vector<TStr> commandLineArgs){
 	// radix of binning
 	const TInt BinRadix = Env.GetIfArgPrefixInt("-bin:", 2, "Radix for exponential binning");
 	// time estimates file name
-	const TStr TimeFile = Env.GetIfArgPrefixStr("-ot:", "stat.tab", "Name of output file with statistics");
+	const TStr StatFile = Env.GetIfArgPrefixStr("-ot:", "stat.tab", "Name of output file with statistics");
 	// generation of big model and its Kronecker product is required
 	const TStr ModelGen = Env.GetIfArgPrefixStr("-mgen:", "model", "Generation of big model and/or its Kronecker product (model, kron, model+kron)");
 	// generation of big model and its Kronecker product is required
@@ -737,15 +699,15 @@ void KroneckerByConf(vector<TStr> commandLineArgs){
 	const TStr MSPlt = Env.GetIfArgPrefixStr("-msplt:", "kron", "Plotting of small model and/or its Kronecker product (model, kron, model+kron)");
 	// number of eigenvalues to investigate
 	const TStr NEigen = Env.GetIfArgPrefixStr("-neigen:", "10", "Number of eigenvalues");
-	// scale size
-	const TStr ScaleSize = Env.GetIfArgPrefixStr("-ss:", "2", "Scale size");
-	// scale count
-	const TStr ScaleCount = Env.GetIfArgPrefixStr("-sc:", "5", "Scale count");
-
+	// plot hops (plot/none)
+	const TStr Hops = Env.GetIfArgPrefixStr("-hops:", "none", "Plot hops (plot/none)");
+	// clustering coefficient (yes - calculate general CC, yes+plot - caculate general CC + plot local CC, none)
+	const TStr Clust = Env.GetIfArgPrefixStr("-clust:", "none", "Calculate/plot clustering coefficient (yes/yes+plot/none)");
+	
 	CheckParams(ModelGen, ModelPlt);
 	CheckParams(MSGen, MSPlt);
 
-	TFile = OpenFile(TimeFile.CStr());
+	TFile = OpenFile(StatFile.CStr());
 
 	vector<TFltPrV> distrIn, distrOut;
 	TStrV names;
@@ -754,27 +716,25 @@ void KroneckerByConf(vector<TStr> commandLineArgs){
 
 	if (ModelGen != "none")
 	{
-		TFile << "Kronecker" << endl;
-		vector <TStr> parameters;
+		vector <TStr> Parameters;
 		for (size_t i = 1; i <= NPARCOPY; i++)
-			parameters.push_back(commandLineArgs[i]);
-		parameters.push_back(PType); parameters.push_back(Plt); parameters.push_back("Model"); parameters.push_back(NEigen); parameters.push_back(ScaleSize); parameters.push_back(ScaleCount);
-		GetGraphs(parameters, distrIn, distrOut, names, ModelGen, ModelPlt);
+			Parameters.push_back(commandLineArgs[i]);
+		Parameters.push_back(PType); Parameters.push_back(Plt); Parameters.push_back("Model"); Parameters.push_back(NEigen); 
+		Parameters.push_back(BinRadix.GetStr()); Parameters.push_back(Hops); Parameters.push_back(Clust);
+
+		GetGraphs(Parameters, ModelGen, ModelPlt);
 	}
 	
 	if (MSGen != "none"){
-		//TFile << "Kronecker from reduced size" << endl;
-		vector <TStr> parameters;
+		vector <TStr> Parameters;
 		for (size_t i = NPARCOPY + 1; i <= 2 * NPARCOPY; i++)
-			parameters.push_back(commandLineArgs[i]);
-		parameters.push_back(PType); parameters.push_back(Plt); parameters.push_back("Small"); parameters.push_back(NEigen); parameters.push_back(ScaleSize); parameters.push_back(ScaleCount);
-		GetGraphs(parameters, distrIn, distrOut, names, MSGen, MSPlt);
+			Parameters.push_back(commandLineArgs[i]);
+		Parameters.push_back(PType); Parameters.push_back(Plt); Parameters.push_back("Small"); Parameters.push_back(NEigen); 
+		Parameters.push_back(BinRadix.GetStr()); Parameters.push_back(Hops); Parameters.push_back(Clust);
+
+		GetGraphs(Parameters, MSGen, MSPlt);
 	}
-
-	//system("pause");
-	PlotSparse(distrIn, names, true, Plt, BinRadix);
-	PlotSparse(distrOut, names, false, Plt, BinRadix);
-
+	
 	TFile.close();
 
 	Py_Finalize();
