@@ -4,3 +4,4 @@ void AddDegreesStat(TFltPrV& deg, TIntPrV& samples, const PNGraph& G, bool isIn)
 void GetAvgDegreeStat (TFltPrV& deg, const TIntPrV& samples);
 void GetAvgDegreeStat (TFltPrV& deg, const TInt& NKron);
 void GetPoints(const TFlt& maxDegLog, const TFlt& minDegLog, const int& NInt, const TFltPrV& base, TFltPrV& points);
+int GetMaxDeg(const PNGraph& G, const TStr& IsDir, const TStr& IsIn);

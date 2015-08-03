@@ -23,6 +23,10 @@ void KroneckerTest(vector<TStr> commandLineArgs);
 void KroneckerByConf(vector<TStr> commandLineArgs);
 // generates set of graphs + calculates the metrics + create plots
 void GetGraphs(const vector <TStr>& parameters, const TStr& ModelGen, const TStr&ModelPlt);
+// create string with parameters of model graph as an input to GenKron() function
+TStr GetModelParamsStr(const PNGraph& G);
+// generates Kronecker graphs
+void GenKron(const TStr& Args, TKronMtx& FitMtx, TFltPrV& KronDegAvgIn, TFltPrV& KronDegAvgOut);
 void PrintDegDistr(const TFltPrV& distr, const TStr& OutFNm);
 void PrintDegDistr(const TIntPrV& distr, const TStr& OutFNm);
 void RemoveUnusedNodes(PNGraph& out, const int& MinDeg);

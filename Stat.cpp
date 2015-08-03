@@ -84,3 +84,26 @@ void GetPoints(const TFlt& maxDegLog, const TFlt& minDegLog, const int& NInt, co
 		}
 	}
 }
+
+
+
+int GetMaxDeg(const PNGraph& G, const TStr& IsDir, const TStr& IsIn){
+	TIntPrV DegCnt;
+	if (IsDir == "false"){
+		PUNGraph U = TSnap::ConvertGraph<PUNGraph>(G);
+		if (IsIn == "true")
+			TSnap::GetInDegCnt(U, DegCnt);
+		else 
+			TSnap::GetOutDegCnt(U, DegCnt);
+	}
+	else{
+		if (IsIn == "true")
+			TSnap::GetInDegCnt(G, DegCnt);
+		else
+			TSnap::GetOutDegCnt(G, DegCnt);
+	}
+	// sort in descending order
+	DegCnt.Sort(false);
+	return DegCnt[0].Val1;
+}
+
