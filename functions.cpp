@@ -153,7 +153,7 @@ int InitKronecker(const TStr args, PNGraph &GD, TKronMtx& FitMtx){
 
 
 
-double KroneckerGen(const TInt NIter, const TKronMtx& FitMtx, PNGraph& out, const TStr& OutFNm, const TIntPr& InDegR, const TIntPr& OutDegR, const TStr& IsDir, double NoisePart){
+void KroneckerGen(PNGraph& out, const TKronMtx& FitMtx, const TInt NIter, const TStr& IsDir, const TIntPr& InDegR, const TIntPr& OutDegR, double NoiseCoeff){
 	Env.PrepArgs(TStr::Fmt("Kronecker graphs. build: %s, %s. Time: %s", __TIME__, __DATE__, TExeTm::GetCurTm()));
 	TExeTm ExeTm;
 	Try
@@ -161,29 +161,24 @@ double KroneckerGen(const TInt NIter, const TKronMtx& FitMtx, PNGraph& out, cons
 	printf("\n*** Seed matrix:\n");
 	SeedMtx.Dump();
 	printf("\n*** Kronecker:\n");
-	// slow but exact O(n^2) algorightm
-	//out = TKronMtx::GenKronecker(SeedMtx, NIter, false, 0); 
-	// fast O(e) approximate algorithm
-	// if we need to save clustering coefficient
 	bool Dir = IsDir == "true" ? true: false;
-	double AvgExpectedDeg = 0.0;
 	// if we have constraints on degrees, run corresponding algorithm
 	if (InDegR.Val1 != 0 || OutDegR.Val1 != 0) {
-		TKronMtx::GenFastKronecker(SeedMtx, NIter, Dir, 0, InDegR, OutDegR, out, NoisePart);
+		if (Dir){
+			printf("Directed graph with restrictions. Required functional is under construction. Undirected graph will be generated instead\n");
+			Dir = false;
+		}
+		TKronMtx::GenFastKronecker(out, SeedMtx, NIter, Dir, InDegR, OutDegR, NoiseCoeff);
 	}
 	else {
-		//out = TKronMtx::GenFastKronecker(SeedMtx, NIter, Dir, AvgExpectedDeg, 0, NoisePart);
-		// initial version
-		out = TKronMtx::GenFastKronecker(SeedMtx, NIter, static_cast<int>(pow(SeedMtx.GetMtxSum(), NIter)), Dir, 0);
+		TKronMtx::GenFastKronecker(out, SeedMtx, NIter, static_cast<int>(pow(SeedMtx.GetMtxSum(), NIter)), Dir);
 		// slow and exact version
-		//out = TKronMtx::GenKronecker(SeedMtx, NIter, Dir, 0);
+		//TKronMtx::GenKronecker(out, SeedMtx, NIter, Dir);
 	}
 
 	PrintNodeDegrees(out, SeedMtx, NIter);
-	//TKronMtx::GetLemma3Estimates(SeedMtx, NIter, AvgExpectedDeg);
-	 //TKronMtx::RemoveZeroDegreeNodes(out, SeedMtx, NIter, InDegR.Val1, InDegR.Val2);
-	 printf("             %d edges [%s]\n",out->GetEdges(), ExeTm.GetTmStr());
-	 return AvgExpectedDeg;
+	//TKronMtx::RemoveZeroDegreeNodes(out, SeedMtx, NIter, InDegR.Val1, InDegR.Val2);
+	printf("             %d edges [%s]\n",out->GetEdges(), ExeTm.GetTmStr());
 	// save edge list
 	//TSnap::SaveEdgeList(out, OutFNm, TStr::Fmt("Kronecker Graph: seed matrix [%s]", FitMtx.GetMtxStr().CStr()));
 	Catch
@@ -342,13 +337,13 @@ void ScaleFitMtxForUnDir(TKronMtx& FitMtx){
 	FitMtx.EqualizeBC();
 }
 
-void ScaleFitMtx(TKronMtx& FitMtx, const TInt& NIter, const int& InitModelNodes, const int& MaxModelDeg){
+void ScaleFitMtx(TKronMtx& FitMtx, const TInt& NIter, const int& InitModelNodes, const int& MaxModelDeg, const TStr& IsDir){
 	TFile << "Before scaling: " << endl;
 	FitMtx.Dump(TFile);
 	// check ceil()
 	double ModelIter = ceil(log10((double)InitModelNodes) / log10((double)FitMtx.GetDim()));
 	// rename function and variable
-	int MinMaxDeg = (FitMtx.GetMaxExpectedDeg(NIter) + 0.5);
+	int MinMaxDeg = (FitMtx.GetMaxExpectedDeg(NIter.Val, IsDir, false) + 0.5);
 	TFile << "Maximum degree in model graph: " << MaxModelDeg << endl << "Expected Kronecker maximum degree: "<<  MinMaxDeg << endl;
 	// ModelIter instead of NIter
 	FitMtx.SetForMaxDeg(MaxModelDeg, ModelIter);
@@ -421,7 +416,7 @@ void GenKron(const TStr& Args, TKronMtx& FitMtx, TFltPrV& KronDegAvgIn, TFltPrV&
 		if (IsDir == "true"){
 			cout << "WARNING. Matrix will be scaled to match maximum output degree. Required functional is under development";
 		}
-		ScaleFitMtx(FitMtx, NIter, ModelNodes, MaxModelOutDeg);
+		ScaleFitMtx(FitMtx, NIter, ModelNodes, MaxModelOutDeg, IsDir);
 		TFile << "Expected maximum degree in Kronecker graph: in " << FitMtx.GetMaxExpectedDeg(NIter, IsDir, true) << 
 			",  out " << FitMtx.GetMaxExpectedDeg(NIter, IsDir, false) << endl;
 	}
@@ -441,9 +436,9 @@ void GenKron(const TStr& Args, TKronMtx& FitMtx, TFltPrV& KronDegAvgIn, TFltPrV&
 
 	for (int i = 0; i < NKron; i++){
 		ExecTime.Tick();
-		double AvgExpectedDeg = KroneckerGen(NIter, FitMtx, Kron, OutFnm, InDegR, OutDegR, IsDir, NoiseCoeff);
+		KroneckerGen(Kron, FitMtx, NIter, IsDir, InDegR, OutDegR, NoiseCoeff);
 		Sec += ExecTime.GetSecs();
-		printf("Calculating maximum degree...");
+		printf("Calculating maximum degree...\n");
 		int MaxOutDeg = GetMaxDeg(Kron, IsDir, "false"), MaxInDeg = GetMaxDeg(Kron, IsDir, "true");
 		CompareDeg(i, MaxOutDeg, MinMaxOutDeg, MaxMaxOutDeg, AvgMaxOutDeg);
 		CompareDeg(i, MaxInDeg, MinMaxInDeg, MaxMaxInDeg, AvgMaxInDeg);

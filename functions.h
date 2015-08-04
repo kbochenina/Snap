@@ -27,8 +27,10 @@ void GetGraphs(const vector <TStr>& parameters, const TStr& ModelGen, const TStr
 TStr GetModelParamsStr(const PNGraph& G);
 // generates Kronecker graphs
 void GenKron(const TStr& Args, TKronMtx& FitMtx, TFltPrV& KronDegAvgIn, TFltPrV& KronDegAvgOut);
-void PrintDegDistr(const TFltPrV& distr, const TStr& OutFNm);
-void PrintDegDistr(const TIntPrV& distr, const TStr& OutFNm);
+// generates one instance of Kronecker graphs 
+void KroneckerGen(PNGraph& out, const TKronMtx& FitMtx, const TInt NIter, const TStr& IsDir, const TIntPr& InDegR, const TIntPr& OutDegR, double NoisePart);
+
 void RemoveUnusedNodes(PNGraph& out, const int& MinDeg);
 // scaling initiator matrix
 void ScaleFitMtxForUnDir(TKronMtx& FitMtx);
+void ScaleFitMtx(TKronMtx& FitMtx, const TInt& NIter, const int& InitModelNodes, const int& MaxModelDeg, const TStr& IsDir);
