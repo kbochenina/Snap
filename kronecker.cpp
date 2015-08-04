@@ -173,7 +173,6 @@ double TKronMtx::GetMaxExpectedDeg(const int&NIter, const TStr& IsDir, bool IsIn
 }
 
 double TKronMtx::GetMaxExpectedDeg(const TStr& IsDir, bool IsIn){
-	int BestRow, BestCol;
 	return GetMaxExpectedDeg(1, IsDir, IsIn);
 }
 
@@ -188,20 +187,143 @@ double TKronMtx::GetMaxExpectedDeg(const TStr& IsDir, bool IsIn){
 	 At(0,1) = At(1,0) = NewBC;
  }
 
+ bool TKronMtx::CheckMtx(TStr& ErrorMsg){
+	ErrorMsg = "";
+	double A = At(0,0), B = At(0,1), C = At(1, 0), D = At(1, 1);
+	if (A > 1) ErrorMsg = "A > 1"; if (A < 0) ErrorMsg = "A > 1";
+	if (B > 1) ErrorMsg = "B > 1"; if (B < 0) ErrorMsg = "B > 1";
+	if (C > 1) ErrorMsg = "C > 1"; if (C < 0) ErrorMsg = "C > 1";
+	if (D > 1) ErrorMsg = "D > 1"; if (D < 0) ErrorMsg = "D > 1";
+	if (ErrorMsg != "") return false;
+	return true;
+ }
+
+ double TKronMtx::GetSum(){
+	 return At(0,0) + At(0,1) + At(1,0) + At(1,1);
+ }
+
+ bool DegreesEqual(const double& MtxDeg, const double& ModelDeg, const double &SensCoeff){
+	if (abs(MtxDeg - ModelDeg) / ModelDeg <= SensCoeff)
+		return true;
+	return false;
+ }
+
+ int GetMaxStepsCount(const bool &ToIncrease, const double& CornerV, const double& Diag1V, const double&  Diag2V, const double& Step, const int& StageIndex){
+
+	double AbsStep = abs(Step);
+
+	if (StageIndex != 0 && StageIndex != 1){
+		Error("GetMaxStepsCount", "Wrong number of steps");
+		return 0;
+	}
+
+	bool ToIncreaseFlag = (StageIndex == 0) ? ToIncrease : !ToIncrease;
+
+	// on the first stage
+	// for ToIncrease == true: CornerV => Diag1V, Diag2V <=
+	// for ToIncrease == false: CornerV <= Diag1V, Diag2V =>
+	// on the second stage
+	// for ToIncrease == true: CornerV <= Diag1V, Diag2V =>
+	// for ToIncrease == false: CornerV => Diag1V, Diag2V <=
+	int MaxStepsCount = ToIncreaseFlag ? static_cast<int>((1.00 - CornerV) / AbsStep) : static_cast<int>( CornerV / AbsStep );
+	int Diag1StepsCount = ToIncreaseFlag ? static_cast<int>(Diag1V / (AbsStep / 2)) : static_cast<int>( (1.00 - Diag1V) / (AbsStep / 2) );
+	int Diag2StepsCount = ToIncreaseFlag ? static_cast<int>(Diag2V / (AbsStep / 2)) : static_cast<int>( (1.00 - Diag2V) / (AbsStep / 2) );
+
+	if (Diag1StepsCount < Diag2StepsCount){
+		if (Diag1StepsCount < MaxStepsCount)
+			MaxStepsCount = Diag1StepsCount;
+	}
+	else {
+		if (Diag2StepsCount < MaxStepsCount)
+			MaxStepsCount = Diag2StepsCount;
+	}
+	bool TestFailed = false;
+	
+	if (ToIncreaseFlag){
+		double Diag = Diag1V < Diag2V ? Diag1V : Diag2V;
+		if (CornerV + MaxStepsCount * AbsStep > 1 || Diag - MaxStepsCount * (AbsStep / 2) < 0)
+			TestFailed = true;
+	}
+	else {
+		double Diag = Diag1V > Diag2V ? Diag1V : Diag2V;
+		if (CornerV - MaxStepsCount * AbsStep < 0 || Diag + MaxStepsCount * (AbsStep / 2) > 1)
+			TestFailed = true;
+	}
+	
+	if (TestFailed)
+		Error("GetMaxStepsCount", "Wrong max steps count calculated");
+	return MaxStepsCount;
+ }
+
+ bool ScaleStage(TKronMtx& ScaledMtx, const int& StageNum, const bool& ToIncrease, const TIntPr& Corner, const double& Step, const double& SensCoeff, 
+	const int& NIter, const TStr& IsDir, const bool& IsIn, const int& MaxDeg, bool& CornerChanged){
+	TIntPr Diag1, Diag2;
+	Diag1.Val1 = Corner.Val1; Diag1.Val2 = (Corner.Val2 == 1) ? 0 : 1;
+	Diag2.Val1 = (Corner.Val1 == 1) ? 0 : 1; Diag2.Val2 = Corner.Val2;
+	
+	int MaxStepsCount = GetMaxStepsCount(ToIncrease, ScaledMtx.At(Corner.Val1, Corner.Val2), ScaledMtx.At(Diag1.Val1, Diag1.Val2), 
+		ScaledMtx.At(Diag2.Val1, Diag2.Val2), Step, StageNum);
+	
+	double MaxExpDeg = ScaledMtx.GetMaxExpectedDeg(NIter, IsDir, IsIn);
+
+	bool DecFound = false; CornerChanged = false;
+
+	int CurrentStep = 0;
+	// for ToIncrease == true: increase Corner, decrease Diag1 and Diag2; if MaxExpDeg begins to decrease, stop
+	for ( ; CurrentStep < MaxStepsCount ; ){
+		ScaledMtx.At(Corner.Val1, Corner.Val2) += Step;
+		ScaledMtx.At(Diag1.Val1, Diag1.Val2) -= Step / 2;
+		ScaledMtx.At(Diag2.Val1, Diag2.Val2) -= Step / 2;
+
+		int BestRow, BestCol;
+		double CurrMaxDeg = ScaledMtx.GetMaxExpectedDeg(NIter, IsDir, IsIn, BestRow, BestCol);
+		// test
+		int RequiredRow = (StageNum == 0) ? Corner.Val1 : (Corner.Val1 == 1 ? 0 : 1);
+		int RequiredCol = (StageNum == 0) ? Corner.Val2 : (Corner.Val2 == 1 ? 0 : 1);
+		if (BestRow != RequiredRow || BestCol != RequiredCol){
+			ScaledMtx.Dump();
+			CornerChanged = true;
+			return false;
+			//Error("SetForMaxDeg", "CornerV was changed");
+		}
+		if ((CurrMaxDeg < MaxExpDeg && ToIncrease) || (CurrMaxDeg > MaxExpDeg && !ToIncrease)){
+			// reset values from previous step
+			ScaledMtx.At(Corner.Val1, Corner.Val2) -= Step;
+			ScaledMtx.At(Diag1.Val1, Diag1.Val2) += Step / 2; 
+			ScaledMtx.At(Diag2.Val1, Diag2.Val2) += Step / 2;
+			break;
+		}
+		else 
+			MaxExpDeg = CurrMaxDeg;
+		if (DegreesEqual(MaxExpDeg, MaxDeg, SensCoeff)){
+			DecFound = true;
+			break;
+		}
+		CurrentStep++;
+	}
+	printf("MaxDeg after step %d: %f\n", StageNum, ScaledMtx.GetMaxExpectedDeg(NIter, IsDir, IsIn));
+	printf("Matrix sum: %f\n", ScaledMtx.GetSum());
+
+	return DecFound;
+ }
+
 // works only for 2x2 size matrix!
 void TKronMtx::SetForMaxDeg(const double& MaxDeg, const int& NIter, const TStr& IsDir, bool IsIn)
 {
 	if (MaxDeg <= 0)
-		Error("SetForMaxDeg", "MaxDeg < 0");
-	double A = At(0,0), B = At(0,1), C = At(1, 0), D = At(1, 1), DeltaA = 0, DeltaB = 0;
-	if (A > 1) Error("SetForMaxDeg", "A > 1"); if (A < 0) Error("SetForMaxDeg", "A < 0");
-	if (B > 1) Error("SetForMaxDeg", "B > 1"); if (B < 0) Error("SetForMaxDeg", "B < 0");
-	if (C > 1) Error("SetForMaxDeg", "C > 1"); if (C < 0) Error("SetForMaxDeg", "C < 0");
-	if (D > 1) Error("SetForMaxDeg", "D > 1"); if (D < 0) Error("SetForMaxDeg", "D < 0");
+		Error("SetForMaxDeg", "MaxDeg <= 0");
+	TStr ErrorMsg;
+	if (!CheckMtx(ErrorMsg)) Error("SetForMaxDeg", ErrorMsg);
+	
+	TFltV Mtx; Mtx.Add(At(0,0)); Mtx.Add(At(0,1));Mtx.Add(At(1,0));Mtx.Add(At(1,1));
+	TKronMtx ScaledMtx(Mtx);
+	
+	const double SensCoeff = 0.01;
+
 	int BestRow = 0, BestCol = 0;
 	double MaxExpDeg = GetMaxExpectedDeg(NIter, IsDir, IsIn, BestRow, BestCol);
 	
-	if (MaxExpDeg == MaxDeg) return;
+	if (DegreesEqual(MaxExpDeg, MaxDeg, SensCoeff)) return;
 
 	TIntPr Corner, Diag1, Diag2, Least;
 	Corner.Val1 = BestRow; Corner.Val2 = BestCol;
@@ -213,142 +335,74 @@ void TKronMtx::SetForMaxDeg(const double& MaxDeg, const int& NIter, const TStr& 
 		Diag2V = At(Diag2.Val1, Diag2.Val2),
 		LeastV = At(Least.Val1, Least.Val2);
 
-	printf("Matrix sum: %f\n", CornerV + Diag1V + Diag2V + LeastV);
+	printf("Matrix sum: %f\n", ScaledMtx.GetSum());
 
 	bool DecFound = false;
 	double Step = 0.001;
-	double SensCoeff = 0.01; bool ToIncrease = true;
-	if (MaxDeg < MaxExpDeg) {
-		ToIncrease = false;
-	}
-
-	int MaxStepsCount = ToIncrease ? static_cast<int>((1.00 - CornerV) / Step) : static_cast<int>( CornerV / Step );
-	int Diag1StepsCount = ToIncrease ? static_cast<int>(Diag1V / (Step / 2)) : static_cast<int>( (1.00 - Diag1V) / (Step / 2) );
-	int Diag2StepsCount = ToIncrease ? static_cast<int>(Diag2V / (Step / 2)) : static_cast<int>( (1.00 - Diag2V) / (Step / 2) );
-	if (Diag1StepsCount < Diag2StepsCount){
-		if (Diag1StepsCount < MaxStepsCount)
-			MaxStepsCount = Diag1StepsCount;
-	}
-	else {
-		if (Diag2StepsCount < MaxStepsCount)
-			MaxStepsCount = Diag2StepsCount;
-	}
+	bool ToIncrease = MaxDeg > MaxExpDeg ? true : false;
 	if (!ToIncrease) Step *= -1;
-	int CurrentStep = 1;
-	// increase Corner, decrease Diag1 and Diag2
-	// if MaxExpDeg begins to decrease, stop
-	for ( ; CurrentStep < MaxStepsCount ; ){
-		CornerV += Step;
-		Diag1V = Diag1V - Step / 2;
-		Diag2V = Diag2V - Step / 2;
-		//double CurrMaxDeg = pow(CornerV + Diag1V, NIter) / 2 + pow(CornerV + Diag2V, NIter) / 2 ;
-		double CurrMaxDeg = (pow(CornerV + Diag1V, NIter) + pow(CornerV + Diag2V, NIter))/2 ;
-		//printf("CurrMaxDeg = %d CornerV = %f\n", CurrMaxDeg, CornerV);
-		if ((CurrMaxDeg < MaxExpDeg && ToIncrease) || (CurrMaxDeg > MaxExpDeg && !ToIncrease)){
-			// reset values for previous step
-			CornerV -= Step;
-			Diag1V += Step / 2; Diag2V += Step / 2;
-			break;
-		}
-		else 
-			MaxExpDeg = CurrMaxDeg;
-		if (abs(CurrMaxDeg - MaxDeg) / MaxDeg <= SensCoeff){
-			DecFound = true;
-			break;
-		}
-		CurrentStep++;
-	}
-	//printf("MaxDeg after step 1: %f\n", pow(CornerV + Diag1V, NIter) / 2 + pow(CornerV + Diag2V, NIter) / 2);
-	printf("MaxDeg after step 1: %f\n", (pow(CornerV + Diag1V, NIter) + pow(CornerV + Diag2V, NIter))/2 );
-	printf("Matrix sum: %f\n", CornerV + Diag1V + Diag2V + LeastV);
 
-	MaxStepsCount = ToIncrease ? static_cast<int>( LeastV / Step ) : static_cast<int>( (1 - LeastV) / (Step * -1) );
-	Diag1StepsCount = ToIncrease ? static_cast<int>((1 - Diag1V) / (Step / 2)) : static_cast<int>( Diag1V / (Step / -2) );
-	Diag2StepsCount = ToIncrease ? static_cast<int>((1 - Diag2V) / (Step / 2)) : static_cast<int>( Diag2V / (Step / -2) );
-	if (Diag1StepsCount < Diag2StepsCount){
-		if (Diag1StepsCount < MaxStepsCount)
-			MaxStepsCount = Diag1StepsCount;
-	}
-	else {
-		if (Diag2StepsCount < MaxStepsCount)
-			MaxStepsCount = Diag2StepsCount;
-	}
+	int StageNum = 0; bool CornerChanged = false;
+	DecFound = ScaleStage(ScaledMtx, 0, ToIncrease, Corner, Step, SensCoeff, NIter, IsDir, IsIn, MaxDeg, CornerChanged);
+	if (!CornerChanged)
+		DecFound = ScaleStage(ScaledMtx, 1, ToIncrease, Least, Step * (-1), SensCoeff, NIter, IsDir, IsIn, MaxDeg, CornerChanged);
 
-	// fix Corner, increase Diag1 and Diag2, decrease Least
-	if (!DecFound){
-		for (LeastV = LeastV - Step; ; LeastV -= Step){
-			Diag1V = Diag1V + Step / 2;
-			Diag2V = Diag2V + Step / 2;
-			//MaxExpDeg = pow(CornerV + Diag1V, NIter) / 2 + pow(CornerV + Diag2V, NIter) / 2 ;
-			double MaxNonDiag = (CornerV > LeastV) ? CornerV : LeastV;
-			MaxExpDeg = (pow(MaxNonDiag + Diag1V, NIter)  + pow(MaxNonDiag + Diag2V, NIter))/2 ;
-			if (abs(MaxExpDeg - MaxDeg) / MaxDeg <= SensCoeff){
-				DecFound = true;
-				break;
-			}
-			if ((LeastV < 0 && ToIncrease) || (LeastV > 1 && !ToIncrease)) { LeastV += Step; break;}
-		}
-	}
-	double MaxNonDiag = (CornerV > LeastV) ? CornerV : LeastV;
-	printf("MaxDeg after step 2: %f\n", (pow(MaxNonDiag + Diag1V, NIter)  + pow(MaxNonDiag + Diag2V, NIter))/2 );
-	printf("Matrix sum: %f\n", CornerV + Diag1V + Diag2V + LeastV);
-	//printf("CornerV = %f\n", CornerV);
 	// increase max(Diag1, Diag2), decrease min(Diag1,Diag2)
 	// if MaxExpDeg begins to decrease, stop
-	if (!DecFound){
-		double MaxDiag = (Diag1V > Diag2V) ? Diag1V : Diag2V,
-			MinDiag = (MaxDiag == Diag1V) ? Diag2V : Diag1V;
-		for (MaxDiag = MaxDiag + Step; ; MaxDiag += Step){
-			if (MinDiag - Step < 0)
-				break;
-			MinDiag -= Step;
-			//double CurrMaxDeg = pow(CornerV + MaxDiag, NIter) / 2 + pow(CornerV + MinDiag, NIter) / 2 ;
-			double CurrMaxDeg = pow(CornerV + MaxDiag, NIter) + pow(CornerV + MinDiag, NIter)  ;
-			//printf("CurrMaxDeg: %f MaxExpDeg: %f\n", CurrMaxDeg, MaxExpDeg);
-			if ((CurrMaxDeg < MaxExpDeg && ToIncrease) || (CurrMaxDeg > MaxExpDeg && !ToIncrease)){
-				// reset values for previous step
-				if (Diag1 > Diag2){
-					Diag1V = MaxDiag - Step;
-					Diag2V = MinDiag + Step;
-				}
-				else {
-					Diag2V = MaxDiag - Step;
-					Diag1V = MinDiag + Step;
-				}
-				break;
-				//printf("Err. CurrMaxDeg: %f MaxExpDeg: %f\n", CurrMaxDeg, MaxExpDeg);
-			}
-			else 
-			MaxExpDeg = CurrMaxDeg;
-			if (abs(MaxExpDeg - MaxDeg) / MaxDeg <= SensCoeff){
-				DecFound = true;
-				break;
-			}
-			if ((MaxDiag > 1 && ToIncrease) || (MaxDiag < 0 && !ToIncrease)) { break; }
-		}
-	}
+	//if (!DecFound){
+	//	double MaxDiag = (Diag1V > Diag2V) ? Diag1V : Diag2V,
+	//		MinDiag = (MaxDiag == Diag1V) ? Diag2V : Diag1V;
+	//	for (MaxDiag = MaxDiag + Step; ; MaxDiag += Step){
+	//		if (MinDiag - Step < 0)
+	//			break;
+	//		MinDiag -= Step;
+	//		//double CurrMaxDeg = pow(CornerV + MaxDiag, NIter) / 2 + pow(CornerV + MinDiag, NIter) / 2 ;
+	//		double CurrMaxDeg = pow(CornerV + MaxDiag, NIter) + pow(CornerV + MinDiag, NIter)  ;
+	//		printf("CurrMaxDeg: %f MaxExpDeg: %f\n", CurrMaxDeg, MaxExpDeg);
+	//		if ((CurrMaxDeg < MaxExpDeg && ToIncrease) || (CurrMaxDeg > MaxExpDeg && !ToIncrease)){
+	//			// reset values for previous step
+	//			if (Diag1 > Diag2){
+	//				Diag1V = MaxDiag - Step;
+	//				Diag2V = MinDiag + Step;
+	//			}
+	//			else {
+	//				Diag2V = MaxDiag - Step;
+	//				Diag1V = MinDiag + Step;
+	//			}
+	//			break;
+	//			//printf("Err. CurrMaxDeg: %f MaxExpDeg: %f\n", CurrMaxDeg, MaxExpDeg);
+	//		}
+	//		else 
+	//		MaxExpDeg = CurrMaxDeg;
+	//		printf("CurrentMaxDeg = %f\n", CurrMaxDeg);
+	//		if (abs(MaxExpDeg - MaxDeg) / MaxDeg <= SensCoeff){
+	//			DecFound = true;
+	//			break;
+	//		}
+	//		if ((MaxDiag > 1 && ToIncrease) || (MaxDiag < 0 && !ToIncrease)) { break; }
+	//	}
+	//}
 
-	printf("MaxDeg after step 3: %f\n", (pow(CornerV + Diag1V, NIter)  + pow(CornerV + Diag2V, NIter))/2 );
-	printf("Matrix sum: %f\n", CornerV + Diag1V + Diag2V + LeastV);
+	//printf("MaxDeg after step 3: %f\n", (pow(CornerV + Diag1V, NIter)  + pow(CornerV + Diag2V, NIter))/2 );
+	//printf("Matrix sum: %f\n", CornerV + Diag1V + Diag2V + LeastV);
 
-	if (DecFound == false){
-		printf("%f %f %f %f MaxDeg: %f Expected: %f\n", CornerV, Diag1V, Diag2V, Least, (pow(CornerV + Diag1V, NIter)  + pow(CornerV + Diag2V, NIter))/2, MaxDeg);
-		printf("%f %f %f %f Sum: %f\n", A, B, C, D, A + B + C + D);
+	CornerV = ScaledMtx.At(Corner.Val1, Corner.Val2),
+		Diag1V = ScaledMtx.At(Diag1.Val1, Diag1.Val2),
+		Diag2V = ScaledMtx.At(Diag2.Val1, Diag2.Val2),
+		LeastV = ScaledMtx.At(Least.Val1, Least.Val2);
+
+	if (DecFound == false && !CornerChanged){
+		printf("%f %f %f %f MaxDeg: %f Expected: %f\n", CornerV, Diag1V, Diag2V, LeastV, MaxDeg, ScaledMtx.GetMaxExpectedDeg(NIter, IsDir, IsIn));
+		printf("%f %f %f %f Sum: %f\n", At(Corner.Val1, Corner.Val2), At(Diag1.Val1, Diag1.Val2), 
+			At(Diag2.Val1, Diag2.Val2), At(Least.Val1, Least.Val2), GetMaxExpectedDeg(NIter, IsDir, IsIn));
 		Error("SetForMaxDeg", "Cannot find solution");
 	}
-	printf("CornerV = %f\n", CornerV);
-	if (CornerV > 1 || CornerV < 0)
-		Error("SetForMaxDeg", "CornerV > 1 || CornerV < 0");
-	if (Diag1V > 1 || Diag1V < 0)
-		Error("SetForMaxDeg", "Diag1V > 1 || Diag1V < 0");
-	if (Diag2V > 1 || Diag2V < 0)
-		Error("SetForMaxDeg", "Diag2V > 1 || Diag2V < 0");
-	if (LeastV > 1 || LeastV < 0)
-		Error("SetForMaxDeg", "LeastV > 1 || LeastV < 0");
+	if (!ScaledMtx.CheckMtx(ErrorMsg)) Error("SetForMaxDeg", ErrorMsg);
 	
-	At(Corner.Val1,Corner.Val2) = CornerV; At(Diag1.Val1, Diag1.Val2) = Diag1V; At(Diag2.Val1,Diag2.Val2) = Diag2V; At(Least.Val1, Least.Val2) = LeastV; 
+	At(Corner.Val1,Corner.Val2) = CornerV; At(Diag1.Val1, Diag1.Val2) = Diag1V; 
+	At(Diag2.Val1,Diag2.Val2) = Diag2V; At(Least.Val1, Least.Val2) = LeastV; 
 	double MaxExpectedDeg = GetMaxExpectedDeg(NIter, IsDir, IsIn);
-	if (abs(MaxExpectedDeg - MaxDeg) / MaxDeg <= SensCoeff){
+	if (DegreesEqual(MaxExpectedDeg, MaxDeg, SensCoeff)){
 		printf("Max model deg: %f\n", MaxDeg);
 		printf("Maximum expected degree: %f\n", MaxExpectedDeg);
 	}
@@ -1386,8 +1440,7 @@ void TKronMtx::GenFastKronecker(PNGraph &Graph, const TKronMtx& SeedMtx, const i
   const double MtxSum = SeedGraph.GetMtxSum();
   const int NNodes = SeedGraph.GetNodes(NIter);
   const int NEdges = Edges;
-  //const double DiagEdges = NNodes * pow(SeedGraph.At(0,0), double(NIter));
-  //const int NEdges = (int) TMath::Round(((pow(double(SeedGraph.GetMtxSum()), double(NIter)) - DiagEdges) /2.0));
+
   printf("  RMat Kronecker: %d nodes, %d edges, %s...\n", NNodes, NEdges, IsDir ? "Directed":"UnDirected");
   Graph = TNGraph::New(NNodes, -1);
   TRnd Rnd(Seed);
@@ -1420,10 +1473,10 @@ void TKronMtx::GenFastKronecker(PNGraph &Graph, const TKronMtx& SeedMtx, const i
       Row += MtxRow * Rng;
       Col += MtxCol * Rng;
     }
-    if (! Graph->IsEdge(Row, Col)) { // allow self-loops
+    if (! Graph->IsEdge(Row, Col) && Row != Col) { // allow self-loops
       Graph->AddEdge(Row, Col);  edges++;
       if (! IsDir) {
-        if (Row != Col) Graph->AddEdge(Col, Row);
+        Graph->AddEdge(Col, Row);
         edges++;
       }
     } else { Collision++; }

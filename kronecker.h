@@ -64,6 +64,10 @@ public:
 
   // >> check!
   void SetForMaxDeg(const double& MaxDeg, const int& NIter, const TStr& IsDir = "false", bool IsIn = false);
+  // check if all mtx values are >=0 and <=1
+  bool CheckMtx(TStr& ErrorMsg);
+  // get mtx sum
+  double GetSum();
 
   // generate Kronecker graph
   // slow and exact version

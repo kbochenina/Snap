@@ -249,7 +249,7 @@ void GetModel(const TStr& Args, PNGraph& G, const TStr& Name, const TStr& Plt){
 	
 	TExeTm execTime;
 	if (Gen == "gen")
-		GraphGen(Args, G);
+		BasicGraphGen(Args, G);
 	else if (Gen == "read")
 		ReadPNGraphFromFile(InFNm, G);
 	else if (Gen == "deg"){
@@ -332,7 +332,7 @@ void ScaleFitMtx(TKronMtx& FitMtx, const TInt& NIter, const int& InitModelNodes,
 	int MinMaxDeg = (FitMtx.GetMaxExpectedDeg(NIter.Val, IsDir, false) + 0.5);
 	TFile << "Maximum degree in model graph: " << MaxModelDeg << endl << "Expected Kronecker maximum degree: "<<  MinMaxDeg << endl;
 	// ModelIter instead of NIter
-	FitMtx.SetForMaxDeg(MaxModelDeg, ModelIter);
+	FitMtx.SetForMaxDeg(MaxModelDeg, ModelIter, "false", false);
 	TFile << "After scaling " << endl;
 	FitMtx.Dump(TFile);
 }
@@ -372,9 +372,7 @@ void GenKron(const TStr& Args, TKronMtx& FitMtx, TFltPrV& KronDegAvgIn, TFltPrV&
 	TFile << "Model nodes: " << ModelNodes << ", expected model edges: " << ModelEdges << endl;
 	TFile << "Kronecker nodes: " << ExpectedNodes << ", expected Kronecker edges: " << ExpectedEdges << endl;
 	TFile << "Maximum degree in model graph: in " << MaxModelInDeg << ",  out " << MaxModelOutDeg << endl;
-	TFile << "Expected maximum degree in Kronecker graph: in " << FitMtx.GetMaxExpectedDeg(NIter, IsDir, true) << 
-	",  out " << FitMtx.GetMaxExpectedDeg(NIter, IsDir, false) << endl;
-	
+
 	// scale init matrix to match number of edges
 	ScaleFitMtxForEdges(FitMtx, NIter, ModelEdges);	
 
@@ -382,13 +380,16 @@ void GenKron(const TStr& Args, TKronMtx& FitMtx, TFltPrV& KronDegAvgIn, TFltPrV&
 	if (IsDir == "false" && FitMtx.At(0,1) != FitMtx.At(1,0)){
 		cout << "WARNING. B and C is not equal for an undirected graph. B and C will be eqialized" << endl;
 		ScaleFitMtxForUnDir(FitMtx);
-		//IsDir = "true"; 
+		IsDir = "true"; 
 	}
+
+	TFile << "Expected maximum degree in Kronecker graph: in " << FitMtx.GetMaxExpectedDeg(NIter, IsDir, true) << 
+	",  out " << FitMtx.GetMaxExpectedDeg(NIter, IsDir, false) << endl;
 
 	// scale initiator matrix to match maximum degree
 	if (ScaleMtx == "true"){
 		if (IsDir == "true"){
-			cout << "WARNING. Matrix will be scaled to match maximum output degree. Required functional is under development";
+			cout << "WARNING. Matrix will be scaled to match maximum output degree. Required functional is under development\n";
 		}
 		ScaleFitMtx(FitMtx, NIter, ModelNodes, MaxModelOutDeg, IsDir);
 		TFile << "Expected maximum degree in Kronecker graph: in " << FitMtx.GetMaxExpectedDeg(NIter, IsDir, true) << 
