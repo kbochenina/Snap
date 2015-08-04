@@ -7,7 +7,7 @@
 ofstream TFile;
 
 
-int GraphGen(const TStr args, PNGraph &GD){
+int BasicGraphGen(const TStr args, PNGraph &GD){
 	Env = TEnv(args, TNotify::StdNotify);
 	Env.PrepArgs(TStr::Fmt("Graph generation. build: %s, %s. Time: %s", __TIME__, __DATE__, TExeTm::GetCurTm()));
 	TExeTm ExeTm;
@@ -299,21 +299,7 @@ bool GetMtx(const TStr& MtxArgs, TKronMtx& FitMtxModel){
 }
 
 
-int GetExpectedModelEdges(const PNGraph& G, const int k, const TStr& order){
-	int expectedEdges = 0;
-	map<int, int> DegAcc;
-	TIntV DegSeq; 
-	TSnap::GetDegSeqV(G, DegSeq);
-	for (int i = 0; i < DegSeq.Len(); i++){
-		if (order == "linear")
-			expectedEdges += DegSeq[i] * k;
-		else if (order == "square")
-			expectedEdges += DegSeq[i] * k * k; 
-	}
-	// each edge is considered twice for both vertices
-	expectedEdges /= 2;
-	return expectedEdges;
-}
+
 
 void ScaleFitMtxForEdges(TKronMtx& FitMtx, const TInt& NIter, const int& ExpectedModelEdges){
 	TFile << "Scaling initiator matrix for correct number of edges..." << endl;
@@ -351,18 +337,6 @@ void ScaleFitMtx(TKronMtx& FitMtx, const TInt& NIter, const int& InitModelNodes,
 	FitMtx.Dump(TFile);
 }
 
-void CompareDeg(const int i, const int MaxDeg, int& MinMaxDeg, int& MaxMaxDeg, int& AvgMaxDeg){
-	if (i == 0) { 
-		MinMaxDeg = MaxDeg;
-	}
-	else if (MaxDeg < MinMaxDeg){
-		MinMaxDeg = MaxDeg;
-	}
-	if (MaxDeg > MaxMaxDeg) {
-		MaxMaxDeg = MaxDeg;
-	}
-	AvgMaxDeg += MaxDeg;
-}
 
 
 void GenKron(const TStr& Args, TKronMtx& FitMtx, TFltPrV& KronDegAvgIn, TFltPrV& KronDegAvgOut){
@@ -486,109 +460,6 @@ void GetGraphFromAvgDistr(TFltPrV in_deg_avg_kron, PNGraph& t_pt)
 	TFile << "Time of configuration model: " <<  execTime.GetTmStr() << endl;
 	t_pt = TSnap::ConvertGraph<PNGraph>(G);
 
-}
-
-// Get graph size from GRAPHGEN string
-TInt GetNFromGraphGenStr(const TStr& GraphGenStr){
-	TInt PosBegin = GraphGenStr.SearchStr("-n:");
-	TInt PosEnd = 0;
-	while (PosEnd < PosBegin) 
-		PosEnd = GraphGenStr.SearchStr(" ", PosEnd + 1);
-	TStr NodesCountStr = GraphGenStr.GetSubStr(PosBegin + 3, PosEnd - 1);
-	return NodesCountStr.GetInt();
-}
-
-// return GRAPHGEN string with NodesCount = NodesCount * N
-TStr GetModifiedStr(const TStr& SrcStr, const TInt& N){
-	TStr NewGen(SrcStr);
-	TInt NodesCount = GetNFromGraphGenStr(NewGen);
-	TInt NewNodesCount = N.Val * NodesCount.Val;
-	NewGen.ChangeStr(NodesCount.GetStr(), NewNodesCount.GetStr());
-	return NewGen;
-}
-
-// Get average scaling coefficient and vector of scaling coefficients from two samples of graphs
-TFlt GetAvgScaleCf(const TFltV& ModelEigValV, const TFltV& G2EigValV, const TInt& N, TFltV& ScaleCfV){
-	TFlt AvgScaleCf = 0.0;
-	TInt NEigen = 0;
-	for (int i = 0; i < ModelEigValV.Len(); i++){
-		if (G2EigValV[i].Val < 0 || ModelEigValV[i].Val < 0) break;
-		//TFlt ScaleRatio = (G2EigValV[i].Val / ModelEigValV[i].Val) / N;
-		TFlt ScaleRatio = log10(G2EigValV[i].Val) / log10(ModelEigValV[i].Val);
-		ScaleCfV.Add(ScaleRatio);
-		AvgScaleCf += ScaleRatio;
-		NEigen = NEigen + 1;
-	}
-	AvgScaleCf = AvgScaleCf / NEigen;
-
-	//TFlt MaxEigenVal = ModelEigValV[0].Val;
-	//TInt SampleCountSum = 0;
-	//for (int i = 0; i < NEigen; i++){
-	//	TInt SampleCount = ModelEigValV[i].Val / MaxEigenVal * NEigen;
-	//	//printf("%f %d\n", ModelEigValV[i].Val / MaxEigenVal, SampleCount);
-	//	AvgScaleCf += ScaleCfV[i] * SampleCount;
-	//	SampleCountSum += SampleCount;
-	//}
-	//AvgScaleCf = AvgScaleCf / SampleCountSum;
-
-	TFile << "AvgScaleCf: " << AvgScaleCf << endl;
-
-	TFlt SD = 0.0;
-
-	for (int i = 0; i < ScaleCfV.Len(); i++){
-		TFile << "ScaleCfV[" << i + 1 << "] = " << ScaleCfV[i];
-		TFile << " Deviation: " << sqrt(abs(pow(ScaleCfV[i].Val, 2.00) - pow(AvgScaleCf.Val, 2.00))) << endl;
-		SD = SD + pow(ScaleCfV[i].Val - AvgScaleCf.Val, 2.00);
-	}
-	SD = sqrt(SD.Val / (NEigen.Val - 1));
-	TFile << "SD: " << SD << endl;
-	return AvgScaleCf;
-}
-
-
-void TestScalingEigen(const TInt& ScaleCount, const TInt& ScaleSize, const TFlt& AvgScaleCf, const TStr& GraphGenStr, const TFltV& ModelEigValV, const TInt& ModelEdges, const TFltV & ScaleCfV){
-	// initial nodes count
-	TInt InitN = GetNFromGraphGenStr(GraphGenStr);
-	TInt NewN = InitN;
-	TInt NEigen = ScaleCfV.Len();
-	for (TInt i = 0; i < ScaleCount; i++){
-		PNGraph G;
-		NewN = NewN * ScaleSize;
-		printf("NewN = %d\n", NewN);
-		TInt SizeRatio = NewN / InitN;
-		TStr NewStr = GetModifiedStr(GraphGenStr, SizeRatio);
-		// produce and plot model graph
-		GetModel(NewStr, G, "time.tab", "none");
-		TFltV GEigValV;
-		TSnap::PlotEigValRank(TSnap::ConvertGraph<PUNGraph>(G), NEigen, "ModelEigen" + i.GetStr(), GEigValV);
-		//TFlt ScaleCoeff = pow(AvgScaleCf * ScaleSize, i + 1);
-		//printf("ScaleCoeff: %f\n", ScaleCoeff.Val);
-		TFlt ScaleCoeff = AvgScaleCf * SizeRatio / ScaleSize;
-		TFltV ApproxEigValV;
-		//TFlt ApproxE = ModelEdges * ScaleCoeff;
-		TFlt ApproxE = pow(ModelEdges, ScaleCoeff);
-		ofstream F = OpenFile("ApproxEigen" + i.GetStr() + ".tab");
-		F << "#" << endl;
-		F << " ApproxEigen. G(" << NewN << ", " << ApproxE.Val << "). ";
-		printf("NEigen = %d\n", NEigen);
-		for (int j = 0; j < NEigen; j++){
-			//ScaleCoeff = pow(ScaleCfV[j] * ScaleSize, i + 1);
-			//ScaleCoeff = ScaleCfV[j] * SizeRatio / ScaleSize;
-			//TFlt ApproxEigenVal = ModelEigValV[j] * ScaleCoeff;
-			TFlt ApproxEigenVal = ModelEigValV[j];
-			printf("ApproxEigenVal = %f ScaleCfV[j] = %f SizeRatio / ScaleSize = %d\n", ApproxEigenVal, ScaleCfV[j], SizeRatio / ScaleSize);
-			for (int i = 0; i < SizeRatio / ScaleSize; i++){
-				ApproxEigenVal = pow(ApproxEigenVal, ScaleCfV[j]);
-				printf("ApproxEigenVal = %f ScaleCfV[j] = %f SizeRatio / ScaleSize = %d\n", ApproxEigenVal, ScaleCfV[j], SizeRatio / ScaleSize);
-			}
-			if (j == 0){
-				F << "Largest eig val = " << ApproxEigenVal.Val << endl << "#" << endl << "# Rank	Eigen value" << endl;
-			}
-			ApproxEigValV.Add(ApproxEigenVal);
-			F << j + 1 << " " << ApproxEigenVal.Val << endl;
-		}
-		F.close();
-	}
 }
 
 // create string with parameters of model graph as an input to GenKron() function

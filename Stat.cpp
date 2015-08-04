@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include <map>
 
 // get degrees from current and add it to degrees
 void AddDegreeStat(const TFltPrV& current, TFltPrV& degrees, TIntPrV& samples){
@@ -105,5 +106,34 @@ int GetMaxDeg(const PNGraph& G, const TStr& IsDir, const TStr& IsIn){
 	// sort in descending order
 	DegCnt.Sort(false);
 	return DegCnt[0].Val1;
+}
+
+void CompareDeg(const int i, const int MaxDeg, int& MinMaxDeg, int& MaxMaxDeg, int& AvgMaxDeg){
+	if (i == 0) { 
+		MinMaxDeg = MaxDeg;
+	}
+	else if (MaxDeg < MinMaxDeg){
+		MinMaxDeg = MaxDeg;
+	}
+	if (MaxDeg > MaxMaxDeg) {
+		MaxMaxDeg = MaxDeg;
+	}
+	AvgMaxDeg += MaxDeg;
+}
+
+int GetExpectedModelEdges(const PNGraph& G, const int k, const TStr& order){
+	int expectedEdges = 0;
+	map<int, int> DegAcc;
+	TIntV DegSeq; 
+	TSnap::GetDegSeqV(G, DegSeq);
+	for (int i = 0; i < DegSeq.Len(); i++){
+		if (order == "linear")
+			expectedEdges += DegSeq[i] * k;
+		else if (order == "square")
+			expectedEdges += DegSeq[i] * k * k; 
+	}
+	// each edge is considered twice for both vertices
+	expectedEdges /= 2;
+	return expectedEdges;
 }
 

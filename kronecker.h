@@ -45,24 +45,56 @@ public:
   void SetEpsMtx(const double& Eps1, const double& Eps0, const int& Eps1Val=1, const int& Eps0Val=0);
   void SetForEdges(const int& Nodes, const int& Edges); // scales the values to allow E edges
   void AddRndNoise(const double& SDev);
+
+  // >> get string from init matrix
   TStr GetMtxStr() const;
+  // >> B and C are averaged (for undirected graph)
   void EqualizeBC();
 
-
-  // check (for noised version)!
+  // >> check (for noised version)!
   double GetMinPossibleDeg();
   double GetMaxPossibleDeg();
 
-  // check!
+  // >> check!
   // for NIter = 1
   double GetMaxExpectedDeg(const TStr& IsDir = "false", bool IsIn = false);
   // basic function
   double GetMaxExpectedDeg(const int& NIter, const TStr& IsDir, bool IsIn);
   double GetMaxExpectedDeg(const int& NIter, const TStr& IsDir, bool IsIn, int& BestRow, int& BestCol);
 
-  // check!
+  // >> check!
   void SetForMaxDeg(const double& MaxDeg, const int& NIter, const TStr& IsDir = "false", bool IsIn = false);
 
+  // generate Kronecker graph
+  // slow and exact version
+  static void GenKronecker(PNGraph& Graph, const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& Seed=0);
+  // version with restrictions on minimum and maximum degrees
+  static void GenFastKronecker(PNGraph& Graph, const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const TIntPr& InDegR, const TIntPr& OutDegR, const double& NoiseCoeff = 0.0, const int& Seed=0);
+  // version with noise
+  static void GenFastKronecker(PNGraph& Graph, const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& Seed=0, double NoiseCoeff = 0.0);
+  // basic version without noise and restrictions
+  static void GenFastKronecker(PNGraph& Graph, const TKronMtx& SeedMtx, const int& NIter, const int& Edges, const bool& IsDir, const int& Seed=0);
+  // for the compatibility
+  static PNGraph GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& Seed=0);
+  static PNGraph GenKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& Seed=0);
+  static void GenDetKronecker(PNGraph& Graph, const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir);
+  
+  // add edges with support of restrictions on degrees
+  // add required number of edges for undirected graph
+  static int AddUnDir(PNGraph& Graph, const TKronMtx& SeedMtx, const int& NIter, const TIntPr& DegR, TRnd& Rnd, const double& NoiseCoeff);
+  // add NEdges to Graph with regard to InDegMax and OutDegMax
+  static int AddEdges(PNGraph& Graph, const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& NEdges, TRnd& Rnd, const int&InDegMax, const int& OutDegMax, const double& NoiseCoeff = 0.0);
+  // >> check (further functionality)
+  static int AddFirstDir(bool OutFirst, const TIntPr& InDegR, const TIntPr& OutDegR, PNGraph& G, const TKronMtx& SeedMtx, const int&NIter, TRnd&Rnd);
+  static int AddSecondDir(bool OutFirst, const TIntPr& InDegR, const TIntPr& OutDegR, PNGraph& G, const TKronMtx& SeedMtx, const int&NIter, TRnd&Rnd);
+
+  // ProbToRCPosV?
+  static double GetNoisedProbV(const TKronMtx& Mtx, const int& NIter, TVec<TVec<TFltIntIntTr>>&ProbToRCPosV, TRnd& Rnd, const double& NoiseCoeff = 0.0);
+  static void GetRowProbCumV(const TKronMtx& Mtx, TVec<TVec<TFltIntIntTr>>& RowProbCumV);
+  static void GetRowProbCumV(TVec<TVec<TVec<TFltIntIntTr>>>& RowProbCumV, const TVec<TVec<TFltIntIntTr>>& ProbToRCPosV, int Dim, int NIter);
+
+
+  // >> check and REMOVE
   int GetIntDeg(double MaxExpDeg) {return static_cast<int>(MaxExpDeg + 0.5);}
   void SetForEdgesNoCut(const int& Nodes, const int& Edges);
   void Normalize();
@@ -70,7 +102,6 @@ public:
   double GetEigMin() const;
   double GetMax() const;
   void SetForMaxEigen(const double K, const int& NIter);
-  static int GetExpectedNodesCount(const TKronMtx& Mtx, const int& NIter, const int& Deg);
   static void RemoveZeroDegreeNodes(PNGraph& out, const TKronMtx& Mtx, const int& NIter, const int& MinDeg, const int& MaxDeg);
   //void DelEdges(PNGraph& out, const TKronMtx& Mtx, const int& NIter, const int& EdgesToDel);
 
@@ -115,34 +146,7 @@ public:
   PNGraph GenRndGraph(const double& RndFact=1.0) const;
 
   static int GetKronIter(const int& GNodes, const int& SeedMtxSz);
-  static int CheckClustCf(const PNGraph& Graph, int Row, int Col, double ModelClustCf, TRnd& Rnd, const bool& IsDir, int& Collisions);
-  
-  // generate Kronecker graph
-  // slow and exact version
-  static void GenKronecker(PNGraph& Graph, const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& Seed=0);
-  // version with restrictions on minimum and maximum degrees
-  static void GenFastKronecker(PNGraph& Graph, const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const TIntPr& InDegR, const TIntPr& OutDegR, const double& NoiseCoeff = 0.0, const int& Seed=0);
-  // ???
-  static void GenFastKronecker(PNGraph& Graph, const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, double &AvgExpectedDeg, const int& Seed=0, double NoiseCoeff = 0.0);
-  static void GenFastKronecker(PNGraph& Graph, const TKronMtx& SeedMtx, const int& NIter, const int& Edges, const bool& IsDir, const int& Seed=0);
-  // for the compatibility
-  static PNGraph GenFastKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& Seed=0);
-  static PNGraph GenKronecker(const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& Seed=0);
-  static void GenDetKronecker(PNGraph& Graph, const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir);
-  
-  // add edges with support of restrictions on degrees
-  // add required number of edges for undirected graph
-  static int AddUnDir(PNGraph& Graph, const TKronMtx& SeedMtx, const int& NIter, const TIntPr& DegR, TRnd& Rnd, const double& NoiseCoeff);
-  // add NEdges to Graph with regard to InDegMax and OutDegMax
-  static int AddEdges(PNGraph& Graph, const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& NEdges, TRnd& Rnd, const int&InDegMax, const int& OutDegMax, const double& NoiseCoeff = 0.0);
-  static int AddFirstDir(bool OutFirst, const TIntPr& InDegR, const TIntPr& OutDegR, PNGraph& G, const TKronMtx& SeedMtx, const int&NIter, TRnd&Rnd);
-  static int AddSecondDir(bool OutFirst, const TIntPr& InDegR, const TIntPr& OutDegR, PNGraph& G, const TKronMtx& SeedMtx, const int&NIter, TRnd&Rnd);
-
-  // ProbToRCPosV?
-  static double GetNoisedProbV(const TKronMtx& Mtx, const int& NIter, TVec<TVec<TFltIntIntTr>>&ProbToRCPosV, TRnd& Rnd, const double& NoiseCoeff = 0.0);
-  static void GetRowProbCumV(const TKronMtx& Mtx, TVec<TVec<TFltIntIntTr>>& RowProbCumV);
-  static void GetRowProbCumV(TVec<TVec<TVec<TFltIntIntTr>>>& RowProbCumV, const TVec<TVec<TFltIntIntTr>>& ProbToRCPosV, int Dim, int NIter);
-  
+   
   static void PlotCmpGraphs(const TKronMtx& SeedMtx, const PNGraph& Graph, const TStr& OutFNm, const TStr& Desc);
   static void PlotCmpGraphs(const TKronMtx& SeedMtx1, const TKronMtx& SeedMtx2, const PNGraph& Graph, const TStr& OutFNm, const TStr& Desc);
   static void PlotCmpGraphs(const TVec<TKronMtx>& SeedMtxV, const PNGraph& Graph, const TStr& FNmPref, const TStr& Desc);

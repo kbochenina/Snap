@@ -1213,35 +1213,7 @@ void TKronMtx::GenFastKronecker(PNGraph& Graph, const TKronMtx& SeedMtx, const i
 	printf("             collisions: %d (%.4f)\n", Collisions, Collisions/(double)Graph->GetEdges());
 }
 
-int TKronMtx::CheckClustCf(const PNGraph& Graph, int Row, int Col, double ModelClustCf, TRnd& Rnd, const bool& IsDir, int& Collision)
-{
-	int NeighboursCount = Graph->GetNI(Row).GetOutDeg();
-	int Triangles = NeighboursCount * (NeighboursCount - 1);
-	if (NeighboursCount  > 1){
-		const double& ProbCF = Rnd.GetUniDev();
-		int NewRow, NewCol;
-		if (ProbCF <= ModelClustCf){
-			/*int NeighID = floor(Rnd.GetUniDev() * NeighboursCount);
-			NewRow = Graph->GetNI(Row).GetNbrNId(NeighID);*/
-			NewRow = Col;
-			int NeighID = floor(Rnd.GetUniDev() * NeighboursCount);
-			NewCol = Graph->GetNI(Row).GetNbrNId(NeighID); 
-			//printf("%d %d\n", NewRow, NewCol);
-			//ClosedTriads++;
-			if (! Graph->IsEdge(NewRow, NewCol) && NewRow != NewCol ){
-				//printf("Row %d col %d newrow %d newcol %d\n", Row, Col, NewRow, NewCol);
-				Graph->AddEdge(NewRow, NewCol);  
-				if (! IsDir) 
-					Graph->AddEdge(NewCol, NewRow);
-				return 1;
-			}
-			else Collision++;
-			return 0;
-		}
-		return 0;
-	}
-	return 0;
-}
+
 
 bool CheckMu(double T1, double T2, double T3, double T4, double Mu){
 	if (Mu > (T1 + T4) / 2) 
@@ -1346,55 +1318,7 @@ double TKronMtx::GetNoisedProbV(const TKronMtx& SeedMtx, const int& NIter, TVec<
 }
 
 
-// get E(X_d) for degree Deg
-int TKronMtx::GetExpectedNodesCount(const TKronMtx& Mtx, const int& NIter, const int& Deg){
-	if (Deg == 0) 
-		return 0;
-	double ExpDeg = 0;
-	double Dim = static_cast<double>(Mtx.GetDim());
-	if (Dim != 2)
-		Error("GetExpectedNodesCount", "Function works only with 2x2 matrix");
-	int NodesCount = pow (Dim, NIter);
-	double MtxSum = Mtx.GetMtxSum();
-	double EdgesCount = pow (MtxSum, NIter);
-	double DeltaBig = EdgesCount / NodesCount * 2;
-	// in the paper T1 is the largest value
-	int Row = 0, Col = 0;
-	double T1 = 0.0;
-	for (size_t i = 0; i < Dim; i++)
-		for (size_t j = 0; j < Dim; j++){
-			if (Mtx.At(i,j) > T1){
-				T1 = Mtx.At(i,j);
-				Row = i;
-				Col = j;
-			}
-		}
-	Col = (Col == 0) ? 1 : 0;
-	double T2 = Mtx.At(Row, Col);
-	Row = (Row == 0) ? 1 : 0;
-	double T4 = Mtx.At(Row, Col);
-	Col = (Col == 0) ? 1 : 0;
-	double T3 = Mtx.At(Row, Col);
-	// in the paper Delta = (T1 + T2) - 0.5, but MtxSum is equal to 1 in that case (use 1 instead of MtxSum)
-	double Delta = (T1 + T2) - MtxSum / 2;
-	double Tau = (MtxSum + 2 * Delta) / (MtxSum - 2 * Delta);
-	// floor() is my assumption
-	double Lambda = DeltaBig * pow(1 - 4 * Delta * Delta, NIter / 2.00);
-	double ThetaD = log(Deg / Lambda) / log(Tau);
-	int RD = floor(ThetaD);
-	double DeltaD = ThetaD - RD;
-	if (Deg < exp(1.0) * log(2.0) * NIter || Deg > pow (NodesCount, 0.5))
-		printf("Warning. Deg < e ln(2) * l or Deg > sqrt(N)\n");
-	// floor() is my assumption
- 	if (RD >= floor(NIter / 2.00)) return 0;
-	else {
-		// floor() is my assumption
-		ExpDeg = 1 / pow(2 * M_PI * Deg, 0.5) * exp(-1 * Deg * DeltaD * DeltaD * log(Tau) * log(Tau) / 2) * GetBinomCoeff(NIter, floor(NIter / 2.00) + RD);
-		// floor() is my assumption
-		ExpDeg += 1 / pow(2 * M_PI * Deg, 0.5) * exp(-1 * Deg * (1 - DeltaD) * (1 - DeltaD) * log(Tau) * log(Tau) / 2) * GetBinomCoeff(NIter, floor(NIter / 2.00) + RD + 1);
-	}
-	return static_cast<int>(ExpDeg + 0.5);
-}
+
 
 void ProbToRCPosVDump(const TVec<TVec<TFltIntIntTr>>& Prob, const int& MtxDim, const int& NIter){
 	for (int i = 0; i < NIter; i++){
@@ -1406,7 +1330,7 @@ void ProbToRCPosVDump(const TVec<TVec<TFltIntIntTr>>& Prob, const int& MtxDim, c
 }
 
 // use RMat like recursive descent to quickly generate a Kronecker graph
-void TKronMtx::GenFastKronecker(PNGraph &Graph, const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, double &AvgExpectedDeg, const int& Seed, double NoiseCoeff) {
+void TKronMtx::GenFastKronecker(PNGraph &Graph, const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const int& Seed, double NoiseCoeff) {
   const TKronMtx& SeedGraph = SeedMtx;
   const int MtxDim = SeedGraph.GetDim();
   const double MtxSum = SeedGraph.GetMtxSum();
@@ -1419,15 +1343,14 @@ void TKronMtx::GenFastKronecker(PNGraph &Graph, const TKronMtx& SeedMtx, const i
   TRnd Rnd(Seed);
   TExeTm ExeTm;
   TVec<TVec<TFltIntIntTr>> ProbToRCPosV;
-  AvgExpectedDeg = GetNoisedProbV(SeedMtx, NIter, ProbToRCPosV, Rnd, NoiseCoeff);
+  GetNoisedProbV(SeedMtx, NIter, ProbToRCPosV, Rnd, NoiseCoeff);
   
   //ProbToRCPosVDump(ProbToRCPosV, MtxDim, NIter);
 
   // add nodes
   for (int i = 0; i < NNodes; i++) {
     Graph->AddNode(i); }
-  int ClosedTriads = 0;
-  int ClustCollision = 0;
+  
   // add edges
   int Rng, Row, Col, Collision=0, n = 0;
   
@@ -1454,7 +1377,6 @@ void TKronMtx::GenFastKronecker(PNGraph &Graph, const TKronMtx& SeedMtx, const i
 
   printf("             %d edges [%s]\n", Graph->GetEdges(), ExeTm.GetTmStr());
   printf("             collisions: %d (%.4f)\n", Collision, Collision/(double)Graph->GetEdges());
-  printf("ClosedTriads %d ClustCollision %d\n", ClosedTriads, ClustCollision);
 }
 
 // use RMat like recursive descent to quickly generate a Kronecker graph
