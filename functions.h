@@ -26,5 +26,10 @@ int InitKronecker(const TStr args, PNGraph &G, TKronMtx& FitMtx);
 // generates one instance of Kronecker graphs 
 void KroneckerGen(PNGraph& out, const TKronMtx& FitMtx, const TInt NIter, const TStr& IsDir, const TIntPr& InDegR, const TIntPr& OutDegR, double NoisePart);
 // scaling initiator matrix
+void ScaleFitMtx(int ModelNodes, int ModelEdges, TFlt MaxDegInModel, TFlt MaxDegOutModel, TKronMtx& FitMtx, const TInt& NIter, TStr IsDir, const TStr& ScaleMtx);
 void ScaleFitMtxForUnDir(TKronMtx& FitMtx);
 void ScaleFitMtx(TKronMtx& FitMtx, const TInt& NIter, const int& InitModelNodes, const int& MaxModelDeg, const TStr& IsDir);
+void ScaleFitMtxForEdges(TKronMtx& FitMtx, const TInt& NIter, const int& ExpectedModelEdges);
+// estimate scaling coefficient
+double GetScalingCoefficient(const TFltPrV& InDegCnt, const TFltPrV& OutDegCnt, const TKronMtx& FitMtx, const TInt& NIter, const TStr& IsDir);
+double GetAvgDeviation(const TFltPrV& ModelDegCnt, const TFltPrV& KronDegCnt);

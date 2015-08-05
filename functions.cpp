@@ -154,13 +154,13 @@ int InitKronecker(const TStr args, PNGraph &GD, TKronMtx& FitMtx){
 
 
 void KroneckerGen(PNGraph& out, const TKronMtx& FitMtx, const TInt NIter, const TStr& IsDir, const TIntPr& InDegR, const TIntPr& OutDegR, double NoiseCoeff){
-	Env.PrepArgs(TStr::Fmt("Kronecker graphs. build: %s, %s. Time: %s", __TIME__, __DATE__, TExeTm::GetCurTm()));
+	//Env.PrepArgs(TStr::Fmt("Kronecker graphs. build: %s, %s. Time: %s", __TIME__, __DATE__, TExeTm::GetCurTm()));
 	TExeTm ExeTm;
 	Try
 	const TKronMtx& SeedMtx = FitMtx;
-	printf("\n*** Seed matrix:\n");
+	/*printf("\n*** Seed matrix:\n");
 	SeedMtx.Dump();
-	printf("\n*** Kronecker:\n");
+	printf("\n*** Kronecker:\n");*/
 	bool Dir = IsDir == "true" ? true: false;
 	// if we have constraints on degrees, run corresponding algorithm
 	if (InDegR.Val1 != 0 || OutDegR.Val1 != 0 || InDegR.Val2 != INT_MAX || InDegR.Val2 != INT_MAX) {
@@ -178,11 +178,11 @@ void KroneckerGen(PNGraph& out, const TKronMtx& FitMtx, const TInt NIter, const 
 
 	PrintNodeDegrees(out, SeedMtx, NIter);
 	//TKronMtx::RemoveZeroDegreeNodes(out, SeedMtx, NIter, InDegR.Val1, InDegR.Val2);
-	printf("             %d edges [%s]\n",out->GetEdges(), ExeTm.GetTmStr());
+	//printf("             %d edges [%s]\n",out->GetEdges(), ExeTm.GetTmStr());
 	// save edge list
 	//TSnap::SaveEdgeList(out, OutFNm, TStr::Fmt("Kronecker Graph: seed matrix [%s]", FitMtx.GetMtxStr().CStr()));
 	Catch
-		printf("\nrun time: %s (%s)\n", ExeTm.GetTmStr(), TSecTm::GetCurTm().GetTmStr().CStr());
+		//printf("\nrun time: %s (%s)\n", ExeTm.GetTmStr(), TSecTm::GetCurTm().GetTmStr().CStr());
 }
 
 
@@ -298,7 +298,32 @@ bool GetMtx(const TStr& MtxArgs, TKronMtx& FitMtxModel){
 	return true;
 }
 
+void ScaleFitMtx(int ModelNodes, int ModelEdges, TFlt MaxDegInModel, TFlt MaxDegOutModel, TKronMtx& FitMtx, const TInt& NIter, TStr IsDir, const TStr& ScaleMtx){
+	// scale init matrix to match number of edges
+	ScaleFitMtxForEdges(FitMtx, NIter, ModelEdges);	
 
+	// equalizing B and C for undirected graphs
+	if (IsDir == "false" && FitMtx.At(0,1) != FitMtx.At(1,0)){
+		cout << "WARNING. B and C is not equal for an undirected graph. B and C will be eqialized" << endl;
+		ScaleFitMtxForUnDir(FitMtx);
+		IsDir = "true"; 
+	}
+
+	TFile << "Expected maximum degree in Kronecker graph: in " << FitMtx.GetMaxExpectedDeg(NIter, IsDir, true) << 
+	",  out " << FitMtx.GetMaxExpectedDeg(NIter, IsDir, false) << endl;
+
+	int MinScale = 0;
+
+	// scale initiator matrix to match maximum degree
+	if (ScaleMtx == "true"){
+		if (IsDir == "true"){
+			cout << "WARNING. Matrix will be scaled to match maximum output degree. Required functional is under development\n";
+		}
+		ScaleFitMtx(FitMtx, NIter, ModelNodes, MaxDegOutModel, IsDir);
+		TFile << "Expected maximum degree in Kronecker graph: in " << FitMtx.GetMaxExpectedDeg(NIter, IsDir, true) << 
+			",  out " << FitMtx.GetMaxExpectedDeg(NIter, IsDir, false) << endl;
+	}
+}
 
 
 void ScaleFitMtxForEdges(TKronMtx& FitMtx, const TInt& NIter, const int& ExpectedModelEdges){
@@ -324,20 +349,131 @@ void ScaleFitMtxForUnDir(TKronMtx& FitMtx){
 }
 
 void ScaleFitMtx(TKronMtx& FitMtx, const TInt& NIter, const int& InitModelNodes, const int& MaxModelDeg, const TStr& IsDir){
-	TFile << "Before scaling: " << endl;
-	FitMtx.Dump(TFile);
+	//TFile << "Before scaling: " << endl;
+	//FitMtx.Dump(TFile);
 	// check ceil()
 	double ModelIter = ceil(log10((double)InitModelNodes) / log10((double)FitMtx.GetDim()));
 	// rename function and variable
 	int MinMaxDeg = (FitMtx.GetMaxExpectedDeg(NIter.Val, IsDir, false) + 0.5);
-	TFile << "Maximum degree in model graph: " << MaxModelDeg << endl << "Expected Kronecker maximum degree: "<<  MinMaxDeg << endl;
+	//TFile << "Maximum degree in model graph: " << MaxModelDeg << endl << "Expected Kronecker maximum degree: "<<  MinMaxDeg << endl;
 	// ModelIter instead of NIter
 	FitMtx.SetForMaxDeg(MaxModelDeg, ModelIter, "false", false);
-	TFile << "After scaling " << endl;
-	FitMtx.Dump(TFile);
+	//TFile << "After scaling " << endl;
+	//FitMtx.Dump(TFile);
 }
 
+double GetAvgDeviation(const TFltPrV& ModelDegCnt, const TFltPrV& KronDegCnt){
+	double Dev = 0.0;
+	bool SeqViewed = false;
+	double MaxModelDeg = ModelDegCnt[ModelDegCnt.Len()-1].Val1, MaxKronDeg = KronDegCnt[ModelDegCnt.Len()-1].Val1,
+		MaxModelCount = ModelDegCnt[ModelDegCnt.Len()-1].Val2, MaxKronCount = KronDegCnt[KronDegCnt.Len()-1].Val2;
+	return (pow((MaxModelCount-MaxKronCount)/MaxModelCount,2));
+	int IndexModel = 0, IndexKron = 0;
+	while (!SeqViewed){
+		if (IndexModel == ModelDegCnt.Len()-1 && IndexKron == KronDegCnt.Len()-1)
+			SeqViewed = true;
+		double ModelDeg = ModelDegCnt[IndexModel].Val1, KronDeg = KronDegCnt[IndexKron].Val1;
+		if (ModelDeg < KronDeg){
+			Dev += 1 * (ModelDeg/MaxModelDeg); IndexModel++;
+		}
+		else if (ModelDeg == KronDeg){
+			double ModelCount = ModelDegCnt[IndexModel].Val2, KronCount = KronDegCnt[IndexKron].Val2;
+			Dev += pow((ModelCount-KronCount)/ModelCount, 2) * (ModelDeg/MaxModelDeg); IndexModel++; IndexKron++;
+		}
+		else {
+			Dev += 1 * (ModelDeg/MaxModelDeg); IndexKron++;
+		}
+	}
+	return Dev;
+}
 
+double GetBestCoeff(TFltPrV& ScalingResults){
+	if (ScalingResults.Len() == 0) return 0;
+	double ScalingCoeff = 0, Dev = ScalingResults[0].Val2;
+	if (ScalingResults.Len() == 1) return ScalingResults[0].Val1;
+	
+	for (int i = 0; i < ScalingResults.Len()-1; i++){
+		ScalingResults[i].Val2 = (ScalingResults[i].Val2 + ScalingResults[i+1].Val2) / 2;
+	}
+
+	for (int i = 0; i < ScalingResults.Len()-1; i++){
+		if (ScalingResults[i].Val2 < Dev){
+			Dev = ScalingResults[i].Val2;
+			if (i == ScalingResults.Len() - 1)
+				ScalingCoeff = ScalingResults[i].Val1;
+			else 
+				ScalingCoeff = (ScalingResults[i].Val1 + ScalingResults[i+1].Val1) / 2;
+		}
+	}
+	return ScalingCoeff;
+}
+
+// estimate scaling coefficient
+double GetScalingCoefficient(const TFltPrV& InDegCnt, const TFltPrV& OutDegCnt, const TKronMtx& FitMtxM, const TInt& NIter, const TStr& IsDir){
+	TKronMtx FitMtx(FitMtxM);
+	double ScalingCoeff = 0.0;
+	double ScalingStep = 0.05;
+	bool DecFound = false;
+	const int NKron = 5;
+	const TFltPr MaxOut = OutDegCnt[OutDegCnt.Len()-1], MinOut = OutDegCnt[0];
+	int MinDeg = MinOut.Val1, MaxDeg = MaxOut.Val1;
+	TIntPr InDegR(MinDeg, MaxDeg), OutDegR(MinDeg, MaxDeg);
+	bool FirstTry = true; bool ToIncrease = true;
+	double Dev = 0.0;
+	TInt Count = 0;
+	TFltPrV ScalingResults;
+
+	while (!DecFound){
+		if (!FirstTry){
+			ScalingCoeff += ScalingStep;
+			int DegToScale = (int) (MaxDeg + MaxDeg * ScalingCoeff);
+			if (DegToScale <= 0 || abs(ScalingCoeff) >= 1){
+				return GetBestCoeff(ScalingResults);
+			}
+			// we use the assumption that ModelNodes = KronNodes
+			ScaleFitMtx(FitMtx, NIter, (int)pow(2.00, NIter), (int) (MaxDeg + MaxDeg * ScalingCoeff), IsDir);
+		}
+		// get average statistics on degrees
+		PNGraph Kron;
+		TFltPrV KronDegAvgOut;
+		// for the compatibility
+		TIntPrV SamplesOut;
+		for (int i = 0; i < NKron; i++){
+			KroneckerGen(Kron, FitMtx, NIter, IsDir, InDegR, OutDegR, 0);
+			AddDegreesStat(KronDegAvgOut, SamplesOut, Kron, false);
+		}
+		GetAvgDegreeStat(KronDegAvgOut, NKron);
+		KronDegAvgOut.Sort();
+		PlotPoints(KronDegAvgOut, KronDegAvgOut, "scale" + Count.GetStr(), "all");
+		if (FirstTry){
+			// if maximum kron degree > maximum model degree
+			if (KronDegAvgOut[KronDegAvgOut.Len()-1] > MaxOut){
+				ToIncrease = false;
+				ScalingStep *= -1;
+			}
+			Dev = GetAvgDeviation(OutDegCnt, KronDegAvgOut);
+			printf("Scaling coeff: %f Dev: %f\n", ScalingCoeff, Dev);
+			//system("pause");
+			FirstTry = false;
+		}
+		else {
+			double CurrDev = GetAvgDeviation(OutDegCnt, KronDegAvgOut);
+			TFltPr Res(ScalingCoeff, CurrDev);
+			ScalingResults.Add(Res);
+			printf("Scaling coeff: %f Dev: %f\n", ScalingCoeff, CurrDev);
+			//system("pause");
+			//if (CurrDev > Dev && Dev == 0){
+			//	//ScalingCoeff -= ScalingStep;
+			//	return GetBestCoeff(ScalingResults);
+			//	DecFound = true;
+			//}
+
+			Dev = CurrDev;
+		}
+		Count++;
+	}
+	return ScalingCoeff;
+}
 
 void GenKron(const TStr& Args, TKronMtx& FitMtx, TFltPrV& KronDegAvgIn, TFltPrV& KronDegAvgOut){
 	Env = TEnv(Args, TNotify::NullNotify);
@@ -375,28 +511,7 @@ void GenKron(const TStr& Args, TKronMtx& FitMtx, TFltPrV& KronDegAvgIn, TFltPrV&
 	TFile << "Kronecker nodes: " << ExpectedNodes << ", expected Kronecker edges: " << ExpectedEdges << endl;
 	TFile << "Maximum degree in model graph: in " << MaxModelInDeg << ",  out " << MaxModelOutDeg << endl;
 
-	// scale init matrix to match number of edges
-	ScaleFitMtxForEdges(FitMtx, NIter, ModelEdges);	
-
-	// equalizing B and C for undirected graphs
-	if (IsDir == "false" && FitMtx.At(0,1) != FitMtx.At(1,0)){
-		cout << "WARNING. B and C is not equal for an undirected graph. B and C will be eqialized" << endl;
-		ScaleFitMtxForUnDir(FitMtx);
-		IsDir = "true"; 
-	}
-
-	TFile << "Expected maximum degree in Kronecker graph: in " << FitMtx.GetMaxExpectedDeg(NIter, IsDir, true) << 
-	",  out " << FitMtx.GetMaxExpectedDeg(NIter, IsDir, false) << endl;
-
-	// scale initiator matrix to match maximum degree
-	if (ScaleMtx == "true"){
-		if (IsDir == "true"){
-			cout << "WARNING. Matrix will be scaled to match maximum output degree. Required functional is under development\n";
-		}
-		ScaleFitMtx(FitMtx, NIter, ModelNodes, MaxModelOutDeg + MaxModelOutDeg * MinScale, IsDir);
-		TFile << "Expected maximum degree in Kronecker graph: in " << FitMtx.GetMaxExpectedDeg(NIter, IsDir, true) << 
-			",  out " << FitMtx.GetMaxExpectedDeg(NIter, IsDir, false) << endl;
-	}
+	
 	
 	const TIntPr InDegR(MinModelInDeg, MaxModelInDeg); const TIntPr OutDegR(MinModelOutDeg, MaxModelOutDeg);
 	if (InDegR.Val1 * ExpectedNodes > ExpectedEdges || OutDegR.Val1 * ExpectedNodes > ExpectedEdges || InDegR.Val2 < InDegR.Val1 || OutDegR.Val2 < OutDegR.Val1) 
@@ -417,7 +532,7 @@ void GenKron(const TStr& Args, TKronMtx& FitMtx, TFltPrV& KronDegAvgIn, TFltPrV&
 			Error("GenKron", "Violation of reciprocity for undirected graph");
 		}
 		Sec += ExecTime.GetSecs();
-		printf("Calculating maximum degree...\n");
+		//printf("Calculating maximum degree...\n");
 		int MaxOutDeg = GetMaxMinDeg(Kron, IsDir, "false", "true"), MaxInDeg = GetMaxMinDeg(Kron, IsDir, "true", "true");
 		CompareDeg(i, MaxOutDeg, MinMaxOutDeg, MaxMaxOutDeg, AvgMaxOutDeg);
 		CompareDeg(i, MaxInDeg, MinMaxInDeg, MaxMaxInDeg, AvgMaxInDeg);
@@ -451,8 +566,6 @@ void GenKron(const TStr& Args, TKronMtx& FitMtx, TFltPrV& KronDegAvgIn, TFltPrV&
 	KronDegAvgOut.Sort();
 	TFile << "Average time of generation of Kronecker product: " <<  Sec << endl;
 }
-
-
 
 void GetGraphFromAvgDistr(TFltPrV in_deg_avg_kron, PNGraph& t_pt)
 {
@@ -517,14 +630,38 @@ void GetGraphs(const vector <TStr>& Parameters, const TStr& ModelGen, const TStr
 		if (!GetMtx(Parameters[MTXGEN], FitMtxM))
 			GenNewMtx(G, Parameters[KRONFIT], FitMtxM);
 
+		TFltPrV InDegCntModel, OutDegCntModel;
+		// sequences are sorted in ascending order
+		TSnap::GetInDegCnt(G, InDegCntModel); TSnap::GetOutDegCnt(G, OutDegCntModel);
+		int ModelNodes = G->GetNodes(), ModelEdges = G->GetEdges();
+
+		Env = TEnv(Parameters[KRONGEN], TNotify::NullNotify);
+		TStr IsDir = Env.GetIfArgPrefixStr("-isdir:", "false", "Produce directed graph (true, false)");
+		const TInt NIter = Env.GetIfArgPrefixInt("-i:", 1, "Number of iterations of Kronecker product");
+		const TStr ScaleMtx = Env.GetIfArgPrefixStr("-scalemtx:", "false", "Scale initiator matrix (yes/no)");
+
+		int MaxModelOutDeg = OutDegCntModel[OutDegCntModel.Len()-1].Val1;
+		// scaling of initiator matrix
+		// 3rd and 4th parameters - the maximum in/out degree of model graph
+		ScaleFitMtx(ModelNodes, ModelEdges, InDegCntModel[InDegCntModel.Len()-1].Val1, MaxModelOutDeg, FitMtxM, NIter, IsDir, ScaleMtx);
+		double ScalingCoeff = 0.0;
+		if (ScaleMtx == "true"){
+			TExeTm T;
+			T.Tick();
+			ScalingCoeff = GetScalingCoefficient(InDegCntModel, OutDegCntModel, FitMtxM, NIter, IsDir);
+			TFile << "Time of getting scaling coefficient: " << T.GetSecs() << endl;
+			TFile << "Scailing coefficient: " << ScalingCoeff << endl;
+			cout << "Scailing coefficient: " << ScalingCoeff << endl;
+			system("pause");
+			ScaleFitMtx(FitMtxM, NIter, ModelNodes, MaxModelOutDeg + MaxModelOutDeg * ScalingCoeff, IsDir);
+		}
+
 		// in and out average degrees of Kronecker graphs
 		TFltPrV KronDegAvgIn, KronDegAvgOut;
 		
-		Env = TEnv(Parameters[KRONGEN], TNotify::NullNotify);
-		const TStr& IsDir = Env.GetIfArgPrefixStr("-isdir:", "false", "Produce directed graph (true, false)");
 		TStr KronParameters = GetModelParamsStr(G, IsDir);
 		
-		GenKron(Parameters[KRONGEN] + KronParameters, FitMtxM, KronDegAvgIn, KronDegAvgOut, G);
+		GenKron(Parameters[KRONGEN] + KronParameters, FitMtxM, KronDegAvgIn, KronDegAvgOut);
 
 		PlotDegrees(Parameters, KronDegAvgIn, KronDegAvgOut, "kron");
 		

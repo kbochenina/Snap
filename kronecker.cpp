@@ -301,8 +301,8 @@ double TKronMtx::GetMaxExpectedDeg(const TStr& IsDir, bool IsIn){
 		}
 		CurrentStep++;
 	}
-	printf("MaxDeg after step %d: %f\n", StageNum, ScaledMtx.GetMaxExpectedDeg(NIter, IsDir, IsIn));
-	printf("Matrix sum: %f\n", ScaledMtx.GetSum());
+	/*printf("MaxDeg after step %d: %f\n", StageNum, ScaledMtx.GetMaxExpectedDeg(NIter, IsDir, IsIn));
+	printf("Matrix sum: %f\n", ScaledMtx.GetSum());*/
 
 	return DecFound;
  }
@@ -335,7 +335,7 @@ void TKronMtx::SetForMaxDeg(const double& MaxDeg, const int& NIter, const TStr& 
 		Diag2V = At(Diag2.Val1, Diag2.Val2),
 		LeastV = At(Least.Val1, Least.Val2);
 
-	printf("Matrix sum: %f\n", ScaledMtx.GetSum());
+	//printf("Matrix sum: %f\n", ScaledMtx.GetSum());
 
 	bool DecFound = false;
 	double Step = 0.001;
@@ -403,8 +403,8 @@ void TKronMtx::SetForMaxDeg(const double& MaxDeg, const int& NIter, const TStr& 
 	At(Diag2.Val1,Diag2.Val2) = Diag2V; At(Least.Val1, Least.Val2) = LeastV; 
 	double MaxExpectedDeg = GetMaxExpectedDeg(NIter, IsDir, IsIn);
 	if (DegreesEqual(MaxExpectedDeg, MaxDeg, SensCoeff)){
-		printf("Max model deg: %f\n", MaxDeg);
-		printf("Maximum expected degree: %f\n", MaxExpectedDeg);
+		//printf("Max model deg: %f\n", MaxDeg);
+		//printf("Maximum expected degree: %f\n", MaxExpectedDeg);
 	}
 	else SetForMaxDeg(MaxDeg, NIter);
 }
@@ -709,7 +709,7 @@ int TKronMtx::AddEdges(PNGraph& G, const TKronMtx& SeedMtx, const int&NIter, con
 	const int MtxDim = SeedMtx.GetDim();
 	const double MtxSum = SeedMtx.GetMtxSum();
 	const int NNodes = SeedMtx.GetNodes(NIter);
-	printf("  AddEdges: %d nodes, %d edges, %s...\n", NNodes, NEdges, IsDir ? "Directed":"UnDirected");
+	//printf("  AddEdges: %d nodes, %d edges, %s...\n", NNodes, NEdges, IsDir ? "Directed":"UnDirected");
 	// prepare cell probability vector
 	TVec<TFltIntIntTr> ProbToRCPosV; // row, col position
 	double CumProb = 0.0;
@@ -719,7 +719,7 @@ int TKronMtx::AddEdges(PNGraph& G, const TKronMtx& SeedMtx, const int&NIter, con
 			if (Prob > 0.0) {
 				CumProb += Prob;
 				ProbToRCPosV.Add(TFltIntIntTr(CumProb/MtxSum, r, c));
-				printf("%d%d %f\n", r, c, CumProb/MtxSum);
+				//printf("%d%d %f\n", r, c, CumProb/MtxSum);
 			}
 		}
 	}
@@ -750,8 +750,8 @@ int TKronMtx::AddEdges(PNGraph& G, const TKronMtx& SeedMtx, const int&NIter, con
 		} else { Collision++; }
 		//if (edges % 1000 == 0) printf("\r...%dk", edges/1000);
 	}
-	std::string s = "Edges added=" + std::to_string((long long)edges) +", edges to add=" + std::to_string((long long)NEdges) + "\n";
-	printf("%s",s.c_str());
+	//std::string s = "Edges added=" + std::to_string((long long)edges) +", edges to add=" + std::to_string((long long)NEdges) + "\n";
+	//printf("%s",s.c_str());
 	//PrintDeg(G, "AddEdges");
 	//printf("             %d edges [%s]\n", Graph->GetEdges(), ExeTm.GetTmStr());
 	return Collision;
@@ -1069,8 +1069,8 @@ int TKronMtx::AddUnDir(PNGraph& G, const TKronMtx& SeedMtx, const int& NIter, co
 			else {Collision++; j--;}//printf("Collision1\n"); }	
 		}
 	}
-	std::string s = "Edges added=" + std::to_string((long long)EdgesAdded) +", edges to add=" + std::to_string((long long) DegReq * NNodes) + "\n";
-	printf("%s",s.c_str());
+	//std::string s = "Edges added=" + std::to_string((long long)EdgesAdded) +", edges to add=" + std::to_string((long long) DegReq * NNodes) + "\n";
+	//printf("%s",s.c_str());
 	return Collision;
 }
 
@@ -1245,7 +1245,7 @@ void TKronMtx::RemoveZeroDegreeNodes(PNGraph& out, const TKronMtx& Mtx, const in
 void TKronMtx::GenFastKronecker(PNGraph& Graph, const TKronMtx& SeedMtx, const int& NIter, const bool& IsDir, const TIntPr& InDegR, const TIntPr& OutDegR, const double& NoiseCoeff, const int& Seed){
 	const int NNodes = SeedMtx.GetNodes(NIter);
 	const int NEdges = SeedMtx.GetEdges(NIter);
-	printf("GenFastKronecker() with restrictions. Nodes %d, edges %d\n", NNodes, NEdges);
+	//printf("GenFastKronecker() with restrictions. Nodes %d, edges %d\n", NNodes, NEdges);
 	Graph = TNGraph::New(NNodes, -1);
 	// add nodes
 	for (int i = 0; i < NNodes; i++) {
@@ -1265,7 +1265,7 @@ void TKronMtx::GenFastKronecker(PNGraph& Graph, const TKronMtx& SeedMtx, const i
 	}
 	const int Least = NEdges - Graph->GetEdges();
 	Collisions += AddEdges(Graph, SeedMtx, NIter, IsDir, Least, Rnd, InDegR.Val2, OutDegR.Val2, NoiseCoeff);
-	printf("             collisions: %d (%.4f)\n", Collisions, Collisions/(double)Graph->GetEdges());
+	//printf("             collisions: %d (%.4f)\n", Collisions, Collisions/(double)Graph->GetEdges());
 }
 
 
