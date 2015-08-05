@@ -1056,8 +1056,9 @@ int TKronMtx::AddUnDir(PNGraph& G, const TKronMtx& SeedMtx, const int& NIter, co
 		for (int j = 0; j < DegReq-OutDeg; j++){	
 			int Col = GetCol(RowProbCumV, Row, NIter, Rnd);
 			if (Row != Col && !G->IsEdge(Row, Col)){
-				//int InDegCol = G->GetNI(Col).GetInDeg(), OutDegCol = G->GetNI(Col).GetOutDeg();
-				//if (InDegCol + 1 > DegReq || OutDegCol + 1 > DegReq) {Collision++;  j--; continue;}
+				// prevent addition of edge with degree > DegMax
+				int InDegCol = G->GetNI(Col).GetInDeg(), OutDegCol = G->GetNI(Col).GetOutDeg();
+				if (InDegCol + 1 > DegR.Val2 || OutDegCol + 1 > DegR.Val2) {Collision++;  j--; continue;}
 				G->AddEdge(Row,Col);
 				//printf("(%d %d)\t", Row, Col);
 				EdgesAdded++;

@@ -88,7 +88,7 @@ void GetPoints(const TFlt& maxDegLog, const TFlt& minDegLog, const int& NInt, co
 
 
 
-int GetMaxDeg(const PNGraph& G, const TStr& IsDir, const TStr& IsIn){
+int GetMaxMinDeg(const PNGraph& G, const TStr& IsDir, const TStr& IsIn, const TStr& IsMax){
 	TIntPrV DegCnt;
 	if (IsDir == "false"){
 		PUNGraph U = TSnap::ConvertGraph<PUNGraph>(G);
@@ -105,7 +105,8 @@ int GetMaxDeg(const PNGraph& G, const TStr& IsDir, const TStr& IsIn){
 	}
 	// sort in descending order
 	DegCnt.Sort(false);
-	return DegCnt[0].Val1;
+	if (IsMax == "true") return DegCnt[0].Val1;
+	else return DegCnt[DegCnt.Len()-1].Val1;
 }
 
 void CompareDeg(const int i, const int MaxDeg, int& MinMaxDeg, int& MaxMaxDeg, int& AvgMaxDeg){
@@ -135,5 +136,13 @@ int GetExpectedModelEdges(const PNGraph& G, const int k, const TStr& order){
 	// each edge is considered twice for both vertices
 	expectedEdges /= 2;
 	return expectedEdges;
+}
+
+bool CheckReciprocity(const PNGraph& G){
+	for (int i = 0; i < G->GetNodes(); i++){
+		if (G->GetNI(i).GetInDeg() != G->GetNI(i).GetOutDeg())
+			return false;
+	}
+	return true;
 }
 
