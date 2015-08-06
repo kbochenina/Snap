@@ -13,3 +13,4 @@ void MakeDatFile(const TStr& Name, const TStr& AddStr, const TStrV& ColumnNames,
 void PrintNodeDegrees(const PNGraph& G, const TKronMtx& FitMtx, const int& NIter);
 void PrintDegDistr(const TFltPrV& distr, const TStr& OutFNm);
 void PrintDegDistr(const TIntPrV& distr, const TStr& OutFNm);
+void GetParameters(const vector<TStr>& CommandLineArgs, const TStr& Type, vector<TStr>& Parameters);

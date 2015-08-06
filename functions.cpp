@@ -176,7 +176,7 @@ void KroneckerGen(PNGraph& out, const TKronMtx& FitMtx, const TInt NIter, const 
 		//TKronMtx::GenKronecker(out, SeedMtx, NIter, Dir);
 	}
 
-	PrintNodeDegrees(out, SeedMtx, NIter);
+	//PrintNodeDegrees(out, SeedMtx, NIter);
 	//TKronMtx::RemoveZeroDegreeNodes(out, SeedMtx, NIter, InDegR.Val1, InDegR.Val2);
 	//printf("             %d edges [%s]\n",out->GetEdges(), ExeTm.GetTmStr());
 	// save edge list
@@ -242,7 +242,7 @@ void GenNewMtx(PNGraph& model, const TStr& args, TKronMtx& FitMtx){
 
 
 // get model graph according to args
-void GetModel(const TStr& Args, PNGraph& G, const TStr& Name, const TStr& Plt){
+void GetModel(const TStr& Args, PNGraph& G){
 	Env = TEnv(Args, TNotify::NullNotify);
 	const TStr Gen = Env.GetIfArgPrefixStr("-g:", "gen", "How to get model graph: read, gen, deg, genpy");
 	const TStr InFNm = Env.GetIfArgPrefixStr("-i:", "", "Input graph file (single directed edge per line)");
@@ -365,7 +365,7 @@ void ScaleFitMtx(TKronMtx& FitMtx, const TInt& NIter, const int& InitModelNodes,
 double GetAvgDeviation(const TFltPrV& ModelDegCnt, const TFltPrV& KronDegCnt){
 	double Dev = 0.0;
 	bool SeqViewed = false;
-	double MaxModelDeg = ModelDegCnt[ModelDegCnt.Len()-1].Val1, MaxKronDeg = KronDegCnt[ModelDegCnt.Len()-1].Val1,
+	double MaxModelDeg = ModelDegCnt[ModelDegCnt.Len()-1].Val1, MaxKronDeg = KronDegCnt[KronDegCnt.Len()-1].Val1,
 		MaxModelCount = ModelDegCnt[ModelDegCnt.Len()-1].Val2, MaxKronCount = KronDegCnt[KronDegCnt.Len()-1].Val2;
 	return (pow((MaxModelCount-MaxKronCount)/MaxModelCount,2));
 	int IndexModel = 0, IndexKron = 0;
@@ -427,11 +427,14 @@ double GetScalingCoefficient(const TFltPrV& InDegCnt, const TFltPrV& OutDegCnt, 
 		if (!FirstTry){
 			ScalingCoeff += ScalingStep;
 			int DegToScale = (int) (MaxDeg + MaxDeg * ScalingCoeff);
-			if (DegToScale <= 0 || abs(ScalingCoeff) >= 1){
+			if (DegToScale <= 1 || abs(ScalingCoeff) >= 1 || !FitMtx.CanScaleToDeg(DegToScale, NIter)){
 				return GetBestCoeff(ScalingResults);
 			}
 			// we use the assumption that ModelNodes = KronNodes
 			ScaleFitMtx(FitMtx, NIter, (int)pow(2.00, NIter), (int) (MaxDeg + MaxDeg * ScalingCoeff), IsDir);
+			TKronMtx NewMtx(FitMtx);
+			ScaleFitMtx(NewMtx, NIter, (int)pow(2.00, NIter), (int) (MaxDeg + MaxDeg * ScalingCoeff), IsDir);
+			FitMtx.Dump();
 		}
 		// get average statistics on degrees
 		PNGraph Kron;
@@ -449,6 +452,7 @@ double GetScalingCoefficient(const TFltPrV& InDegCnt, const TFltPrV& OutDegCnt, 
 			// if maximum kron degree > maximum model degree
 			if (KronDegAvgOut[KronDegAvgOut.Len()-1] > MaxOut){
 				ToIncrease = false;
+				//!!!
 				ScalingStep *= -1;
 			}
 			Dev = GetAvgDeviation(OutDegCnt, KronDegAvgOut);
@@ -528,11 +532,11 @@ void GenKron(const TStr& Args, TKronMtx& FitMtx, TFltPrV& KronDegAvgIn, TFltPrV&
 	for (int i = 0; i < NKron; i++){
 		ExecTime.Tick();
 		KroneckerGen(Kron, FitMtx, NIter, IsDir, InDegR, OutDegR, NoiseCoeff);
-		if (IsDir == "false" && !CheckReciprocity(Kron)){
+		/*if (IsDir == "false" && !CheckReciprocity(Kron)){
 			Error("GenKron", "Violation of reciprocity for undirected graph");
-		}
+		}*/
 		Sec += ExecTime.GetSecs();
-		//printf("Calculating maximum degree...\n");
+		printf("Calculating maximum degree...\n");
 		int MaxOutDeg = GetMaxMinDeg(Kron, IsDir, "false", "true"), MaxInDeg = GetMaxMinDeg(Kron, IsDir, "true", "true");
 		CompareDeg(i, MaxOutDeg, MinMaxOutDeg, MaxMaxOutDeg, AvgMaxOutDeg);
 		CompareDeg(i, MaxInDeg, MinMaxInDeg, MaxMaxInDeg, AvgMaxInDeg);
@@ -605,12 +609,9 @@ TStr GetModelParamsStr(const PNGraph& G, const TStr& IsDir){
 void GetGraphs(const vector <TStr>& Parameters, const TStr& ModelGen, const TStr&ModelPlt)
 {
 	PNGraph G;
-	const TStr& NEigenStr = Parameters[NEIGEN];
-	const TStr& Name = Parameters[NAME];
-	const TStr& Plt = Parameters[PLT];
-		
-	GetModel(Parameters[GRAPHGEN], G, Name, Plt);
+	GetModel(Parameters[GRAPHGEN], G);
 	
+	const TStr& NEigenStr = Parameters[NEIGEN];
 	int NEigen = NEigenStr.GetInt();
 	if (NEigen != 0){
 		TFltV ModelEigValV;
@@ -630,9 +631,6 @@ void GetGraphs(const vector <TStr>& Parameters, const TStr& ModelGen, const TStr
 		if (!GetMtx(Parameters[MTXGEN], FitMtxM))
 			GenNewMtx(G, Parameters[KRONFIT], FitMtxM);
 
-		TFltPrV InDegCntModel, OutDegCntModel;
-		// sequences are sorted in ascending order
-		TSnap::GetInDegCnt(G, InDegCntModel); TSnap::GetOutDegCnt(G, OutDegCntModel);
 		int ModelNodes = G->GetNodes(), ModelEdges = G->GetEdges();
 
 		Env = TEnv(Parameters[KRONGEN], TNotify::NullNotify);
@@ -640,15 +638,15 @@ void GetGraphs(const vector <TStr>& Parameters, const TStr& ModelGen, const TStr
 		const TInt NIter = Env.GetIfArgPrefixInt("-i:", 1, "Number of iterations of Kronecker product");
 		const TStr ScaleMtx = Env.GetIfArgPrefixStr("-scalemtx:", "false", "Scale initiator matrix (yes/no)");
 
-		int MaxModelOutDeg = OutDegCntModel[OutDegCntModel.Len()-1].Val1;
+		int MaxModelOutDeg = MDegOut[MDegOut.Len()-1].Val1;
 		// scaling of initiator matrix
 		// 3rd and 4th parameters - the maximum in/out degree of model graph
-		ScaleFitMtx(ModelNodes, ModelEdges, InDegCntModel[InDegCntModel.Len()-1].Val1, MaxModelOutDeg, FitMtxM, NIter, IsDir, ScaleMtx);
+		ScaleFitMtx(ModelNodes, ModelEdges, MDegIn[MDegIn.Len()-1].Val1, MaxModelOutDeg, FitMtxM, NIter, IsDir, ScaleMtx);
 		double ScalingCoeff = 0.0;
 		if (ScaleMtx == "true"){
 			TExeTm T;
 			T.Tick();
-			ScalingCoeff = GetScalingCoefficient(InDegCntModel, OutDegCntModel, FitMtxM, NIter, IsDir);
+			ScalingCoeff = GetScalingCoefficient(MDegIn, MDegOut, FitMtxM, NIter, IsDir);
 			TFile << "Time of getting scaling coefficient: " << T.GetSecs() << endl;
 			TFile << "Scailing coefficient: " << ScalingCoeff << endl;
 			cout << "Scailing coefficient: " << ScalingCoeff << endl;
@@ -671,21 +669,44 @@ void GetGraphs(const vector <TStr>& Parameters, const TStr& ModelGen, const TStr
 	}
 }
 
+// get FitMtx and scaling coefficient from small model
+void GetFitMtxFromMS(TKronMtx& FitMtxM, TFlt& ScalingCoeff, const vector<TStr>& Parameters){
+	PNGraph G;
+	GetModel(Parameters[GRAPHGEN], G);
+	int ModelNodes = G->GetNodes(), ModelEdges = G->GetEdges();
+	TFltPrV MDegIn, MDegOut;
+	TSnap::GetInDegCnt(G, MDegIn);
+	TSnap::GetOutDegCnt(G, MDegOut);
+	// generate (or read) Kronecker initiator matrix
+	if (!GetMtx(Parameters[MTXGEN], FitMtxM))
+		GenNewMtx(G, Parameters[KRONFIT], FitMtxM);
+	Env = TEnv(Parameters[KRONGEN], TNotify::NullNotify);
+	TStr IsDir = Env.GetIfArgPrefixStr("-isdir:", "false", "Produce directed graph (true, false)");
+	const TInt NIter = Env.GetIfArgPrefixInt("-i:", 1, "Number of iterations of Kronecker product");
+	const TStr ScaleMtx = Env.GetIfArgPrefixStr("-scalemtx:", "false", "Scale initiator matrix (yes/no)");
+	int MaxModelOutDeg = MDegOut[MDegOut.Len()-1].Val1;
+	// scaling of initiator matrix
+	// 3rd and 4th parameters - the maximum in/out degree of model graph
+	ScaleFitMtx(ModelNodes, ModelEdges, MDegIn[MDegIn.Len()-1].Val1, MaxModelOutDeg, FitMtxM, NIter, IsDir, ScaleMtx);
+	if (ScaleMtx == "true"){
+		TKronMtx NewMtx(FitMtxM);
+		NewMtx.Dump(TFile);
+		TExeTm T;
+		T.Tick();
+		ScalingCoeff = GetScalingCoefficient(MDegIn, MDegOut, NewMtx, NIter, IsDir);
+		TFile << "Time of getting scaling coefficient: " << T.GetSecs() << endl;
+		TFile << "Scailing coefficient: " << ScalingCoeff << endl;
+		cout << "Scailing coefficient: " << ScalingCoeff << endl;
+		//system("pause");
+	}
+}
 
 
 // generates Kronecker model using configuration model of small model network
 // and compare it to big network
-void KroneckerByConf(vector<TStr> commandLineArgs){
+void KroneckerByConf(vector<TStr> CommandLineArgs){
 	Try
-	Env = TEnv(commandLineArgs[KRONTEST], TNotify::NullNotify);
-	// type of plots
-	const TStr Plt = Env.GetIfArgPrefixStr("-plt:", "all", "Type of plots (cum, noncum, all)");
-	// full - all points of distrib will be plotted; expbin - exponential binning
-	const TStr PType = Env.GetIfArgPrefixStr("-ptype:", "all", "How to plot (full, expbin, all)");
-	// radix of binning
-	const TInt BinRadix = Env.GetIfArgPrefixInt("-bin:", 2, "Radix for exponential binning");
-	// time estimates file name
-	const TStr StatFile = Env.GetIfArgPrefixStr("-ot:", "stat.tab", "Name of output file with statistics");
+	Env = TEnv(CommandLineArgs[KRONTEST], TNotify::NullNotify);
 	// generation of big model and its Kronecker product is required
 	const TStr ModelGen = Env.GetIfArgPrefixStr("-mgen:", "model", "Generation of big model and/or its Kronecker product (model, kron, model+kron)");
 	// generation of big model and its Kronecker product is required
@@ -694,42 +715,65 @@ void KroneckerByConf(vector<TStr> commandLineArgs){
 	const TStr MSGen = Env.GetIfArgPrefixStr("-msgen:", "model+kron", "Generation of small model and/or its Kronecker product (model, kron, model+kron)");
 	// generation of big model and its Kronecker product is required
 	const TStr MSPlt = Env.GetIfArgPrefixStr("-msplt:", "kron", "Plotting of small model and/or its Kronecker product (model, kron, model+kron)");
-	// number of eigenvalues to investigate
-	const TStr NEigen = Env.GetIfArgPrefixStr("-neigen:", "10", "Number of eigenvalues");
-	// plot hops (plot/none)
-	const TStr Hops = Env.GetIfArgPrefixStr("-hops:", "none", "Plot hops (plot/none)");
-	// clustering coefficient (yes - calculate general CC, yes+plot - caculate general CC + plot local CC, none)
-	const TStr Clust = Env.GetIfArgPrefixStr("-clust:", "none", "Calculate/plot clustering coefficient (yes/yes+plot/none)");
-	
+	// time estimates file name
+	const TStr StatFile = Env.GetIfArgPrefixStr("-ot:", "stat.tab", "Name of output file with statistics");
+	// is it required to generate big Kronecker graphs using FitMtx estimated on small graph (yes/no)
+	const TStr FromMS = Env.GetIfArgPrefixStr("-fromms:", "yes", "Create big graph using FitMtx estimated for small graph (yes/none)");
+
 	CheckParams(ModelGen, ModelPlt);
 	CheckParams(MSGen, MSPlt);
 
 	TFile = OpenFile(StatFile.CStr());
 
-	vector<TFltPrV> distrIn, distrOut;
-	TStrV names;
-
 	PyInit("PySettings.txt");
 
-	if (ModelGen != "none")
-	{
+	if (FromMS == "yes"){
+		TKronMtx FitMtx;
+		TFlt ScalingCoeff = 0;
 		vector <TStr> Parameters;
-		for (size_t i = 1; i <= NPARCOPY; i++)
-			Parameters.push_back(commandLineArgs[i]);
-		Parameters.push_back(PType); Parameters.push_back(Plt); Parameters.push_back("Model"); Parameters.push_back(NEigen); 
-		Parameters.push_back(BinRadix.GetStr()); Parameters.push_back(Hops); Parameters.push_back(Clust);
+		GetParameters(CommandLineArgs, "Small", Parameters);
+		GetFitMtxFromMS(FitMtx, ScalingCoeff, Parameters);
+		Parameters.clear();
+		GetParameters(CommandLineArgs, "Model", Parameters);
+		// generate big graph and plot its degrees
+		PNGraph G;
+		GetModel(Parameters[GRAPHGEN], G);
+		TFltPrV MDegIn, MDegOut;
+		TSnap::GetInDegCnt(G, MDegIn);
+		TSnap::GetOutDegCnt(G, MDegOut);
+		PlotDegrees(Parameters, MDegIn, MDegOut, "model");
+		PlotMetrics(Parameters, G, "model", TFile);
 
-		GetGraphs(Parameters, ModelGen, ModelPlt);
+		Env = TEnv(Parameters[KRONGEN], TNotify::NullNotify);
+		TStr IsDir = Env.GetIfArgPrefixStr("-isdir:", "false", "Produce directed graph (true, false)");
+		const TInt NIter = Env.GetIfArgPrefixInt("-i:", 1, "Number of iterations of Kronecker product");
+
+		// in and out average degrees of Kronecker graphs
+		TFltPrV KronDegAvgIn, KronDegAvgOut;
+		TStr KronParameters = GetModelParamsStr(G, IsDir);
+		double MaxModelOutDeg = MDegOut[MDegOut.Len()-1].Val1;
+		double RequiredDeg = MaxModelOutDeg + MaxModelOutDeg * ScalingCoeff;
+		ScaleFitMtx(G->GetNodes(), G->GetEdges(), RequiredDeg, RequiredDeg, FitMtx, NIter, IsDir, "true");
+		GenKron(Parameters[KRONGEN] + KronParameters, FitMtx, KronDegAvgIn, KronDegAvgOut);
+		PlotDegrees(Parameters, KronDegAvgIn, KronDegAvgOut, "kron");
+		PNGraph  K;
+		GetGraphFromAvgDistr(KronDegAvgOut, K);
+		PlotMetrics(Parameters, K, "kron", TFile);
 	}
-	
-	if (MSGen != "none"){
-		vector <TStr> Parameters;
-		for (size_t i = NPARCOPY + 1; i <= 2 * NPARCOPY; i++)
-			Parameters.push_back(commandLineArgs[i]);
-		Parameters.push_back(PType); Parameters.push_back(Plt); Parameters.push_back("Small"); Parameters.push_back(NEigen); 
-		Parameters.push_back(BinRadix.GetStr()); Parameters.push_back(Hops); Parameters.push_back(Clust);
 
-		GetGraphs(Parameters, MSGen, MSPlt);
+	else {
+		if (MSGen != "none"){
+			vector <TStr> Parameters;
+			GetParameters(CommandLineArgs, "Small", Parameters);
+			GetGraphs(Parameters, MSGen, MSPlt);
+		}
+
+		if (ModelGen != "none")
+		{
+			vector <TStr> Parameters;
+			GetParameters(CommandLineArgs, "Model", Parameters);
+			GetGraphs(Parameters, ModelGen, ModelPlt);
+		}
 	}
 	
 	TFile.close();

@@ -245,3 +245,26 @@ void PrintNodeDegrees(const PNGraph& G, const TKronMtx& FitMtx, const int& NIter
 	TStrV ColumnNames; ColumnNames.Add("NodeId");ColumnNames.Add("Deg");ColumnNames.Add("E_N[Deg]");ColumnNames.Add("E_N[Deg](Sum)");
 	MakeDatFile("DegTest", "Node degrees", ColumnNames, Data, G->GetNodes(), G->GetEdges());
 }
+
+void GetParameters(const vector<TStr>& CommandLineArgs, const TStr& Type, vector<TStr>& Parameters){
+	Env = TEnv(CommandLineArgs[KRONTEST], TNotify::NullNotify);
+	// type of plots
+	const TStr Plt = Env.GetIfArgPrefixStr("-plt:", "all", "Type of plots (cum, noncum, all)");
+	// full - all points of distrib will be plotted; expbin - exponential binning
+	const TStr PType = Env.GetIfArgPrefixStr("-ptype:", "all", "How to plot (full, expbin, all)");
+	// radix of binning
+	const TInt BinRadix = Env.GetIfArgPrefixInt("-bin:", 2, "Radix for exponential binning");
+	// number of eigenvalues to investigate
+	const TStr NEigen = Env.GetIfArgPrefixStr("-neigen:", "10", "Number of eigenvalues");
+	// plot hops (plot/none)
+	const TStr Hops = Env.GetIfArgPrefixStr("-hops:", "none", "Plot hops (plot/none)");
+	// clustering coefficient (yes - calculate general CC, yes+plot - caculate general CC + plot local CC, none)
+	const TStr Clust = Env.GetIfArgPrefixStr("-clust:", "none", "Calculate/plot clustering coefficient (yes/yes+plot/none)");
+
+	int BegIndex = 1;
+	if (Type == "Small") BegIndex += NPARCOPY;
+	for (size_t i = BegIndex; i < BegIndex + NPARCOPY; i++)
+		Parameters.push_back(CommandLineArgs[i]);
+	Parameters.push_back(PType); Parameters.push_back(Plt); Parameters.push_back(Type); Parameters.push_back(NEigen); 
+	Parameters.push_back(BinRadix.GetStr()); Parameters.push_back(Hops); Parameters.push_back(Clust);
+}

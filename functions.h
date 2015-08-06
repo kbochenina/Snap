@@ -15,6 +15,8 @@ void KroneckerTest(vector<TStr> commandLineArgs);
 void KroneckerByConf(vector<TStr> commandLineArgs);
 // generates set of graphs + calculates the metrics + create plots
 void GetGraphs(const vector <TStr>& parameters, const TStr& ModelGen, const TStr&ModelPlt);
+// get FitMtx and scaling coefficient from small model
+void GetFitMtxFromMS(TKronMtx& FitMtx, TFlt& ScalingCoeff, const vector<TStr>& Parameters);
 // graph generator by Lescovec
 int BasicGraphGen(const TStr args, PNGraph &GD);
 // create string with parameters of model graph as an input to GenKron() function

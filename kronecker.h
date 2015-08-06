@@ -68,6 +68,8 @@ public:
   bool CheckMtx(TStr& ErrorMsg);
   // get mtx sum
   double GetSum();
+  // check if mtx can be scaled to the desired degree
+  bool CanScaleToDeg(int Deg, TInt NIter);
 
   // generate Kronecker graph
   // slow and exact version
