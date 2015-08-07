@@ -51,16 +51,16 @@ public:
   // >> B and C are averaged (for undirected graph)
   void EqualizeBC();
 
-  // >> check (for noised version)!
-  double GetMinPossibleDeg();
-  double GetMaxPossibleDeg();
+  // >> check 
+  double GetMinPossibleDeg() const;
+  double GetMaxPossibleDeg() const;
 
   // >> check!
   // for NIter = 1
-  double GetMaxExpectedDeg(const TStr& IsDir = "false", bool IsIn = false);
+  double GetMaxExpectedDeg(const TStr& IsDir = "false", bool IsIn = false) const;
   // basic function
-  double GetMaxExpectedDeg(const int& NIter, const TStr& IsDir, bool IsIn);
-  double GetMaxExpectedDeg(const int& NIter, const TStr& IsDir, bool IsIn, int& BestRow, int& BestCol);
+  double GetMaxExpectedDeg(const int& NIter, const TStr& IsDir, bool IsIn) const;
+  double GetMaxExpectedDeg(const int& NIter, const TStr& IsDir, bool IsIn, int& BestRow, int& BestCol) const;
 
   // >> check!
   void SetForMaxDeg(const double& MaxDeg, const int& NIter, const TStr& IsDir = "false", bool IsIn = false);

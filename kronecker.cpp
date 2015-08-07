@@ -138,7 +138,7 @@ void TKronMtx::Normalize()
 	//	printf("Error while normalizing\n");
 }
 
-double TKronMtx::GetMaxExpectedDeg(const int& NIter, const TStr& IsDir, bool IsIn, int& BestRow, int& BestCol){
+double TKronMtx::GetMaxExpectedDeg(const int& NIter, const TStr& IsDir, bool IsIn, int& BestRow, int& BestCol) const{
 	const double A = At(0,0), B = At(0,1), C = At(1,0), D = At(1,1);
 	if (IsDir == "true"){
 		if (IsIn){
@@ -167,12 +167,12 @@ double TKronMtx::GetMaxExpectedDeg(const int& NIter, const TStr& IsDir, bool IsI
 	}
 }
 
-double TKronMtx::GetMaxExpectedDeg(const int&NIter, const TStr& IsDir, bool IsIn){
+double TKronMtx::GetMaxExpectedDeg(const int&NIter, const TStr& IsDir, bool IsIn) const{
 	int BestRow, BestCol;
 	return GetMaxExpectedDeg(NIter, IsDir, IsIn, BestRow, BestCol);
 }
 
-double TKronMtx::GetMaxExpectedDeg(const TStr& IsDir, bool IsIn){
+double TKronMtx::GetMaxExpectedDeg(const TStr& IsDir, bool IsIn) const{
 	return GetMaxExpectedDeg(1, IsDir, IsIn);
 }
 
@@ -210,8 +210,8 @@ double TKronMtx::GetMaxExpectedDeg(const TStr& IsDir, bool IsIn){
 
 // check if mtx can be scaled to the desired degree
 bool TKronMtx::CanScaleToDeg(int Deg, TInt NIter){
-	if (Deg > pow(GetMtxSum(), NIter) ||
-		Deg < pow(GetMtxSum()/2, NIter) )
+	if (Deg > pow(GetMaxPossibleDeg(), (double)NIter) ||
+		Deg < pow(GetMinPossibleDeg(), (double)NIter))
 		return false;
 	return true;
 }
@@ -414,20 +414,17 @@ bool TKronMtx::CanScaleToDeg(int Deg, TInt NIter){
 	return false;
  }
 
- bool CheckStopCondition(const TKronMtx& KronMtx, bool ToIncrease, double SensCoeff = 0.001){
+ bool CheckStopCondition(const TKronMtx& KronMtx, bool ToIncrease, double SensCoeff = 0.01){
 	 if (ToIncrease){
-		 TFlt Sum = KronMtx.GetMtxSum();
-		 for (int r = 0; r < KronMtx.GetDim(); r++)
-			 for (int c = 0; c < KronMtx.GetDim(); c++)
-			 if (IsEqual(KronMtx.At(r,c),Sum, SensCoeff)) 
-				return true;
+		 if (abs(KronMtx.GetMaxExpectedDeg() - KronMtx.GetMaxPossibleDeg()) < 0.001)
+			return true;
 	 }
 	 else {
 		 TFlt Avg = KronMtx.GetMtxSum() / pow(KronMtx.GetDim(), 2.00);
 		 bool AllEqual = true;
 		  for (int r = 0; r < KronMtx.GetDim(); r++)
 			 for (int c = 0; c < KronMtx.GetDim(); c++)
-			 if (!IsEqual(KronMtx.At(r,c),Avg, SensCoeff)) 
+			 if (abs (KronMtx.At(r,c) - Avg <= SensCoeff)) 
 				AllEqual = false;
 		if (AllEqual) return true;
 	 }
@@ -435,19 +432,33 @@ bool TKronMtx::CanScaleToDeg(int Deg, TInt NIter){
  }
 
 // works only for 2x2 size matrix!
-void TKronMtx::SetForMaxDeg(const double& MaxDeg, const int& NIter, const TStr& IsDir, bool IsIn)
+void TKronMtx::SetForMaxDeg(const double& MaxDegReq, const int& NIter, const TStr& IsDir, bool IsIn)
 {
+	double MaxDeg = MaxDegReq;
 	if (MaxDeg <= 0)
 		Error("SetForMaxDeg", "MaxDeg <= 0");
 	TStr ErrorMsg;
 	if (!CheckMtx(ErrorMsg)) Error("SetForMaxDeg", ErrorMsg);
-	
+		
 	TKronMtx ScaledMtx(*this);
 	
 	double SensCoeff = 0.01;
 
 	int BestRow = 0, BestCol = 0;
 	double MaxExpDeg = GetMaxExpectedDeg(NIter, IsDir, IsIn, BestRow, BestCol);
+
+	if (!CanScaleToDeg(MaxDeg, NIter)){
+		printf("WARNING. Required degree is out of the range. Matrix will be scaled to ");
+		if (MaxExpDeg < MaxDeg) {
+			printf(" maximum ");
+			MaxDeg = floor(pow(GetMaxPossibleDeg(), NIter));
+		}
+		else{
+			printf(" minimum ");
+			MaxDeg = ceil(pow(GetMinPossibleDeg(), NIter));
+		}
+		printf(" possible degree: %f\n", MaxDeg);
+	}
 	
 	if (IsEqual(MaxExpDeg, MaxDeg, SensCoeff)) return;
 
@@ -562,10 +573,15 @@ void TKronMtx::SetForMaxDeg(const double& MaxDeg, const int& NIter, const TStr& 
 	Diag2V = ScaledMtx.At(Diag2.Val1, Diag2.Val2),
 	LeastV = ScaledMtx.At(Least.Val1, Least.Val2);
 	
+
 	if (!ScaledMtx.CheckMtx(ErrorMsg)) Error("SetForMaxDeg", ErrorMsg);
 	
 	At(Corner.Val1,Corner.Val2) = CornerV; At(Diag1.Val1, Diag1.Val2) = Diag1V; 
 	At(Diag2.Val1,Diag2.Val2) = Diag2V; At(Least.Val1, Least.Val2) = LeastV; 
+
+	double MaxExpectedDeg = GetMaxExpectedDeg(NIter, IsDir, IsIn);
+	if (!IsEqual(MaxExpectedDeg, MaxDeg, SensCoeff) && !CheckStopCondition(*this, ToIncrease, SensCoeff))
+		SetForMaxDeg(MaxDeg, NIter);
 
 	if (DecFound == false && CheckStopCondition(*this, ToIncrease, SensCoeff)){
 		printf("%f %f %f %f MaxDeg: %f Expected: %f\n", CornerV, Diag1V, Diag2V, LeastV, MaxDeg, ScaledMtx.GetMaxExpectedDeg(NIter, IsDir, IsIn));
@@ -574,9 +590,6 @@ void TKronMtx::SetForMaxDeg(const double& MaxDeg, const int& NIter, const TStr& 
 		Error("SetForMaxDeg", "Cannot find solution");
 	}
 	
-	double MaxExpectedDeg = GetMaxExpectedDeg(NIter, IsDir, IsIn);
-	if (!IsEqual(MaxExpectedDeg, MaxDeg, SensCoeff) && !CheckStopCondition(*this, ToIncrease, SensCoeff))
-		SetForMaxDeg(MaxDeg, NIter);
 }
 
 void TKronMtx::AddRndNoise(const double& SDev) {
@@ -1229,7 +1242,7 @@ int TKronMtx::AddUnDir(PNGraph& G, const TKronMtx& SeedMtx, const int& NIter, co
 				// prevent addition of edge with degree > DegMax
 				//!!!
 				int InDegCol = G->GetNI(Col).GetInDeg(), OutDegCol = G->GetNI(Col).GetOutDeg();
-				//if (InDegCol + 1 > DegR.Val2 || OutDegCol + 1 > DegR.Val2) {Collision++;  j--; continue;}
+				if (InDegCol + 1 > DegR.Val2 || OutDegCol + 1 > DegR.Val2) {Collision++;  j--; continue;}
 				G->AddEdge(Row,Col);
 				//printf("(%d %d)\t", Row, Col);
 				EdgesAdded++;
@@ -1313,8 +1326,8 @@ void TKronMtx::RemoveZeroDegreeNodes(PNGraph& out, const TKronMtx& Mtx, const in
 				while (1){
 					double val = rnd.GetUniDev();
 					// get neighbour node using probability matrix
-					int nodeId = GetCol(RowProbCumV, i, NIter, rnd);
-					//int nodeId = rnd.GetUniDev() * (nodesCount-1);
+					//int nodeId = GetCol(RowProbCumV, i, NIter, rnd);
+					int nodeId = rnd.GetUniDev() * (nodesCount-1);
 					if (nodeId == i || out->IsEdge(nodeId,i)) continue;
 					auto NI = out->GetNI(nodeId);
 					int OutDeg = NI.GetOutDeg();
@@ -1326,8 +1339,8 @@ void TKronMtx::RemoveZeroDegreeNodes(PNGraph& out, const TKronMtx& Mtx, const in
 
 					out->DelEdge(nodeId, NbOutId, false);
 
-					/*printf("Edge (%d,%d) was deleted\n", nodeId, NbOutId);
-					printf("Edge (%d,%d) was added\n", nodeId, i);*/
+					//printf("Edge (%d,%d) was deleted\n", nodeId, NbOutId);
+					//printf("Edge (%d,%d) was added\n", nodeId, i);
 
 					out->AddEdge(nodeId, i);
 					out->AddEdge(i,nodeId);
@@ -1460,13 +1473,12 @@ bool CheckMu(double T1, double T2, double T3, double T4, double Mu){
 		return false;
 	return true;
 }
-  double TKronMtx::GetMinPossibleDeg(){
-	  double Val = GetMtxSum() / 4; 
-	  return (2 * Val);
+  double TKronMtx::GetMinPossibleDeg() const{
+	  return (GetMtxSum() / 2);
   }
-  double TKronMtx::GetMaxPossibleDeg(){
-	  double Val = (GetMtxSum() - 1) / 2;
-	  return (1 + Val);
+  double TKronMtx::GetMaxPossibleDeg() const{
+	  double Val = 1 + (GetMtxSum() - 1)/2;
+	  return Val;
   }
 
 // works for 2x2 matrix
@@ -1497,17 +1509,17 @@ double TKronMtx::GetNoisedProbV(const TKronMtx& SeedMtx, const int& NIter, TVec<
 		}
 		while (!CheckMu(T1, T2, T3, T4, Mu));
 		
-		if (AccumExpected > AccumReal) {
+		/*if (AccumExpected > AccumReal) {
 			double M = MaxPossibleDeg;
 			NewMtx.SetForMaxDeg(MaxPossibleDeg , 1); 
 			CurrentDeg = MaxPossibleDeg;
 		}
-		else {
+		else {*/
 			NewMtx.At(0,0) -= (2 * Mu * T1) / (T1 + T4);
 			NewMtx.At(0,1) += Mu;
 			NewMtx.At(1,0) += Mu;
 			NewMtx.At(1,1) -= (2 * Mu * T4) / (T1 + T4);
-			CurrentDeg = NewMtx.GetMaxExpectedDeg();
+		/*	CurrentDeg = NewMtx.GetMaxExpectedDeg();
 		}
 		if (i == NIter - 1 && NoiseCoeff != 0){
 			double RequiredDeg = AccumExpected * Step / AccumReal;
@@ -1521,10 +1533,10 @@ double TKronMtx::GetNoisedProbV(const TKronMtx& SeedMtx, const int& NIter, TVec<
 
 		}
 		AccumReal *= CurrentDeg;
-		AccumExpected *= Step;
+		AccumExpected *= Step;*/
 		//printf("CurrentDeg = %f, AccumExpected = %f, AccumReal = %f\n", CurrentDeg, AccumExpected, AccumReal);
-		if (AccumReal > AccumExpected) CanBeNegative = true;
-		else CanBeNegative = false;
+		/*if (AccumReal > AccumExpected) CanBeNegative = true;
+		else CanBeNegative = false;*/
 
 		TVec<TFltIntIntTr> MtxVec;
 		
