@@ -105,13 +105,13 @@ void SaveDegree(const TFltPrV& deg, const TStr& n, bool isIn, bool isCum){
 
 // plot all points without binning
 void PlotPoints(const TFltPrV& in, const TFltPrV& out, const TStr& name, const TStr& Plt){
-		if (Plt == "cum" || Plt == "all"){
-			SaveDegree(in, name, true, true);
-			SaveDegree(out, name, false, true);
-		}
 		if (Plt == "noncum" || Plt == "all"){
 			SaveDegree(in, name, true, false);
 			SaveDegree(out, name, false, false);
+		}
+		if (Plt == "cum" || Plt == "all"){
+			SaveDegree(in, name, true, true);
+			SaveDegree(out, name, false, true);
 		}
 }
 

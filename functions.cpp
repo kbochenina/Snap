@@ -434,7 +434,6 @@ double GetBestCoeff(TFltPrV& ScalingResults){
 // estimate scaling coefficient
 double GetScalingCoefficient(const TFltPrV& InDegCnt, const TFltPrV& OutDegCnt, const TKronMtx& FitMtxM, const TInt& NIter, const TStr& IsDir){
 	// !!!
-	return 0.5;
 	TKronMtx FitMtx(FitMtxM);
 	double ScalingCoeff = 0;
 	double ScalingStep = 0.2;
@@ -508,7 +507,7 @@ double GetScalingCoefficient(const TFltPrV& InDegCnt, const TFltPrV& OutDegCnt, 
 	return ScalingCoeff;
 }
 
-void GenKron(const TStr& Args, TKronMtx& FitMtx, TFltPrV& KronDegAvgIn, TFltPrV& KronDegAvgOut){
+void GenKron(const TStr& Args, TKronMtx& FitMtx, TFltPrV& KronDegAvgIn, TFltPrV& KronDegAvgOut, vector<Diap>& SmoothedDiaps){
 	Env = TEnv(Args, TNotify::NullNotify);
 	TExeTm ExecTime;
 	// number of Kronecker graphs to generate
@@ -561,6 +560,7 @@ void GenKron(const TStr& Args, TKronMtx& FitMtx, TFltPrV& KronDegAvgIn, TFltPrV&
 	for (int i = 0; i < NKron; i++){
 		ExecTime.Tick();
 		KroneckerGen(Kron, FitMtx, NIter, IsDir, InDegR, OutDegR, NoiseCoeff);
+		Rewire(Kron, SmoothedDiaps, OutDegR);
 		/*if (IsDir == "false" && !CheckReciprocity(Kron)){
 			Error("GenKron", "Violation of reciprocity for undirected graph");
 		}*/
@@ -686,8 +686,9 @@ void GetGraphs(const vector <TStr>& Parameters, const TStr& ModelGen, const TStr
 		TFltPrV KronDegAvgIn, KronDegAvgOut;
 		
 		TStr KronParameters = GetModelParamsStr(G, IsDir);
-		
-		GenKron(Parameters[KRONGEN] + KronParameters, FitMtxM, KronDegAvgIn, KronDegAvgOut);
+		vector<Diap> SmoothedDiaps;
+
+		GenKron(Parameters[KRONGEN] + KronParameters, FitMtxM, KronDegAvgIn, KronDegAvgOut, SmoothedDiaps);
 
 		PlotDegrees(Parameters, KronDegAvgIn, KronDegAvgOut, "kron");
 		
@@ -698,7 +699,7 @@ void GetGraphs(const vector <TStr>& Parameters, const TStr& ModelGen, const TStr
 }
 
 // get FitMtx and scaling coefficient from small model
-void GetFitMtxFromMS(TKronMtx& FitMtxM, TFlt& ScalingCoeff, const vector<TStr>& Parameters){
+void GetFitMtxFromMS(TKronMtx& FitMtxM, TFlt& ScalingCoeff, vector<Diap>& SmoothedDiaps, const vector<TStr>& Parameters){
 	PNGraph G;
 	GetModel(Parameters[GRAPHGEN], G);
 	int ModelNodes = G->GetNodes(), ModelEdges = G->GetEdges();
@@ -739,15 +740,14 @@ void GetFitMtxFromMS(TKronMtx& FitMtxM, TFlt& ScalingCoeff, const vector<TStr>& 
 		PrintDegDistr(KronDeg, "KronAvg.tab");
 		//PrintDegDistr(MDegOut, "Model.tab");
 		PrintRelDiff(RelDiffNonCum, "RelDiff.tab");
-		vector<Diap> SmoothedDiaps;
 		GetSmoothedDiaps(RelDiffNonCum, SmoothedDiaps);
-		PrintSmoothedDiaps(SmoothedDiaps, "SmoothedDiaps.tab");
-		PNGraph Kron; 
+		//PrintSmoothedDiaps(SmoothedDiaps, "SmoothedDiaps.tab");
+		/*PNGraph Kron; 
 		KroneckerGen(Kron, NewMtx, NIter, IsDir, OutDegR, OutDegR, 0);
 		Rewire(Kron, SmoothedDiaps, OutDegR);
 		KronDeg.Clr();
 		TSnap::GetInDegCnt(Kron, KronDeg);
-		PlotPoints(KronDeg,	KronDeg, "KronScaled", "all");
+		PlotPoints(KronDeg,	KronDeg, "KronScaled", "all");*/
 		//system("pause");
 	}
 }
@@ -782,14 +782,14 @@ void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutD
 	int ModelEdges = Kron->GetEdges();
 	TFltPrV KronDeg;
 	TSnap::GetInDegCnt(Kron, KronDeg);
-	PrintDegDistr(KronDeg, "Kron.tab");
+	//PrintDegDistr(KronDeg, "Kron.tab");
 	KronDeg.Sort();
 	const TInt& DegMin = OutDegR.Val1, &DegMax = OutDegR.Val2;
 	
 	TIntPrV DiapEdges; 
 	for (auto DiapIt = SmoothedDiaps.begin(); DiapIt != SmoothedDiaps.end(); DiapIt++){
-		TInt DiapBegin = (DegMax - DegMin) * DiapIt->first.Val1 + DegMin,
-			DiapEnd = (DegMax - DegMin) * DiapIt->first.Val2 + DegMin;
+		TInt DiapBegin = (DegMax - DegMin) * DiapIt->first.Val1 + DegMin + 0.5,
+			DiapEnd = (DegMax - DegMin) * DiapIt->first.Val2 + DegMin + 0.5;
 		TFlt AvgDeg = 0;
 		for (size_t i = DiapBegin; i <= DiapEnd; i++) AvgDeg += i;
 		AvgDeg /= (DiapEnd - DiapBegin + 1);
@@ -830,12 +830,13 @@ void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutD
 				DiapsToDel[NeighIndex].push_back(make_pair(DiapIndex, NodesToDecreaseDegree));
 				EdgesToAdd += NodesToDecreaseDegree * (NeighAvgDeg - AvgDeg);
 				NeighNodesCount -= NodesToDecreaseDegree;
+				NodesCount -= NodesToDecreaseDegree;
 				if (NodesToDecreaseDegree == NodesCount){
 					DecFound = true;
-					printf("Index: %d, decision found\n", DiapIndex);
+					//printf("Index: %d, decision found\n", DiapIndex);
 					break;
 				}
-				else NodesCount -= NodesToDecreaseDegree;
+				
 			}
 			// from "-" to "-"
 			else if (DiapIt->second < 0 && NeighIt->second > 0) {
@@ -852,8 +853,6 @@ void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutD
 				}
 			}
 		}
-		
-		
 	}
 	printf("Edges to add: %d\n", EdgesToAdd);
 	PrintDegDistr(DiapEdges, "DiapEdges1.tab");
@@ -960,29 +959,30 @@ void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutD
 			//Kron->DelEdge(Node2, Node1, false);
 		}
 	}
-	cout << "Real difference: " << Kron->GetEdges() - ModelEdges << endl;
-	system("pause");
+	//cout << "Real difference: " << Kron->GetEdges() - ModelEdges << endl;
+	
 }
 
 // get smoothed diapasons for scaling
 void GetSmoothedDiaps(const TFltPrV& RelDiffNonCum, vector<Diap>& SmoothedDiaps){
 	if (RelDiffNonCum.Len() == 0)
 		Error("GetSmoothedDiaps", "Array size = 0");
-	const TInt DegCount = RelDiffNonCum.Len();
+	const TInt DegCount = RelDiffNonCum.Len(), DiffDegs = RelDiffNonCum[DegCount-1].Val1 - RelDiffNonCum[0].Val1;
 	TInt ToleranceVal = DegCount / 10;
-	if (ToleranceVal < 0) ToleranceVal = 1;
+	if (ToleranceVal == 0) ToleranceVal = 1;
 	TFlt DiapAvgDev = 0;
 	bool DiapSign = RelDiffNonCum[0].Val2 > 0 ? true : false;
 	TInt DiapBegin = 0, DiapEnd = 0; 
 	for (size_t i = 0; i < DegCount; i++){
 		bool CurrentSign = RelDiffNonCum[i].Val2 > 0 ? true : false;
+		
 		if (CurrentSign != DiapSign){
 			TInt DiapLength = DiapEnd - DiapBegin + 1;
 			if (SmoothedDiaps.size() == 0 ||
 				DiapLength >= ToleranceVal){
 				Diap NewDiap; 
-				NewDiap.first.Val1 = static_cast<double>(DiapBegin) / DegCount;
-				NewDiap.first.Val2 = static_cast<double>(DiapEnd) / DegCount;
+				NewDiap.first.Val1 = static_cast<double>(DiapBegin) / DiffDegs; //DegCount
+				NewDiap.first.Val2 = static_cast<double>(DiapEnd) / DiffDegs;
 				NewDiap.second = DiapAvgDev / DiapLength;
 				SmoothedDiaps.push_back(NewDiap);
 				DiapBegin = i; DiapEnd = i; DiapAvgDev = RelDiffNonCum[i].Val2; DiapSign = CurrentSign;
@@ -991,6 +991,13 @@ void GetSmoothedDiaps(const TFltPrV& RelDiffNonCum, vector<Diap>& SmoothedDiaps)
 		else {
 			DiapEnd = i;
 			DiapAvgDev += RelDiffNonCum[i].Val2;
+			if (i == DegCount - 1 && DiapEnd-DiapBegin+1 >= ToleranceVal){
+				Diap NewDiap; 
+				NewDiap.first.Val1 = static_cast<double>(DiapBegin) / DiffDegs;
+				NewDiap.first.Val2 = static_cast<double>(DiapEnd) / DiffDegs;
+				NewDiap.second =  DiapAvgDev / (DiapEnd-DiapBegin+1);
+				SmoothedDiaps.push_back(NewDiap);
+			}
 		}
 	}
 }
@@ -1033,6 +1040,7 @@ void GetRelativeDiff(const TFltPrV& MDeg, const TFltPrV& KronDeg, TFltPrV&  RelD
 			}
 			else {
 				RelDiff = KronDegCount;
+				//RelDiff = 1;
 				KronInd++;
 			}
 			TFltPr RelDiffPr(CurrDeg, RelDiff * -1);
@@ -1085,7 +1093,8 @@ void KroneckerByConf(vector<TStr> CommandLineArgs){
 		TFlt ScalingCoeff = 0;
 		vector <TStr> Parameters;
 		GetParameters(CommandLineArgs, "Small", Parameters);
-		GetFitMtxFromMS(FitMtx, ScalingCoeff, Parameters);
+		vector<Diap> SmoothedDiaps;
+		GetFitMtxFromMS(FitMtx, ScalingCoeff, SmoothedDiaps, Parameters);
 		Parameters.clear();
 		GetParameters(CommandLineArgs, "Model", Parameters);
 		// generate big graph and plot its degrees
@@ -1113,8 +1122,9 @@ void KroneckerByConf(vector<TStr> CommandLineArgs){
 		double MaxModelOutDeg = MDegOut[MDegOut.Len()-1].Val1;
 		double RequiredDeg = MaxModelOutDeg + MaxModelOutDeg * ScalingCoeff;
 		ScaleFitMtx(G->GetNodes(), G->GetEdges(), RequiredDeg, RequiredDeg, FitMtx, NIter, IsDir, "true");
-		GenKron(Parameters[KRONGEN] + KronParameters, FitMtx, KronDegAvgIn, KronDegAvgOut);
-		PlotDegrees(Parameters, KronDegAvgIn, KronDegAvgOut, "kron");
+		GenKron(Parameters[KRONGEN] + KronParameters, FitMtx, KronDegAvgIn, KronDegAvgOut, SmoothedDiaps);
+		//PlotDegrees(Parameters, KronDegAvgIn, KronDegAvgOut, "kron");
+		PlotPoints(KronDegAvgIn, KronDegAvgOut, "KronModel", "all");
 		PNGraph  K;
 		GetGraphFromAvgDistr(KronDegAvgOut, K);
 		PlotMetrics(Parameters, K, "kron", TFile);
