@@ -148,6 +148,28 @@ void ReadMtx(const TStr& Mtx, const TInt& MtxSize, TKronMtx& FitMtx){
 	FitMtx.SetMtx(matrix);
 }
 
+void PrintRelDiff(const TFltPrV& RelDiffV, const TStr& OutFNm){
+	FILE *F = stdout;
+	if (! OutFNm.Empty()) F = fopen(OutFNm.CStr(), "wt");
+	fprintf(F, "\n");
+	fprintf(F, "  Degree\tRelDiff\n");
+	for (int i = 0; i < RelDiffV.Len(); i++){
+		fprintf(F, "%f\t%f\n", RelDiffV[i].Val1.Val, RelDiffV[i].Val2.Val);
+	}
+	if (! OutFNm.Empty()) { fclose(F); }
+}
+
+void PrintSmoothedDiaps(const vector<pair<TFltPr, TFlt>>& Diaps, const TStr& OutFNm){
+	FILE *F = stdout;
+	if (! OutFNm.Empty()) F = fopen(OutFNm.CStr(), "wt");
+	fprintf(F, "\n");
+	fprintf(F, "  DiapBegin\tDiapEnd\tRelDiff\n");
+	for (int i = 0; i < Diaps.size(); i++){
+		fprintf(F, "%f\t%f\t%f\n", Diaps[i].first.Val1, Diaps[i].first.Val2, Diaps[i].second);
+	}
+	if (! OutFNm.Empty()) { fclose(F); }
+}
+
 void MakeDatFile(const TStr& Name, const TStr& AddStr, const TStrV& ColumnNames, const vector<vector<double>>& Data, const int& Nodes, const int& Edges){
 	if (Data.size() == 0)
 		Error("MakeDatFile", "Data array is empty");

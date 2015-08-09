@@ -495,10 +495,16 @@ void TKronMtx::SetForMaxDeg(const double& MaxDegReq, const int& NIter, const TSt
 				// Corner cannot change
 				DecFound = ScaleThree(ScaledMtx, NIter, MaxDeg, IsDir, IsIn, Corner, true, CornerChanged);
 				StopCondition = CheckStopCondition(ScaledMtx, ToIncrease, SensCoeff);
-				if (CornerChanged) Error("SetForMaxDeg", "Case " + Case + ", Corner chanded on stage 0");
+				if (CornerChanged) {
+					Error("SetForMaxDeg", "Case " + Case + ", Corner chanded on stage 0");
+					ScaledMtx.Dump();
+				}
 				if (!StopCondition && !DecFound)
 					DecFound = ScaleThree(ScaledMtx, NIter, MaxDeg, IsDir, IsIn, Least, false, CornerChanged);
-				if (CornerChanged) Error("SetForMaxDeg", "Case " + Case + ", Corner chanded on stage 1");
+				if (CornerChanged) {
+					Error("SetForMaxDeg", "Case " + Case + ", Corner chanded on stage 1");
+					ScaledMtx.Dump();
+				}
 			}
 			else {
 				Case = "I1b";
@@ -507,8 +513,10 @@ void TKronMtx::SetForMaxDeg(const double& MaxDegReq, const int& NIter, const TSt
 				if (!CornerChanged && !StopCondition && !DecFound){
 					CornerV = ScaledMtx.At(Corner.Val1, Corner.Val2); LeastV = ScaledMtx.At(Least.Val1, Least.Val2);
 					Diag1V = ScaledMtx.At(Diag1.Val1, Diag1.Val2); Diag2V = ScaledMtx.At(Diag2.Val1, Diag2.Val2);
-					if (!IsEqual(CornerV, LeastV, SensCoeff))
+					if (!IsEqual(CornerV, LeastV, SensCoeff)){
+						ScaledMtx.Dump();
 						Error("SetForMaxDeg", "Case " + Case + ", Corner != Least");
+					}
 					if (CornerV < Diag1V)
 						DecFound = ScaleFour(ScaledMtx, NIter, MaxDeg, IsDir, IsIn, Corner, CornerChanged);
 					else
@@ -522,7 +530,10 @@ void TKronMtx::SetForMaxDeg(const double& MaxDegReq, const int& NIter, const TSt
 				Case = "I2a";
 				DecFound = ScaleTwo(ScaledMtx, NIter, MaxDeg, IsDir, IsIn, Corner, CornerChanged);
 				StopCondition = CheckStopCondition(ScaledMtx, ToIncrease, SensCoeff);
-				if (CornerChanged) Error("SetForMaxDeg", "Case " + Case + ", Corner chanded on stage 0");
+				if (CornerChanged) {
+					Error("SetForMaxDeg", "Case " + Case + ", Corner chanded on stage 0");
+					ScaledMtx.Dump();
+				}
 				if (!StopCondition && !DecFound)
 					DecFound = ScaleThree(ScaledMtx, NIter, MaxDeg, IsDir, IsIn, Corner, true, CornerChanged);
 			}
@@ -533,8 +544,10 @@ void TKronMtx::SetForMaxDeg(const double& MaxDegReq, const int& NIter, const TSt
 				if (!StopCondition && !DecFound){
 					CornerV = ScaledMtx.At(Corner.Val1, Corner.Val2); LeastV = ScaledMtx.At(Least.Val1, Least.Val2);
 					Diag1V = ScaledMtx.At(Diag1.Val1, Diag1.Val2); Diag2V = ScaledMtx.At(Diag2.Val1, Diag2.Val2);
-					if (!IsEqual(CornerV, LeastV, SensCoeff))
+					if (!IsEqual(CornerV, LeastV, SensCoeff)){
 						Error("SetForMaxDeg", "Case " + Case + ", Corner != Least");
+						ScaledMtx.Dump();
+					}
 					if (CornerV < Diag1V)
 						DecFound = ScaleFour(ScaledMtx, NIter, MaxDeg, IsDir, IsIn, Corner, CornerChanged);
 					else
@@ -551,11 +564,13 @@ void TKronMtx::SetForMaxDeg(const double& MaxDegReq, const int& NIter, const TSt
 			Case = "II2a";
 			DecFound = ScaleFour(ScaledMtx, NIter, MaxDeg, IsDir, IsIn, Corner, CornerChanged);
 			StopCondition = CheckStopCondition(ScaledMtx, ToIncrease, SensCoeff);
-			if (!StopCondition && !CornerChanged && !DecFound)
+			if (!StopCondition && !CornerChanged && !DecFound){
 				Error("SetForMaxDeg", "Case " + Case + ", Corner was not changed");
+				ScaledMtx.Dump();
+			}
 		}
 		else {
-			Case = "II2a";
+			Case = "II2b";
 			if (Diag1V < Diag2V){
 				DecFound = ScaleTwo(ScaledMtx, NIter, MaxDeg, IsDir, IsIn, Diag1, CornerChanged);
 			}
@@ -563,8 +578,10 @@ void TKronMtx::SetForMaxDeg(const double& MaxDegReq, const int& NIter, const TSt
 				DecFound = ScaleTwo(ScaledMtx, NIter, MaxDeg, IsDir, IsIn, Diag2, CornerChanged);
 			}
 			StopCondition = CheckStopCondition(ScaledMtx, ToIncrease, SensCoeff);
-			if (!StopCondition && !CornerChanged && !DecFound)
-			Error("SetForMaxDeg", "Case " + Case + ", Corner was not changed");
+			if (!StopCondition && !CornerChanged && !DecFound){
+				Error("SetForMaxDeg", "Case " + Case + ", Corner was not changed");
+				ScaledMtx.Dump();
+			}
 		}
 	}
 	
@@ -1233,16 +1250,16 @@ int TKronMtx::AddUnDir(PNGraph& G, const TKronMtx& SeedMtx, const int& NIter, co
 	for (int i = 0; i < NNodes; i++){
 		int Row = i;
 		int InDeg = G->GetNI(Row).GetInDeg(), OutDeg = G->GetNI(Row).GetOutDeg();
-		if (InDeg != OutDeg) printf("InDeg != OutDeg. Error");
-		if (InDeg >= DegReq || OutDeg >= DegReq) 
+		if (InDeg != OutDeg) Error("AddUnDir()","For undirected graph InDeg != OutDeg");
+		if (InDeg >= DegReq) 
 			continue;
 		for (int j = 0; j < DegReq-OutDeg; j++){	
 			int Col = GetCol(RowProbCumV, Row, NIter, Rnd);
 			if (Row != Col && !G->IsEdge(Row, Col)){
 				// prevent addition of edge with degree > DegMax
 				//!!!
-				int InDegCol = G->GetNI(Col).GetInDeg(), OutDegCol = G->GetNI(Col).GetOutDeg();
-				if (InDegCol + 1 > DegR.Val2 || OutDegCol + 1 > DegR.Val2) {Collision++;  j--; continue;}
+				int InDegCol = G->GetNI(Col).GetInDeg();
+				if (InDegCol + 1 > DegR.Val2) {Collision++;  j--; continue;}
 				G->AddEdge(Row,Col);
 				//printf("(%d %d)\t", Row, Col);
 				EdgesAdded++;
@@ -1253,8 +1270,11 @@ int TKronMtx::AddUnDir(PNGraph& G, const TKronMtx& SeedMtx, const int& NIter, co
 			else {Collision++; j--;}//printf("Collision1\n"); }	
 		}
 	}
-	//std::string s = "Edges added=" + std::to_string((long long)EdgesAdded) +", edges to add=" + std::to_string((long long) DegReq * NNodes) + "\n";
-	//printf("%s",s.c_str());
+	/*std::string s = "Edges added=" + std::to_string((long long)EdgesAdded) +", edges to add=" + std::to_string((long long) DegReq * NNodes) + "\n";
+	printf("%s",s.c_str());*/
+	TStr Msg = "Edges added ("; Msg += EdgesAdded; Msg += ") > edges to add ("; Msg += DegReq * NNodes; Msg += ")";
+	if (EdgesAdded > DegReq * NNodes)
+		Error("AddUnDir", Msg);
 	return Collision;
 }
 
@@ -1301,14 +1321,7 @@ void TKronMtx::RemoveZeroDegreeNodes(PNGraph& out, const TKronMtx& Mtx, const in
 	int nodesCount = out->GetNodes();
 	int edgesCount = out->GetEdges();
 	TVec<TVec<TFltIntIntTr>> RowProbCumV, ColProbCumV;
-	//TIntV DegBefore, DegAfter; TFltV Prob;
-	int MaxExpectedDeg = 0;
 	
-	for (int i = 0; i < nodesCount; i++){
-		if (out->GetNI(i).GetInDeg() > MaxExpectedDeg)
-			MaxExpectedDeg = out->GetNI(i).GetInDeg();
-	}
-
 	GetRowProbCumV(Mtx, RowProbCumV);
 
 	
@@ -1316,10 +1329,10 @@ void TKronMtx::RemoveZeroDegreeNodes(PNGraph& out, const TKronMtx& Mtx, const in
 	int EdgesToDel = 0;
 	for (int i = 0; i < nodesCount; i++){
 		int InDeg = out->GetNI(i).GetInDeg();
-		
 		if (InDeg < MinDeg){
-			int EdgesToAdd = MinDeg - InDeg + rnd.GetUniDev() * (MinDeg - InDeg + 2 * MinDeg);
-			if (InDeg + EdgesToAdd > MaxDeg) EdgesToAdd = InDeg - MaxDeg;
+			int EdgesToAdd = MinDeg - InDeg;
+			//int EdgesToAdd = MinDeg - InDeg + rnd.GetUniDev() * (MinDeg - InDeg + 2 * MinDeg);
+			//if (InDeg + EdgesToAdd > MaxDeg) EdgesToAdd = InDeg - MaxDeg;
 			EdgesToDel += EdgesToAdd;
 			//printf("Edges to add: %d\n", EdgesToAdd);
 			for (int j = 0; j < EdgesToAdd; j++){
@@ -1334,7 +1347,7 @@ void TKronMtx::RemoveZeroDegreeNodes(PNGraph& out, const TKronMtx& Mtx, const in
 					if (OutDeg == 0 || OutDeg >= MaxDeg) continue;
 					int NbId = static_cast<int>(rnd.GetUniDev() * (OutDeg - 1));
 					int NbOutId = NI.GetNbrNId(NbId);
-					if (out->GetNI(NbOutId).GetInDeg() <= MinDeg || (MaxExpectedDeg - out->GetNI(NbOutId).GetInDeg()) / static_cast<double>(MaxExpectedDeg) < 0.01  ) 
+					if (out->GetNI(NbOutId).GetInDeg() <= MinDeg ) 
 						continue;
 
 					out->DelEdge(nodeId, NbOutId, false);
@@ -1385,12 +1398,15 @@ void TKronMtx::RemoveZeroDegreeNodes(PNGraph& out, const TKronMtx& Mtx, const in
 				out->DelEdge(i, NodeToRewire, false);
 				//printf("%d Edge was deleted\n", EToChange);
 				if (out->GetNI(i).GetInDeg() < MinDeg){
-					printf("Current node degree is less than min deg: %d < %d InDeg = %d EToChange=%d\n", CurrNode.GetInDeg(), MinDeg, InDeg, EToChange);
-					system("pause");
+					TStr Msg = "Current node degree is less than min deg: ";
+					Msg += CurrNode.GetInDeg(); Msg += " < "; Msg += MinDeg; Msg += " InDeg = "; Msg += InDeg; 
+					Msg += "EToChange = "; Msg += EToChange;
+					Error("RemoveZeroDegreeNodes", Msg);
 				}
 				if (out->GetNI(NodeToRewire).GetInDeg() < MinDeg){
-					printf("Node to rewire degree is less than min deg:%d < %d\n", out->GetNI(NodeToRewire).GetInDeg(), MinDeg);
-					system("pause");
+					TStr Msg = "Node to rewire degree is less than min deg: ";
+					Msg += out->GetNI(NodeToRewire).GetInDeg(); Msg += " < "; Msg += MinDeg;
+					Error("RemoveZeroDegreeNodes", Msg);
 				}
 				EToChange--;
 				if (EToChange == 0) break;
@@ -1451,6 +1467,7 @@ void TKronMtx::GenFastKronecker(PNGraph& Graph, const TKronMtx& SeedMtx, const i
 		//printf("AddUnDir() time: %f\n", ExecTime);
 	}
 	const int Least = NEdges - Graph->GetEdges();
+	//printf("Least = %d\n", Least);
 	TExeTm ExecTime;
 	ExecTime.Tick();
 	Collisions += AddEdges(Graph, SeedMtx, NIter, IsDir, Least, Rnd, InDegR.Val2, OutDegR.Val2, NoiseCoeff);

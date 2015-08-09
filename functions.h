@@ -8,6 +8,8 @@ const string FUNCNAMES[] = {"KRONTEST", "GRAPHGEN_M", "MTXGEN_M", "KRONFIT_M", "
 const enum CMDARGS { KRONTEST = 0, GRAPHGEN_M = 1, MTXGEN_M = 2, KRONFIT_M = 3, KRONGEN_M = 4, GRAPHGEN_MS = 5, MTXGEN_MS = 6, KRONFIT_MS = 7, KRONGEN_MS = 8};
 const enum ARGS { GRAPHGEN = 0, MTXGEN = 1, KRONFIT = 2, KRONGEN = 3, PTYPE = 4, PLT = 5, NAME = 6, NEIGEN = 7, BINRADIX = 8, HOPS = 9, CLUST = 10};
 
+typedef pair<TFltPr, TFlt> Diap;
+
 // generates Kronecker model on the base of existing graph
 void KroneckerTest(vector<TStr> commandLineArgs);
 // generates Kronecker model using configuration model of small model network
@@ -35,3 +37,11 @@ void ScaleFitMtxForEdges(TKronMtx& FitMtx, const TInt& NIter, const int& Expecte
 // estimate scaling coefficient
 double GetScalingCoefficient(const TFltPrV& InDegCnt, const TFltPrV& OutDegCnt, const TKronMtx& FitMtx, const TInt& NIter, const TStr& IsDir);
 double GetAvgDeviation(const TFltPrV& ModelDegCnt, const TFltPrV& KronDegCnt);
+// get average estimates of out-degree of NKron Kronecker graphs
+void GetAvgKronDeg(const TKronMtx& NewMtx, const TInt& NIter, const TStr& IsDir, const TInt& NKron, const TIntPr& ModelDegR, TFltPrV& KronDeg);
+// get relative differences of degrees
+void GetRelativeDiff(const TFltPrV& MDeg, const TFltPrV& KronDeg, TFltPrV&  RelDiffNonCum, bool NonCum = true);
+// get smoothed diapasons for scaling
+void GetSmoothedDiaps(const TFltPrV& RelDiffNonCum, vector<Diap>& SmoothedDiaps);
+// rewire edges according to smoothed diaps
+void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutDegR);

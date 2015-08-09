@@ -13,6 +13,6 @@ int main(int argc, char* argv[]) {
 	KroneckerByConf(commandLineArgs);
 	
 	Catch
-    //system("pause");
+    system("pause");
 	return 0;
 }
