@@ -761,7 +761,7 @@ bool GetDiap(const vector<Diap>& Diaps, const TFlt& DegPart, bool& DiapSign, TIn
 	for (auto DiapIt = Diaps.begin(); DiapIt != Diaps.end(); DiapIt++){
 		if (DiapIt->first.Val1 > DegPart) 
 			return false;
-		else if (DiapIt->first.Val1 >= DegPart && DiapIt->first.Val2 <= DegPart){
+		else if (DiapIt->first.Val1 <= DegPart && DiapIt->first.Val2 >= DegPart){
 			DiapSign = DiapIt->first.Val2 > 0 ? true : false;
 			return true;
 		}
@@ -770,9 +770,16 @@ bool GetDiap(const vector<Diap>& Diaps, const TFlt& DegPart, bool& DiapSign, TIn
 	return false;
 }
 
+int GetRandDeg(TRnd& Rnd, const Diap& Borders, const int DegMin, const int DegMax){
+	TInt DiapBegin = (DegMax - DegMin) * Borders.first.Val1 + DegMin,
+		DiapEnd = (DegMax - DegMin) * Borders.first.Val2 + DegMin;
+	return Rnd.GetUniDev() * (DiapEnd - DiapBegin) + DiapBegin;
+}
+
 // rewire edges according to smoothed diaps
 void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutDegR){
 	TRnd Rnd;
+	int ModelEdges = Kron->GetEdges();
 	TFltPrV KronDeg;
 	TSnap::GetInDegCnt(Kron, KronDeg);
 	PrintDegDistr(KronDeg, "Kron.tab");
@@ -781,8 +788,8 @@ void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutD
 	
 	TIntPrV DiapEdges; 
 	for (auto DiapIt = SmoothedDiaps.begin(); DiapIt != SmoothedDiaps.end(); DiapIt++){
-		TInt DiapBegin = (OutDegR.Val2 - OutDegR.Val1) * DiapIt->first.Val1 + OutDegR.Val1,
-			DiapEnd = (OutDegR.Val2 - OutDegR.Val1) * DiapIt->first.Val2 + OutDegR.Val1;
+		TInt DiapBegin = (DegMax - DegMin) * DiapIt->first.Val1 + DegMin,
+			DiapEnd = (DegMax - DegMin) * DiapIt->first.Val2 + DegMin;
 		TFlt AvgDeg = 0;
 		for (size_t i = DiapBegin; i <= DiapEnd; i++) AvgDeg += i;
 		AvgDeg /= (DiapEnd - DiapBegin + 1);
@@ -799,11 +806,60 @@ void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutD
 		DiapEdges.Add(Val);
 	}
 	PrintDegDistr(DiapEdges, "DiapEdges.tab");
+    
+	// diap index, required diap index, nodes count
+	map<int, vector<pair<int, int>>> DiapsToDel, DiapsToCluster;
+	int EdgesToAdd = 0;
 	
-	int Add = 0, Del = 0;
 
-	map<int, TIntV> PlusNodesV;
-	TInt FreeEdges = 0; TInt PlusNodesCount = 0;
+	for (auto DiapIt = SmoothedDiaps.begin(); DiapIt != SmoothedDiaps.end(); DiapIt++){
+		int DiapIndex = DiapIt - SmoothedDiaps.begin();
+		TInt& AvgDeg = DiapEdges[DiapIndex].Val1;
+		TInt& NodesCount = DiapEdges[DiapIndex].Val2;
+		bool DecFound = false;
+		
+		for (auto NeighIt = DiapIt + 1; NeighIt != SmoothedDiaps.end(); NeighIt++){
+			int NeighIndex = NeighIt - SmoothedDiaps.begin();
+			TInt& NeighAvgDeg = DiapEdges[NeighIndex].Val1;
+			TInt& NeighNodesCount = DiapEdges[NeighIndex].Val2;
+			
+
+			// from "-" to "+"
+			if (DiapIt->second > 0 && NeighIt->second < 0){
+				int NodesToDecreaseDegree = NeighNodesCount >= NodesCount ? NodesCount : NeighNodesCount;
+				DiapsToDel[NeighIndex].push_back(make_pair(DiapIndex, NodesToDecreaseDegree));
+				EdgesToAdd += NodesToDecreaseDegree * (NeighAvgDeg - AvgDeg);
+				NeighNodesCount -= NodesToDecreaseDegree;
+				if (NodesToDecreaseDegree == NodesCount){
+					DecFound = true;
+					printf("Index: %d, decision found\n", DiapIndex);
+					break;
+				}
+				else NodesCount -= NodesToDecreaseDegree;
+			}
+			// from "-" to "-"
+			else if (DiapIt->second < 0 && NeighIt->second > 0) {
+				int NodesClusterCount = 1 + NeighAvgDeg - AvgDeg;
+				int Clusters = NodesCount / NodesClusterCount;
+				if (Clusters  > NeighNodesCount) 
+					Clusters = NeighNodesCount;
+				int EdgesToFormCluster = (NodesClusterCount * (NeighAvgDeg - AvgDeg)) / 2;
+				if (Clusters > 0){
+					DiapsToCluster[DiapIndex].push_back(make_pair(NeighIndex, Clusters * NodesClusterCount));
+					NeighNodesCount -= Clusters;
+					NodesCount -= Clusters * NodesClusterCount;
+					EdgesToAdd -= Clusters * EdgesToFormCluster;
+				}
+			}
+		}
+		
+		
+	}
+	printf("Edges to add: %d\n", EdgesToAdd);
+	PrintDegDistr(DiapEdges, "DiapEdges1.tab");
+	int Add = 0, Del = 0;
+	
+	map<int, map<int, vector<int>>> Clusters;
 
 	for (auto NodeIt = Kron->BegNI(); NodeIt != Kron->EndNI(); NodeIt++){
 		TInt Node = NodeIt.GetId();
@@ -813,99 +869,99 @@ void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutD
 		TInt DiapIndex;
 		bool IsDegInDiap = GetDiap(SmoothedDiaps, DegPart, DiapSign, DiapIndex);
 		if (!IsDegInDiap) continue;
-		TInt& AvgEdges = DiapEdges[DiapIndex].Val1, &LeastEdges = DiapEdges[DiapIndex].Val2;
-
-		TInt Neigh, NeighDeg, NeighIndex; bool NeighSign; 
-
-		// if node is "+" node and we have candidates 
-		if (DiapSign && FreeEdges != 0 && LeastEdges != 0){
-			// add uncertainity ??
-			TInt EdgesToAdd = AvgEdges > LeastEdges ? AvgEdges : LeastEdges;
-			if (EdgesToAdd < PlusNodesCount) EdgesToAdd = PlusNodesCount; 
-			
-			int EdgesAdded = 0;
-			int PlusNodesIndex = 0;
-			bool Terminate = false;
-			TIntV PlusNodesIndexesToDel;
-
-			for (map<int, TIntV>::iterator it = PlusNodesV.begin(); it != PlusNodesV.end(); it++){
-				if (Terminate) break;
-				TIntV& PlusNodes = it->second;
-				for (size_t i = 0; i < PlusNodes.Len(); i++){
-					// degree should not be more than DegMax
-					if (Deg + EdgesAdded > OutDegR.Val2 || FreeEdges == 0 || EdgesAdded == EdgesToAdd){
-						Terminate = true;
-						break;
-					}
-					Neigh = PlusNodes[i];
-					// if there is an edge, continue
-					if (Kron->IsEdge(Node, Neigh))
-						continue;
-					NeighDeg = Kron->GetNI(Neigh).GetOutDeg();
-					// if NeighDeg == DegMax, we should remove it from PlusNodes
-					if (NeighDeg + 1 > OutDegR.Val2) {
-						PlusNodes.DelIfIn(Neigh);
-						PlusNodesCount--;
-						continue;
-					}
-					Kron->AddEdge(Node, Neigh);
-					Add++;
-					EdgesAdded++; FreeEdges--;
-					GetDiap(SmoothedDiaps, GetDegPart(Deg, DegMax, DegMin), NeighSign, NeighIndex);
-					DiapEdges[DiapIndex].Val2--;
-					DiapEdges[NeighIndex].Val2--; 
-					if (DiapEdges[DiapIndex].Val2 == 0){
-						PlusNodesIndexesToDel.Add(DiapIndex);
-					}
-					if (DiapEdges[NeighIndex].Val2 == 0){
-						PlusNodesIndexesToDel.Add(NeighIndex);
+		bool WasModified = false;
+		auto it = DiapsToCluster.find(DiapIndex);
+		if (it != DiapsToCluster.end() && it->second.size() != 0){
+			int ReqDiap = it->second[0].first;
+			int ReqDeg = GetRandDeg(Rnd, SmoothedDiaps[ReqDiap], DegMin, DegMax) / 2;
+			//int ReqDeg = DiapEdges[ReqDiap].Val1;
+			vector<int>& Cluster = Clusters[DiapIndex][ReqDiap];
+			Cluster.push_back(Node);
+			if (Cluster.size()  >= ReqDeg){
+				vector<int> NodesToConnect;
+				for (size_t i = 0; i < ReqDeg; i++){
+					NodesToConnect.push_back(Cluster[Cluster.size()-1]);
+					Cluster.pop_back();
+				}
+				for (size_t i = 0; i < NodesToConnect.size(); i++){
+					for (size_t j = i+1; j < NodesToConnect.size(); j++){
+						Kron->AddEdge(NodesToConnect[i], NodesToConnect[j]);
+						Add++;
+						Kron->AddEdge(NodesToConnect[j], NodesToConnect[i]);
+						Add++;
 					}
 				}
+				it->second[0].second -= ReqDeg;
+				if (it->second[0].second <= 0) it->second.erase(it->second.begin());
 			}
-			// delete diapasons if it is necessary
-			for (size_t i = 0; i < PlusNodesIndexesToDel.Len(); i++){
-				PlusNodesCount -= PlusNodesV[PlusNodesIndexesToDel[i]].Len();
-				PlusNodesV.erase(PlusNodesIndexesToDel[i]);
-			}
-			
+			WasModified = true;
 		}
-
-		if (PlusNodesV[DiapIndex].Len()==0 || (DiapSign && LeastEdges / (double)PlusNodesV[DiapIndex].Len() > AvgEdges)){
-			PlusNodesV[DiapIndex].Add(Node);
-			PlusNodesCount++;
-		}
-
-		if (!DiapSign){
-			TInt Edges = NodeIt.GetOutDeg();
-			TInt EdgesToDel = AvgEdges > LeastEdges ? AvgEdges : LeastEdges;
-			if (EdgesToDel > Edges) EdgesToDel = Edges - OutDegR.Val1; 
-			TInt DelEdges = 0;
-
-			for (size_t i = 0; i < Edges; i++){
-				Neigh = NodeIt.GetNbrNId(i);
-				if (DelEdges == EdgesToDel) break;
-				NeighDeg = Kron->GetNI(Neigh).GetOutDeg();
-				// if neighbour degree should not be changed
-				if (!GetDiap(SmoothedDiaps, GetDegPart(NeighDeg, DegMax, DegMin), NeighSign, NeighIndex))
+		
+		if (WasModified) continue;
+		it = DiapsToDel.find(DiapIndex);
+		if (it != DiapsToDel.end() && it->second.size() != 0){
+			int ReqDiap = it->second[0].first;
+			int ReqDeg = GetRandDeg(Rnd, SmoothedDiaps[ReqDiap], DegMin, DegMax) / 2;
+			//int ReqDeg = DiapEdges[ReqDiap].Val1;
+			int ToDel = Deg - ReqDeg;
+			int EdgesCount = NodeIt.GetOutDeg();
+			for (int i = 0; i < ToDel; i++){
+				if (Kron->GetNI(Node).GetOutDeg() == DegMin) break;
+				int EdgeToDel = Rnd.GetUniDev() / EdgesCount;
+				int NeighNode = NodeIt.GetNbrNId(EdgeToDel);
+				if (Kron->GetNI(NeighNode).GetOutDeg() == DegMin)
 					continue;
-				if (NeighSign == true){
-					continue;
-				}
-				// delete edge and increase FreeEdges
-				else {
-					if (NeighDeg - 1 < OutDegR.Val1)
-						continue;
-					Kron->DelEdge(Node, NeighDeg);
-					FreeEdges++;
-					LeastEdges--;
-					DiapEdges[NeighIndex].Val2--;
-					Del++;
-				}
+				Kron->DelEdge(Node, NeighNode, false);
 				
+				//Kron->DelEdge(NeighNode, Node, false);
+				Del++; Del++;
+				EdgesCount--;
 			}
+			it->second[0].second--;
+			if (it->second[0].second == 0)
+				it->second.erase(it->second.begin());
 		}
 	}
-	cout <<  "Edges added " << Add << ", edges deleted " << Del << endl;
+	cout <<  "Edges added " << Add << ", edges deleted " << Del << ", difference " << Add - Del << endl;
+	int RealDiff = Kron->GetEdges() - ModelEdges;
+	cout << "Real difference: " << Kron->GetEdges() - ModelEdges << endl;
+	int E = 0;
+	if (Del - Add > 0){
+		while (E > RealDiff){
+			int Node1 = Rnd.GetUniDev() * Kron->GetNodes(), Node2 = Rnd.GetUniDev() * Kron->GetNodes();
+			Kron->AddEdge(Node1, Node2);
+			Kron->AddEdge(Node2, Node1);
+			E -= 2;
+		}
+	}
+	else {
+		while (E < RealDiff){
+			int Node1 = Rnd.GetUniDev() * Kron->GetNodes();
+			int NodeDeg = Kron->GetNI(Node1).GetOutDeg();
+			if (NodeDeg == DegMin || NodeDeg == DegMax) 
+			{
+				continue;
+			}
+			int Edges = Kron->GetNI(Node1).GetOutDeg();
+			int Attempts = 0; int Node2; bool NodeFound = false;
+			while (Attempts != Edges){
+				int NodeIndex = Edges * Rnd.GetUniDev();
+				Node2 = Kron->GetNI(Node1).GetNbrNId(NodeIndex);
+				int Node2Deg = Kron->GetNI(Node2).GetOutDeg();
+				if (Node2Deg != DegMin && Node2Deg != DegMax) {
+					NodeFound = true;
+					break;
+				}
+				Attempts++;
+			}
+			if (!NodeFound) { continue;}
+			Kron->DelEdge(Node1, Node2, false);
+			E+=2;
+			//Kron->DelEdge(Node2, Node1, false);
+		}
+	}
+	cout << "Real difference: " << Kron->GetEdges() - ModelEdges << endl;
+	system("pause");
 }
 
 // get smoothed diapasons for scaling
