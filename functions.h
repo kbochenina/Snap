@@ -12,6 +12,7 @@ const enum ARGS { GRAPHGEN = 0, MTXGEN = 1, KRONFIT = 2, KRONGEN = 3, PTYPE = 4,
 
 typedef pair<TFltPr, TFlt> Diap;
 typedef map<int, vector<pair<int, int>>> RewireDiap;
+typedef map<int, map<pair<int,int>, vector<int>>> ClusterMap;
 
 // generates Kronecker model on the base of existing graph
 void KroneckerTest(vector<TStr> commandLineArgs);
@@ -48,7 +49,15 @@ void GetRelativeDiff(const TFltPrV& MDeg, const TFltPrV& KronDeg, TFltPrV&  RelD
 void GetSmoothedDiaps(const TFltPrV& RelDiffNonCum, vector<Diap>& SmoothedDiaps, vector<int>& Prev);
 // rewire edges according to smoothed diaps
 void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutDegR, vector<int>& Prev);
-// get appropriate number of nodes for each diapasone and its average degree
-void GetDiapNodes(TIntPrV& DiapNodes, const vector<Diap>& SmoothedDiaps, const TFltPrV& KronDeg, const TInt& DegMin, const TInt& DegMax, const vector<int>& Prev);
-// get rewire stratergies
+void Rewire(PNGraph& Kron, RewireDiap& DiapsToCluster, RewireDiap& DiapsToDel, const TIntPrV& DiapBorders, const int DegMin, const int DegMax);
+// add missing or delete excess edges
+void AddEdges(PNGraph&Kron, int Diff, int DegMin, int DegMax, int ModelEdges);
+// get appropriate number of nodes for each diapason and its average degree
+void GetDiapNodes(TIntPrV& DiapNodes, TIntPrV& DiapBorders, const vector<Diap>& SmoothedDiaps, const TFltPrV& KronDeg, const TInt& DegMin, const TInt& DegMax, const vector<int>& Prev);
+// get rewire strategies
 int GetRewireStrategies(RewireDiap& DiapsToCluster, RewireDiap& DiapsToDel, TIntPrV& DiapNodes);
+// get diap index
+bool GetDiap(TInt& Deg, const TIntPrV& DiapBorders, TInt& DegIndex);
+// get random number from diap
+int GetRndDeg(TRnd Rnd, TIntPr& Borders);
+

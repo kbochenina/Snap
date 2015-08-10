@@ -778,7 +778,7 @@ int GetRandDeg(TRnd& Rnd, const Diap& Borders, const int DegMin, const int DegMa
 }
 
 // get appropriate number of nodes for each diapasone and its average degree
-void GetDiapNodes(TIntPrV& DiapNodes, const vector<Diap>& SmoothedDiaps, const TFltPrV& KronDeg, const TInt& DegMin, const TInt& DegMax, const vector<int>& Prev){
+void GetDiapNodes(TIntPrV& DiapNodes, TIntPrV& DiapBorders, const vector<Diap>& SmoothedDiaps, const TFltPrV& KronDeg, const TInt& DegMin, const TInt& DegMax, const vector<int>& Prev){
 	for (auto DiapIt = SmoothedDiaps.begin(); DiapIt != SmoothedDiaps.end(); DiapIt++){
 		TInt DiapBegin = (DegMax - DegMin) * DiapIt->first.Val1 + DegMin + 0.5,
 			DiapEnd = (DegMax - DegMin) * DiapIt->first.Val2 + DegMin + 0.5;
@@ -787,6 +787,8 @@ void GetDiapNodes(TIntPrV& DiapNodes, const vector<Diap>& SmoothedDiaps, const T
 			DiapBegin = (DegMax - DegMin) * (DiapIt-1)->first.Val2 + DegMin + 0.5 + 1;
 			//DiapEnd -= (PrevBegin-DiapBegin);
 		}
+		TIntPr Borders(DiapBegin, DiapEnd);
+		DiapBorders.Add(Borders);
 		TFlt AvgDeg = 0;
 		for (size_t i = DiapBegin; i <= DiapEnd; i++) AvgDeg += i;
 		AvgDeg /= (DiapEnd - DiapBegin + 1);
@@ -871,100 +873,126 @@ int GetRewireStrategies(RewireDiap& DiapsToCluster, RewireDiap& DiapsToDel,  TIn
 	return EdgesToAdd;
 }
 
-// rewire edges according to smoothed diaps
-void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutDegR, vector<int>& Prev){
+// get diap index
+bool GetDiap(TInt& Deg, const TIntPrV& DiapBorders, TInt& DegIndex){
+	// DiagBorders are sorted in increasing order
+	for (size_t i = 0; i < DiapBorders.Len(); i++){
+		if (DiapBorders[i].Val1 > Deg) return false;
+		if (DiapBorders[i].Val1 <= Deg && DiapBorders[i].Val2 >= Deg)
+			DegIndex = i;
+			return true;
+	}
+	return false;
+}
+
+// get random number from diap
+int GetRndDeg(TRnd Rnd, const TIntPr& Borders){
+	return Rnd.GetUniDev()*(Borders.Val2 - Borders.Val1) + Borders.Val1;
+}
+	
+vector<int>& FindCluster(ClusterMap& Clusters, int DiapIndex, int ReqDiap, int ReqDeg = 0){
+	map<pair<int,int>, vector<int>>& ClustersDiap = Clusters[DiapIndex];
+	for (map<pair<int,int>, vector<int>>::iterator CIt = ClustersDiap.begin(); CIt != ClustersDiap.end(); CIt++){
+		if (CIt->first.first == ReqDiap){
+			return CIt->second;
+		}
+	}
+	// create cluster and add reference to its vector of nodes to Cluster
+	return ClustersDiap.insert(ClustersDiap.begin(), make_pair(make_pair(ReqDiap, ReqDeg), vector<int>()))->second;
+}
+
+void Rewire(PNGraph& Kron, RewireDiap& DiapsToCluster, RewireDiap& DiapsToDel, const TIntPrV& DiapBorders, const int DegMin, const int DegMax){
 	TRnd Rnd;
-	int ModelEdges = Kron->GetEdges();
-	TFltPrV KronDeg;
-	TSnap::GetInDegCnt(Kron, KronDeg);
-	//PrintDegDistr(KronDeg, "Kron.tab");
-	KronDeg.Sort();
-	const TInt& DegMin = OutDegR.Val1, &DegMax = OutDegR.Val2;
-	TIntPrV DiapNodes; 
-	GetDiapNodes(DiapNodes, SmoothedDiaps,KronDeg, DegMin, DegMax, Prev);
-	// diap index, required diap index, nodes count
-	RewireDiap DiapsToDel, DiapsToCluster;
-    GetRewireStrategies(DiapsToCluster, DiapsToDel, DiapNodes);
-	
 	int Add = 0, Del = 0;
-	
-	map<int, map<int, vector<int>>> Clusters;
+
+	// [DiapIndex, (<ClusterDiap, ReqDeg>, vector of nodes indexes)]
+	ClusterMap Clusters;
 
 	for (auto NodeIt = Kron->BegNI(); NodeIt != Kron->EndNI(); NodeIt++){
 		TInt Node = NodeIt.GetId();
 		TInt Deg = NodeIt.GetInDeg();
-		TFlt DegPart = GetDegPart(Deg, DegMax, DegMin);
-		bool DiapSign = true;
 		TInt DiapIndex;
-		bool IsDegInDiap = GetDiap(SmoothedDiaps, DegPart, DiapSign, DiapIndex);
+		bool IsDegInDiap = GetDiap(Deg, DiapBorders, DiapIndex);
 		if (!IsDegInDiap) continue;
 		bool WasModified = false;
-		auto it = DiapsToCluster.find(DiapIndex);
-		if (it != DiapsToCluster.end() && it->second.size() != 0){
-			int ReqDiap = it->second[0].first;
-			int ReqDeg = GetRandDeg(Rnd, SmoothedDiaps[ReqDiap], DegMin, DegMax) / 2 ;
+		auto DiapIt = DiapsToCluster.find(DiapIndex);
+		if (DiapIt != DiapsToCluster.end() && DiapIt->second.size() != 0){
+			int ReqDiap = DiapIt->second[0].first;
+			int ReqDeg = GetRndDeg(Rnd, DiapBorders[ReqDiap]);
 			//int ReqDeg = DiapEdges[ReqDiap].Val1;
-			vector<int>& Cluster = Clusters[DiapIndex][ReqDiap];
-			Cluster.push_back(Node);
-			if (Cluster.size()  >= ReqDeg){
-				vector<int> NodesToConnect;
+			vector<int>& Cluster = FindCluster(Clusters, DiapIndex, ReqDiap, ReqDeg);
+			Cluster.push_back(Node.Val);
+			if (Cluster.size()  == ReqDeg){
 				for (size_t i = 0; i < ReqDeg; i++){
-					NodesToConnect.push_back(Cluster[Cluster.size()-1]);
-					Cluster.pop_back();
-				}
-				for (size_t i = 0; i < NodesToConnect.size(); i++){
-					for (size_t j = i+1; j < NodesToConnect.size(); j++){
-						Kron->AddEdge(NodesToConnect[i], NodesToConnect[j]);
+					for (size_t j = 0; j < ReqDeg; j++){
+						Kron->AddEdge(Cluster[i], Cluster[j]);
 						Add++;
-						Kron->AddEdge(NodesToConnect[j], NodesToConnect[i]);
+						Kron->AddEdge(Cluster[j], Cluster[i]);
 						Add++;
 					}
 				}
-				it->second[0].second -= ReqDeg;
-				if (it->second[0].second <= 0) it->second.erase(it->second.begin());
+				// decrease nodes count to be clustered
+				DiapIt->second[0].second -= ReqDeg;
+				// if clustering ends, remove diap
+				if (DiapIt->second[0].second <= 0) 
+					DiapIt->second.erase(DiapIt->second.begin());
 			}
 			WasModified = true;
 		}
-		
+
 		if (WasModified) continue;
-		it = DiapsToDel.find(DiapIndex);
-		if (it != DiapsToDel.end() && it->second.size() != 0){
-			int ReqDiap = it->second[0].first;
-			int ReqDeg = GetRandDeg(Rnd, SmoothedDiaps[ReqDiap], DegMin, DegMax) / 2 ;
+
+		DiapIt = DiapsToDel.find(DiapIndex);
+		if (DiapIt != DiapsToDel.end() && DiapIt->second.size() != 0){
+			int ReqDiap = DiapIt->second[0].first;
+			int ReqDeg = GetRndDeg(Rnd, DiapBorders[ReqDiap]);
 			//int ReqDeg = DiapEdges[ReqDiap].Val1;
 			int ToDel = Deg - ReqDeg;
 			int EdgesCount = NodeIt.GetOutDeg();
-			for (int i = 0; i < ToDel; i++){
-				if (Kron->GetNI(Node).GetOutDeg() == DegMin) break;
+			if (ToDel > EdgesCount - DegMin)
+				Error("Rewire", "Too many edges to delete");
+			int Attempts = 2 * EdgesCount, EdgesDeleted = 0;
+			while (Attempts != 0 && EdgesDeleted != ToDel ){
+				Attempts--;
 				int EdgeToDel = Rnd.GetUniDev() / EdgesCount;
 				int NeighNode = NodeIt.GetNbrNId(EdgeToDel);
 				if (Kron->GetNI(NeighNode).GetOutDeg() == DegMin)
 					continue;
 				Kron->DelEdge(Node, NeighNode, false);
-				
-				//Kron->DelEdge(NeighNode, Node, false);
+				EdgesDeleted++;
 				Del++; Del++;
 				EdgesCount--;
 			}
-			it->second[0].second--;
-			if (it->second[0].second == 0)
-				it->second.erase(it->second.begin());
+			DiapIt->second[0].second--;
+			if (DiapIt->second[0].second == 0)
+				DiapIt->second.erase(DiapIt->second.begin());
 		}
 	}
 	cout <<  "Edges added " << Add << ", edges deleted " << Del << ", difference " << Add - Del << endl;
-	int RealDiff = Kron->GetEdges() - ModelEdges;
-	cout << "Real difference: " << Kron->GetEdges() - ModelEdges << endl;
+}
+
+// add missing or delete excess edges
+void AddEdges(PNGraph&Kron, int Diff, int DegMin, int DegMax, int ModelEdges){
+	TRnd Rnd;
 	int E = 0;
-	if (Del - Add > 0){
-		while (E > RealDiff){
-			int Node1 = Rnd.GetUniDev() * Kron->GetNodes(), Node2 = Rnd.GetUniDev() * Kron->GetNodes();
+	if (Diff < 0){
+		while (E > Diff){
+			int Node1 = Rnd.GetUniDev() * Kron->GetNodes(), Node2;
+			if (Kron->GetNI(Node1).GetOutDeg() == DegMax)
+				continue;
+			while (1)
+			{
+				Node2 = Rnd.GetUniDev() * Kron->GetNodes();
+				if (Node1 == Node2 || Kron->GetNI(Node2).GetOutDeg() == DegMax) continue;
+				break;
+			}
 			Kron->AddEdge(Node1, Node2);
 			Kron->AddEdge(Node2, Node1);
 			E -= 2;
 		}
 	}
 	else {
-		while (E < RealDiff){
+		while (E < Diff){
 			int Node1 = Rnd.GetUniDev() * Kron->GetNodes();
 			int NodeDeg = Kron->GetNI(Node1).GetOutDeg();
 			if (NodeDeg == DegMin || NodeDeg == DegMax) 
@@ -973,7 +1001,7 @@ void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutD
 			}
 			int Edges = Kron->GetNI(Node1).GetOutDeg();
 			int Attempts = 0; int Node2; bool NodeFound = false;
-			while (Attempts != Edges){
+			while (Attempts != 2 * Edges){
 				int NodeIndex = Edges * Rnd.GetUniDev();
 				Node2 = Kron->GetNI(Node1).GetNbrNId(NodeIndex);
 				int Node2Deg = Kron->GetNI(Node2).GetOutDeg();
@@ -983,13 +1011,42 @@ void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutD
 				}
 				Attempts++;
 			}
-			if (!NodeFound) { continue;}
+			if (!NodeFound) continue;
 			Kron->DelEdge(Node1, Node2, false);
 			E+=2;
 			//Kron->DelEdge(Node2, Node1, false);
 		}
 	}
-	//cout << "Real difference: " << Kron->GetEdges() - ModelEdges << endl;
+	if (Kron->GetEdges() - ModelEdges != 0) {
+		TStr Msg = "Edges count of rewired graph != required edges count: ModelEdges = ";
+		Msg += ModelEdges; Msg += ", KronEdges = "; Msg += Kron->GetEdges();
+		Error("AddEdges", Msg);
+	}
+}
+
+
+// rewire edges according to smoothed diaps
+void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutDegR, vector<int>& Prev){
+	TRnd Rnd;
+	int ModelEdges = Kron->GetEdges();
+	TFltPrV KronDeg;
+	TSnap::GetInDegCnt(Kron, KronDeg);
+	//PrintDegDistr(KronDeg, "Kron.tab");
+	KronDeg.Sort();
+	const TInt& DegMin = OutDegR.Val1, &DegMax = OutDegR.Val2;
+	TIntPrV DiapNodes, DiapBorders; 
+	GetDiapNodes(DiapNodes, DiapBorders, SmoothedDiaps, KronDeg, DegMin, DegMax, Prev);
+	
+	// diap index, required diap index, nodes count
+	RewireDiap DiapsToDel, DiapsToCluster;
+    GetRewireStrategies(DiapsToCluster, DiapsToDel, DiapNodes);
+	Rewire(Kron, DiapsToCluster, DiapsToDel, DiapBorders, DegMin.Val, DegMax.Val);
+	
+
+	int Diff = Kron->GetEdges() - ModelEdges;
+	cout << "Difference of edges: " << Kron->GetEdges() - ModelEdges << endl;
+	AddEdges(Kron, Diff, DegMin, DegMax, ModelEdges);
+	
 	
 }
 
