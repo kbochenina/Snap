@@ -434,6 +434,7 @@ double GetBestCoeff(TFltPrV& ScalingResults){
 // estimate scaling coefficient
 double GetScalingCoefficient(const TFltPrV& InDegCnt, const TFltPrV& OutDegCnt, const TKronMtx& FitMtxM, const TInt& NIter, const TStr& IsDir){
 	// !!!
+	return 0.5;
 	TKronMtx FitMtx(FitMtxM);
 	double ScalingCoeff = 0;
 	double ScalingStep = 0.2;
@@ -507,7 +508,7 @@ double GetScalingCoefficient(const TFltPrV& InDegCnt, const TFltPrV& OutDegCnt, 
 	return ScalingCoeff;
 }
 
-void GenKron(const TStr& Args, TKronMtx& FitMtx, TFltPrV& KronDegAvgIn, TFltPrV& KronDegAvgOut, vector<Diap>& SmoothedDiaps){
+void GenKron(const TStr& Args, TKronMtx& FitMtx, TFltPrV& KronDegAvgIn, TFltPrV& KronDegAvgOut, vector<Diap>& SmoothedDiaps, vector<int>& Prev){
 	Env = TEnv(Args, TNotify::NullNotify);
 	TExeTm ExecTime;
 	// number of Kronecker graphs to generate
@@ -560,7 +561,7 @@ void GenKron(const TStr& Args, TKronMtx& FitMtx, TFltPrV& KronDegAvgIn, TFltPrV&
 	for (int i = 0; i < NKron; i++){
 		ExecTime.Tick();
 		KroneckerGen(Kron, FitMtx, NIter, IsDir, InDegR, OutDegR, NoiseCoeff);
-		Rewire(Kron, SmoothedDiaps, OutDegR);
+		Rewire(Kron, SmoothedDiaps, OutDegR, Prev);
 		/*if (IsDir == "false" && !CheckReciprocity(Kron)){
 			Error("GenKron", "Violation of reciprocity for undirected graph");
 		}*/
@@ -686,9 +687,9 @@ void GetGraphs(const vector <TStr>& Parameters, const TStr& ModelGen, const TStr
 		TFltPrV KronDegAvgIn, KronDegAvgOut;
 		
 		TStr KronParameters = GetModelParamsStr(G, IsDir);
-		vector<Diap> SmoothedDiaps;
+		vector<Diap> SmoothedDiaps; vector<int> Prev;
 
-		GenKron(Parameters[KRONGEN] + KronParameters, FitMtxM, KronDegAvgIn, KronDegAvgOut, SmoothedDiaps);
+		GenKron(Parameters[KRONGEN] + KronParameters, FitMtxM, KronDegAvgIn, KronDegAvgOut, SmoothedDiaps, Prev);
 
 		PlotDegrees(Parameters, KronDegAvgIn, KronDegAvgOut, "kron");
 		
@@ -699,7 +700,7 @@ void GetGraphs(const vector <TStr>& Parameters, const TStr& ModelGen, const TStr
 }
 
 // get FitMtx and scaling coefficient from small model
-void GetFitMtxFromMS(TKronMtx& FitMtxM, TFlt& ScalingCoeff, vector<Diap>& SmoothedDiaps, const vector<TStr>& Parameters){
+void GetFitMtxFromMS(TKronMtx& FitMtxM, TFlt& ScalingCoeff, vector<Diap>& SmoothedDiaps, const vector<TStr>& Parameters, vector<int>& Prev){
 	PNGraph G;
 	GetModel(Parameters[GRAPHGEN], G);
 	int ModelNodes = G->GetNodes(), ModelEdges = G->GetEdges();
@@ -740,8 +741,8 @@ void GetFitMtxFromMS(TKronMtx& FitMtxM, TFlt& ScalingCoeff, vector<Diap>& Smooth
 		PrintDegDistr(KronDeg, "KronAvg.tab");
 		//PrintDegDistr(MDegOut, "Model.tab");
 		PrintRelDiff(RelDiffNonCum, "RelDiff.tab");
-		GetSmoothedDiaps(RelDiffNonCum, SmoothedDiaps);
-		//PrintSmoothedDiaps(SmoothedDiaps, "SmoothedDiaps.tab");
+		GetSmoothedDiaps(RelDiffNonCum, SmoothedDiaps, Prev);
+		PrintSmoothedDiaps(SmoothedDiaps, "SmoothedDiaps.tab");
 		/*PNGraph Kron; 
 		KroneckerGen(Kron, NewMtx, NIter, IsDir, OutDegR, OutDegR, 0);
 		Rewire(Kron, SmoothedDiaps, OutDegR);
@@ -776,20 +777,16 @@ int GetRandDeg(TRnd& Rnd, const Diap& Borders, const int DegMin, const int DegMa
 	return Rnd.GetUniDev() * (DiapEnd - DiapBegin) + DiapBegin;
 }
 
-// rewire edges according to smoothed diaps
-void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutDegR){
-	TRnd Rnd;
-	int ModelEdges = Kron->GetEdges();
-	TFltPrV KronDeg;
-	TSnap::GetInDegCnt(Kron, KronDeg);
-	//PrintDegDistr(KronDeg, "Kron.tab");
-	KronDeg.Sort();
-	const TInt& DegMin = OutDegR.Val1, &DegMax = OutDegR.Val2;
-	
-	TIntPrV DiapEdges; 
+// get appropriate number of nodes for each diapasone and its average degree
+void GetDiapNodes(TIntPrV& DiapNodes, const vector<Diap>& SmoothedDiaps, const TFltPrV& KronDeg, const TInt& DegMin, const TInt& DegMax, const vector<int>& Prev){
 	for (auto DiapIt = SmoothedDiaps.begin(); DiapIt != SmoothedDiaps.end(); DiapIt++){
 		TInt DiapBegin = (DegMax - DegMin) * DiapIt->first.Val1 + DegMin + 0.5,
 			DiapEnd = (DegMax - DegMin) * DiapIt->first.Val2 + DegMin + 0.5;
+		if (find(Prev.begin(), Prev.end(), DiapIt-SmoothedDiaps.begin()) != Prev.end()){
+			int PrevBegin = DiapBegin;
+			DiapBegin = (DegMax - DegMin) * (DiapIt-1)->first.Val2 + DegMin + 0.5 + 1;
+			//DiapEnd -= (PrevBegin-DiapBegin);
+		}
 		TFlt AvgDeg = 0;
 		for (size_t i = DiapBegin; i <= DiapEnd; i++) AvgDeg += i;
 		AvgDeg /= (DiapEnd - DiapBegin + 1);
@@ -799,63 +796,96 @@ void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutD
 			if (KronDeg[i].Val1 < DiapBegin) continue;
 			else NodesCount += KronDeg[i].Val2;
 		}
-		printf("DiapBegin: %d DiapEnd: %d Nodes count: %d\n", DiapBegin,  DiapEnd, NodesCount);
-		TIntPr Val((int)AvgDeg, abs(DiapIt->second * NodesCount));
+		TFlt RelDiff = DiapIt->second, NodesToAdd;
+		if (abs(RelDiff) != 1) NodesToAdd = RelDiff * NodesCount;
+		else if (RelDiff == 1.0) NodesToAdd = 1;
+		else NodesToAdd = -NodesCount;
+		printf("DiapBegin: %d DiapEnd: %d Nodes count: %d Nodes to add: %3.2f Res: %d\n", DiapBegin,  DiapEnd, NodesCount, NodesToAdd, static_cast<int>(NodesCount+NodesToAdd+0.5));
 		// 1. how many edges we should add/subtract approximately to/from each node of this diapasone
 		// 2. how many edges at all should be add/subtract to/from this diapasone
-		DiapEdges.Add(Val);
+		TIntPr Val((int)AvgDeg, NodesToAdd + 0.5);
+		DiapNodes.Add(Val);
 	}
-	PrintDegDistr(DiapEdges, "DiapEdges.tab");
-    
-	// diap index, required diap index, nodes count
-	map<int, vector<pair<int, int>>> DiapsToDel, DiapsToCluster;
+	PrintDegDistr(DiapNodes, "DiapNodes.tab");
+}
+
+bool PrVecComp(const pair<int,int>& Pr1, const pair<int,int>& Pr2){
+	return Pr1.second > Pr2.second;
+}
+
+void GetPriorities(vector<int>&Pr, const TIntPrV& DiapEdges){
+	vector<pair<int,int>> PrVec;
+	for (size_t i = 0; i < DiapEdges.Len(); i++){
+		PrVec.push_back(make_pair(i, DiapEdges[i].Val1 * DiapEdges[i].Val2));
+	}
+	sort(PrVec.begin(), PrVec.end(), PrVecComp);
+	for (size_t i = 0; i < DiapEdges.Len(); i++)
+		if (PrVec[i].second != 0)
+			Pr.push_back(PrVec[i].first);
+}
+
+// get rewire stratergies
+int GetRewireStrategies(RewireDiap& DiapsToCluster, RewireDiap& DiapsToDel,  TIntPrV& DiapNodes){
+	
+	// vector of priorities
+	vector<int> Pr;
+	GetPriorities(Pr, DiapNodes);
+	
 	int EdgesToAdd = 0;
 	
-
-	for (auto DiapIt = SmoothedDiaps.begin(); DiapIt != SmoothedDiaps.end(); DiapIt++){
-		int DiapIndex = DiapIt - SmoothedDiaps.begin();
-		TInt& AvgDeg = DiapEdges[DiapIndex].Val1;
-		TInt& NodesCount = DiapEdges[DiapIndex].Val2;
-		bool DecFound = false;
-		
-		for (auto NeighIt = DiapIt + 1; NeighIt != SmoothedDiaps.end(); NeighIt++){
-			int NeighIndex = NeighIt - SmoothedDiaps.begin();
-			TInt& NeighAvgDeg = DiapEdges[NeighIndex].Val1;
-			TInt& NeighNodesCount = DiapEdges[NeighIndex].Val2;
-			
-
-			// from "-" to "+"
-			if (DiapIt->second > 0 && NeighIt->second < 0){
-				int NodesToDecreaseDegree = NeighNodesCount >= NodesCount ? NodesCount : NeighNodesCount;
-				DiapsToDel[NeighIndex].push_back(make_pair(DiapIndex, NodesToDecreaseDegree));
-				EdgesToAdd += NodesToDecreaseDegree * (NeighAvgDeg - AvgDeg);
-				NeighNodesCount -= NodesToDecreaseDegree;
-				NodesCount -= NodesToDecreaseDegree;
-				if (NodesToDecreaseDegree == NodesCount){
-					DecFound = true;
-					//printf("Index: %d, decision found\n", DiapIndex);
-					break;
-				}
-				
+	for (size_t i = 0; i < Pr.size(); i++){
+		if (DiapNodes[Pr[i]].Val2 == 0) continue;
+		for (size_t j = 0; j < Pr.size(); j++){
+			if (DiapNodes[Pr[j]].Val2 == 0) continue;
+			if (i == j) continue;
+			int LessInd = Pr[i] < Pr[j] ? Pr[i] : Pr[j];
+			int BiggInd = Pr[i] > Pr[j] ? Pr[i] : Pr[j];
+			TInt& LessNodes = DiapNodes[LessInd].Val2, &LessDeg = DiapNodes[LessInd].Val1,
+				&BiggNodes = DiapNodes[BiggInd].Val2, &BiggDeg = DiapNodes[BiggInd].Val1;
+			// if we can decrease nodes with biggest degree to obtain smallest degree
+			if (LessNodes > 0 && BiggNodes < 0){
+				int Nodes = abs(BiggNodes) >= LessNodes ? LessNodes : abs(BiggNodes);
+				DiapsToDel[BiggInd].push_back(make_pair(LessInd, Nodes));
+				EdgesToAdd += Nodes * (BiggDeg - LessDeg);
+				BiggNodes += Nodes;
+				LessNodes -= Nodes;
 			}
-			// from "-" to "-"
-			else if (DiapIt->second < 0 && NeighIt->second > 0) {
-				int NodesClusterCount = 1 + NeighAvgDeg - AvgDeg;
-				int Clusters = NodesCount / NodesClusterCount;
-				if (Clusters  > NeighNodesCount) 
-					Clusters = NeighNodesCount;
-				int EdgesToFormCluster = (NodesClusterCount * (NeighAvgDeg - AvgDeg)) / 2;
+			else if (LessNodes < 0 && BiggNodes > 0) {
+				int NodesPerCluster = 1 + BiggDeg - LessDeg;
+				int Clusters = abs(LessNodes) / NodesPerCluster;
+				if (Clusters  > BiggNodes) 
+					Clusters = BiggNodes;
 				if (Clusters > 0){
-					DiapsToCluster[DiapIndex].push_back(make_pair(NeighIndex, Clusters * NodesClusterCount));
-					NeighNodesCount -= Clusters;
-					NodesCount -= Clusters * NodesClusterCount;
-					EdgesToAdd -= Clusters * EdgesToFormCluster;
+					DiapsToCluster[LessInd].push_back(make_pair(BiggInd, Clusters * NodesPerCluster));
+					BiggNodes -= Clusters;
+					LessNodes += Clusters * NodesPerCluster;
+					int EdgesPerCluster = (NodesPerCluster * (BiggDeg - LessDeg)) / 2;
+					EdgesToAdd -= Clusters * EdgesPerCluster;
 				}
 			}
 		}
 	}
+
 	printf("Edges to add: %d\n", EdgesToAdd);
-	PrintDegDistr(DiapEdges, "DiapEdges1.tab");
+	PrintDegDistr(DiapNodes, "DiapNodesAfter.tab");
+	return EdgesToAdd;
+}
+
+// rewire edges according to smoothed diaps
+void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutDegR, vector<int>& Prev){
+	TRnd Rnd;
+	int ModelEdges = Kron->GetEdges();
+	TFltPrV KronDeg;
+	TSnap::GetInDegCnt(Kron, KronDeg);
+	//PrintDegDistr(KronDeg, "Kron.tab");
+	KronDeg.Sort();
+	const TInt& DegMin = OutDegR.Val1, &DegMax = OutDegR.Val2;
+	TIntPrV DiapNodes; 
+	GetDiapNodes(DiapNodes, SmoothedDiaps,KronDeg, DegMin, DegMax, Prev);
+	// diap index, required diap index, nodes count
+	RewireDiap DiapsToDel, DiapsToCluster;
+    GetRewireStrategies(DiapsToCluster, DiapsToDel, DiapNodes);
+	
 	int Add = 0, Del = 0;
 	
 	map<int, map<int, vector<int>>> Clusters;
@@ -872,7 +902,7 @@ void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutD
 		auto it = DiapsToCluster.find(DiapIndex);
 		if (it != DiapsToCluster.end() && it->second.size() != 0){
 			int ReqDiap = it->second[0].first;
-			int ReqDeg = GetRandDeg(Rnd, SmoothedDiaps[ReqDiap], DegMin, DegMax) / 2;
+			int ReqDeg = GetRandDeg(Rnd, SmoothedDiaps[ReqDiap], DegMin, DegMax) / 2 ;
 			//int ReqDeg = DiapEdges[ReqDiap].Val1;
 			vector<int>& Cluster = Clusters[DiapIndex][ReqDiap];
 			Cluster.push_back(Node);
@@ -900,7 +930,7 @@ void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutD
 		it = DiapsToDel.find(DiapIndex);
 		if (it != DiapsToDel.end() && it->second.size() != 0){
 			int ReqDiap = it->second[0].first;
-			int ReqDeg = GetRandDeg(Rnd, SmoothedDiaps[ReqDiap], DegMin, DegMax) / 2;
+			int ReqDeg = GetRandDeg(Rnd, SmoothedDiaps[ReqDiap], DegMin, DegMax) / 2 ;
 			//int ReqDeg = DiapEdges[ReqDiap].Val1;
 			int ToDel = Deg - ReqDeg;
 			int EdgesCount = NodeIt.GetOutDeg();
@@ -964,42 +994,44 @@ void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutD
 }
 
 // get smoothed diapasons for scaling
-void GetSmoothedDiaps(const TFltPrV& RelDiffNonCum, vector<Diap>& SmoothedDiaps){
+void GetSmoothedDiaps(const TFltPrV& RelDiffNonCum, vector<Diap>& SmoothedDiaps, vector<int>& Prev){
 	if (RelDiffNonCum.Len() == 0)
 		Error("GetSmoothedDiaps", "Array size = 0");
 	const TInt DegCount = RelDiffNonCum.Len(), DiffDegs = RelDiffNonCum[DegCount-1].Val1 - RelDiffNonCum[0].Val1;
-	TInt ToleranceVal = DegCount / 10;
+	TInt ToleranceVal = 1;
 	if (ToleranceVal == 0) ToleranceVal = 1;
-	TFlt DiapAvgDev = 0;
+	TFlt DiapDev = 0;
 	bool DiapSign = RelDiffNonCum[0].Val2 > 0 ? true : false;
 	TInt DiapBegin = 0, DiapEnd = 0; 
+	int DiapIndex = 0, PrevDiapEnd = 0;
 	for (size_t i = 0; i < DegCount; i++){
 		bool CurrentSign = RelDiffNonCum[i].Val2 > 0 ? true : false;
-		
-		if (CurrentSign != DiapSign){
+		// if sign was changed or it is last interval
+		if (CurrentSign != DiapSign || i == DegCount - 1){
 			TInt DiapLength = DiapEnd - DiapBegin + 1;
-			if (SmoothedDiaps.size() == 0 ||
-				DiapLength >= ToleranceVal){
+			// if it is first interval or previous interval has enough length
+			if (DiapIndex == 0 || DiapLength >= ToleranceVal){
 				Diap NewDiap; 
-				NewDiap.first.Val1 = static_cast<double>(DiapBegin) / DiffDegs; //DegCount
+				// [begin;end] as parts of [DegMin;DegMax]
+				NewDiap.first.Val1 = static_cast<double>(DiapBegin) / DiffDegs;
 				NewDiap.first.Val2 = static_cast<double>(DiapEnd) / DiffDegs;
-				NewDiap.second = DiapAvgDev / DiapLength;
+				// average deviation of interval
+				NewDiap.second = DiapDev / DiapLength;
 				SmoothedDiaps.push_back(NewDiap);
-				DiapBegin = i; DiapEnd = i; DiapAvgDev = RelDiffNonCum[i].Val2; DiapSign = CurrentSign;
+				// remember if previous interval is the neighbour
+				if (PrevDiapEnd == DiapBegin - 1)
+					Prev.push_back(DiapIndex);
+				PrevDiapEnd = DiapEnd;
+				DiapBegin = i; DiapEnd = i; DiapDev = RelDiffNonCum[i].Val2; DiapSign = CurrentSign;
+				DiapIndex++;
 			}
 		}
 		else {
 			DiapEnd = i;
-			DiapAvgDev += RelDiffNonCum[i].Val2;
-			if (i == DegCount - 1 && DiapEnd-DiapBegin+1 >= ToleranceVal){
-				Diap NewDiap; 
-				NewDiap.first.Val1 = static_cast<double>(DiapBegin) / DiffDegs;
-				NewDiap.first.Val2 = static_cast<double>(DiapEnd) / DiffDegs;
-				NewDiap.second =  DiapAvgDev / (DiapEnd-DiapBegin+1);
-				SmoothedDiaps.push_back(NewDiap);
-			}
+			DiapDev += RelDiffNonCum[i].Val2;
 		}
 	}
+	
 }
 
 
@@ -1031,19 +1063,20 @@ void GetRelativeDiff(const TFltPrV& MDeg, const TFltPrV& KronDeg, TFltPrV&  RelD
 			if (CurrDeg > MaxDeg) break;
 			TFlt RelDiff;
 			if (MDegVal == CurrDeg && KronDegVal == CurrDeg){
-				RelDiff = (KronDegCount - MDegCount) / MDegCount;
+				RelDiff = (MDegCount - KronDegCount) / KronDegCount;
+				//RelDiff = KronDegCount / MDegCount;
 				MInd++; KronInd++;
 			}
 			else if (MLessDeg){
-				RelDiff = -1;
+				RelDiff = 1;
 				MInd++;
 			}
 			else {
-				RelDiff = KronDegCount;
-				//RelDiff = 1;
+				//RelDiff = KronDegCount;
+				RelDiff = -1;
 				KronInd++;
 			}
-			TFltPr RelDiffPr(CurrDeg, RelDiff * -1);
+			TFltPr RelDiffPr(CurrDeg, RelDiff);
 			RelDiffV.Add(RelDiffPr);
 		}
 	}
@@ -1093,8 +1126,8 @@ void KroneckerByConf(vector<TStr> CommandLineArgs){
 		TFlt ScalingCoeff = 0;
 		vector <TStr> Parameters;
 		GetParameters(CommandLineArgs, "Small", Parameters);
-		vector<Diap> SmoothedDiaps;
-		GetFitMtxFromMS(FitMtx, ScalingCoeff, SmoothedDiaps, Parameters);
+		vector<Diap> SmoothedDiaps; vector<int> Prev;
+		GetFitMtxFromMS(FitMtx, ScalingCoeff, SmoothedDiaps, Parameters, Prev);
 		Parameters.clear();
 		GetParameters(CommandLineArgs, "Model", Parameters);
 		// generate big graph and plot its degrees
@@ -1122,7 +1155,7 @@ void KroneckerByConf(vector<TStr> CommandLineArgs){
 		double MaxModelOutDeg = MDegOut[MDegOut.Len()-1].Val1;
 		double RequiredDeg = MaxModelOutDeg + MaxModelOutDeg * ScalingCoeff;
 		ScaleFitMtx(G->GetNodes(), G->GetEdges(), RequiredDeg, RequiredDeg, FitMtx, NIter, IsDir, "true");
-		GenKron(Parameters[KRONGEN] + KronParameters, FitMtx, KronDegAvgIn, KronDegAvgOut, SmoothedDiaps);
+		GenKron(Parameters[KRONGEN] + KronParameters, FitMtx, KronDegAvgIn, KronDegAvgOut, SmoothedDiaps, Prev);
 		//PlotDegrees(Parameters, KronDegAvgIn, KronDegAvgOut, "kron");
 		PlotPoints(KronDegAvgIn, KronDegAvgOut, "KronModel", "all");
 		PNGraph  K;
