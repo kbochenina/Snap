@@ -1023,7 +1023,7 @@ void Rewire(PNGraph& Kron, RewireDiap& DiapsToCluster, RewireDiap& DiapsToDel, c
 }
 
 // add missing or delete excess edges
-void AddEdges(PNGraph&Kron, int Diff, int DegMin, int DegMax, int ModelEdges){
+void AddEdges(PNGraph&Kron, int Diff, int DegMin, int DegMax, int ModelEdges, const TIntPrV& DiapBorders){
 	TRnd Rnd;
 	int E = 0;
 	if (Diff < 0){
@@ -1045,7 +1045,11 @@ void AddEdges(PNGraph&Kron, int Diff, int DegMin, int DegMax, int ModelEdges){
 	else {
 		while (E < Diff){
 			int Node1 = Rnd.GetUniDev() * Kron->GetNodes();
-			int NodeDeg = Kron->GetNI(Node1).GetOutDeg();
+			TInt NodeDeg = Kron->GetNI(Node1).GetOutDeg();
+			TInt DegIndex;
+			// !!!
+			GetDiap(NodeDeg, DiapBorders, DegIndex);
+			if (DegIndex==1) continue;
 			if (NodeDeg == DegMin || NodeDeg == DegMax) 
 			{
 				continue;
@@ -1055,7 +1059,10 @@ void AddEdges(PNGraph&Kron, int Diff, int DegMin, int DegMax, int ModelEdges){
 			while (Attempts != 2 * Edges){
 				int NodeIndex = Edges * Rnd.GetUniDev();
 				Node2 = Kron->GetNI(Node1).GetNbrNId(NodeIndex);
-				int Node2Deg = Kron->GetNI(Node2).GetOutDeg();
+				TInt Node2Deg = Kron->GetNI(Node2).GetOutDeg();
+				//!!!
+				GetDiap(NodeDeg, DiapBorders, DegIndex);
+				if (DegIndex==1) continue;
 				if (Node2Deg != DegMin && Node2Deg != DegMax) {
 					NodeFound = true;
 					break;
@@ -1096,7 +1103,7 @@ void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutD
 
 	int Diff = Kron->GetEdges() - ModelEdges;
 	cout << "Difference of edges: " << Kron->GetEdges() - ModelEdges << endl;
-	AddEdges(Kron, Diff, DegMin, DegMax, ModelEdges);
+	AddEdges(Kron, Diff, DegMin, DegMax, ModelEdges, DiapBorders);
 	
 	
 }
@@ -1108,11 +1115,11 @@ void GetSmoothedDiaps(const TFltPrV& RelDiffNonCum, vector<Diap>& SmoothedDiaps,
 	const TInt DegCount = RelDiffNonCum.Len(), DiffDegs = RelDiffNonCum[DegCount-1].Val1 - RelDiffNonCum[0].Val1;
 	TInt ToleranceVal = 1;
 	if (ToleranceVal == 0) ToleranceVal = 1;
-	TFlt DiapDev = 0;
+	TFlt DiapDev  = 0;
 	bool DiapSign = RelDiffNonCum[0].Val2 > 0 ? true : false;
 	TInt DiapBegin = 0, DiapEnd = 0; 
 	int DiapIndex = 0, PrevDiapEnd = 0;
-	for (size_t i = 0; i < DegCount; i++){
+	for (size_t i = 0; i < DegCount; i++){ 
 		bool CurrentSign = RelDiffNonCum[i].Val2 > 0 ? true : false;
 		// if sign was changed or it is last interval
 		if (CurrentSign != DiapSign || i == DegCount - 1){
