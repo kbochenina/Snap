@@ -802,7 +802,7 @@ void GetDiapNodes(TIntPrV& DiapNodes, TIntPrV& DiapBorders, const vector<Diap>& 
 		if (abs(RelDiff) != 1) NodesToAdd = RelDiff * NodesCount;
 		else if (RelDiff == 1.0) NodesToAdd = 1;
 		else NodesToAdd = -NodesCount;
-		printf("DiapBegin: %d DiapEnd: %d Nodes count: %d Nodes to add: %3.2f Res: %d\n", DiapBegin,  DiapEnd, NodesCount, NodesToAdd, static_cast<int>(NodesCount+NodesToAdd+0.5));
+		printf("DiapBegin: %d DiapEnd: %d Edges count: %d Edges to add: %3.2f Res: %d\n", DiapBegin,  DiapEnd, NodesCount, NodesToAdd, static_cast<int>(NodesCount+NodesToAdd+0.5));
 		// 1. how many edges we should add/subtract approximately to/from each node of this diapasone
 		// 2. how many edges at all should be add/subtract to/from this diapasone
 		TIntPr Val((int)AvgDeg, NodesToAdd + 0.5);
@@ -911,15 +911,40 @@ int GetRndDeg(TRnd& Rnd, const TIntPr& Borders){
 	return Rnd.GetUniDev()*(Borders.Val2 - Borders.Val1) + Borders.Val1;
 }
 	
-vector<int>& FindCluster(ClusterMap& Clusters, int DiapIndex, int ReqDiap, int ReqDeg = 0){
+vector<int>& FindCluster(ClusterMap& Clusters, int DiapIndex, int ReqDiap, int& ReqDeg){
 	map<pair<int,int>, vector<int>>& ClustersDiap = Clusters[DiapIndex];
 	for (map<pair<int,int>, vector<int>>::iterator CIt = ClustersDiap.begin(); CIt != ClustersDiap.end(); CIt++){
 		if (CIt->first.first == ReqDiap){
+			ReqDeg = CIt->first.second;
 			return CIt->second;
 		}
 	}
 	// create cluster and add reference to its vector of nodes to Cluster
 	return ClustersDiap.insert(ClustersDiap.begin(), make_pair(make_pair(ReqDiap, ReqDeg), vector<int>()))->second;
+}
+
+void SetReqDeg(ClusterMap& Clusters, int DiapIndex, int ReqDiap, int ReqDeg, vector<int>& ClusterOld){
+	map<pair<int,int>, vector<int>>& ClustersDiap = Clusters[DiapIndex];
+	pair<int, int> KeyPair;
+	vector <int> Cluster;
+	map<pair<int,int>, vector<int>>::iterator EraseIt = ClustersDiap.end();
+	for (map<pair<int,int>, vector<int>>::iterator CIt = ClustersDiap.begin(); CIt != ClustersDiap.end(); CIt++){
+		if (CIt->first.first == ReqDiap){
+			//CIt->first.second = ReqDeg;
+			KeyPair = CIt->first;
+			KeyPair.second = ReqDeg;
+			for (size_t i = 0; i < CIt->second.size(); i++) 
+				Cluster.push_back(CIt->second[i]);
+			EraseIt = CIt;
+		}
+	}
+	// erase current 
+	if (EraseIt == ClustersDiap.end())
+		Error("SetReqDeg", "Cannot find diapasone");
+	ClustersDiap.insert(ClustersDiap.begin(), make_pair(KeyPair, Cluster));
+	ClusterOld = Cluster;
+	ClustersDiap.erase(EraseIt);
+	
 }
 
 // add random edge
@@ -943,6 +968,7 @@ void Rewire(PNGraph& Kron, RewireDiap& DiapsToCluster, RewireDiap& DiapsToDel, c
 	int BasicEdgesCount = Kron->GetEdges();
 	// [DiapIndex, (<ClusterDiap, ReqDeg>, vector of nodes indexes)]
 	ClusterMap Clusters;
+	int NodesToCluster = 0;
 
 	for (auto NodeIt = Kron->BegNI(); NodeIt != Kron->EndNI(); NodeIt++){
 		TInt Node = NodeIt.GetId();
@@ -952,41 +978,74 @@ void Rewire(PNGraph& Kron, RewireDiap& DiapsToCluster, RewireDiap& DiapsToDel, c
 		if (!IsDegInDiap) continue;
 		bool WasModified = false;
 		auto DiapIt = DiapsToCluster.find(DiapIndex);
+
 		if (DiapIt != DiapsToCluster.end() && DiapIt->second.size() != 0){
+			NodesToCluster++;
 			int ReqDiap = DiapIt->second[0].first;
-			int ReqDeg = GetRndDeg(Rnd, DiapBorders[ReqDiap]);
-			//int ReqDeg = DiapEdges[ReqDiap].Val1;
+			//int ReqDeg = GetRndDeg(Rnd, DiapBorders[ReqDiap]);
+			int ReqDeg = DiapBorders[ReqDiap].Val1;
 			vector<int>& Cluster = FindCluster(Clusters, DiapIndex, ReqDiap, ReqDeg);
 			Cluster.push_back(Node.Val);
-			if (Cluster.size()  >= 1 + ReqDeg - Deg ){
-				for (size_t i = 0; i < Cluster.size(); i++){
-					for (size_t j = 0; j < Cluster.size(); j++){
-						if (i == j) continue;
-						if (Kron->IsEdge(Cluster[i], Cluster[j]))
-						{
-							if (AddRndEdge(Rnd, Kron, Cluster[i], DegMax)==true) {Add+=2;}
-							if (AddRndEdge(Rnd, Kron, Cluster[j], DegMax)==true) {Add+=2;}
-						}
-						else {
-							Kron->AddEdge(Cluster[i], Cluster[j]);
-							Kron->AddEdge(Cluster[j], Cluster[i]);
-							Add+=2;
-						}
-						int Edges = Kron->GetEdges();
-						if (Edges != BasicEdgesCount + Add - Del)
-							Error("Rewire", "Basic edges count != Edges + Add - Del");
+			//cout << "Cluster size: " << Cluster.size() << endl;
+
+			int NodeToClusterDeg = Kron->GetNI(Cluster[0]).GetOutDeg();
+			// if there is enough nodes to be clustered with Cluster[0] to provide it Deg = ReqDeg
+			while (Cluster.size() - 1  >= ReqDeg - NodeToClusterDeg ){
+				// check if there is enough nodes to connect with NodeToCluster
+				int FreeNodes = 0; vector<int> ReadyNodes;
+				//cout << "Cluster size: " << Cluster.size() << endl;
+				for (size_t i = 1; i < Cluster.size(); i++){
+					if (!Kron->IsEdge(Cluster[0], Cluster[i])){
+						FreeNodes++; 
+						ReadyNodes.push_back(Cluster[i]);
 					}
 				}
-				for (size_t i = 0; i < ReqDeg; i++){
-					cout << "Degree (" << i << "-th node): " << Kron->GetNI(Cluster[i]).GetOutDeg() << endl;
+				//cout << "Free nodes: " << FreeNodes << endl;
+				if (FreeNodes < ReqDeg - NodeToClusterDeg) break;
+				for (size_t i = 0; i < ReqDeg - NodeToClusterDeg; i++){
+					Kron->AddEdge(Cluster[0], ReadyNodes[i]);
+					Kron->AddEdge(ReadyNodes[i], Cluster[0]);
+					Add+=2;
 				}
-				// decrease nodes count to be clustered
-				DiapIt->second[0].second -= Cluster.size();
-				Add;
-				Cluster.clear();
-				// if clustering ends, remove diap
-				if (DiapIt->second[0].second <= 0) 
-					DiapIt->second.erase(DiapIt->second.begin());
+							
+				int Edges = Kron->GetEdges();
+				if (Edges != BasicEdgesCount + Add - Del)
+					Error("Rewire", "Basic edges count != Edges + Add - Del");
+
+				//cout << "Required degree: " << ReqDeg << endl;
+				//cout << "Degree: " << Kron->GetNI(Cluster[0]).GetOutDeg() << endl;
+					
+				
+
+				do {
+					// decrease counter of nodes
+					DiapIt->second[0].second -= 1;
+					// erase Cluster[0]
+					//cout << "Cluster size before erasing: " << Cluster.size() << endl;
+					Cluster.erase(Cluster.begin());
+					//cout << "Cluster size after erasing: " << Cluster.size() << endl;
+					// if clustering ends, remove diap
+					if (DiapIt->second[0].second <= 0) {
+						DiapIt->second.erase(DiapIt->second.begin());
+						break;
+					}
+					// get new required degree
+					//ReqDeg = GetRndDeg(Rnd, DiapBorders[ReqDiap]);
+					ReqDeg = DiapBorders[ReqDiap].Val1;
+					// recalculate NodeToClusterDeg
+					if (Cluster.size() != 0)
+						NodeToClusterDeg = Kron->GetNI(Cluster[0]).GetOutDeg();
+					else 
+						NodeToClusterDeg = 0;
+				}
+				while (ReqDeg <= NodeToClusterDeg);
+				//cout << "Cluster size before SetReqDeg: " << Cluster.size() << endl;
+				if (Cluster.size() == 0 || DiapIt->second.size() == 0) 
+					break;
+				SetReqDeg(Clusters, DiapIndex, ReqDiap, ReqDeg, Cluster);
+				
+				//Cluster = FindCluster(Clusters, DiapIndex, ReqDiap, ReqDeg);
+				//cout << "Cluster size after FindCluster: " << Cluster.size() << endl;
 			}
 			WasModified = true;
 		}
@@ -1022,7 +1081,9 @@ void Rewire(PNGraph& Kron, RewireDiap& DiapsToCluster, RewireDiap& DiapsToDel, c
 				DiapIt->second.erase(DiapIt->second.begin());
 		}
 	}
+	//cout << "NodesToCluster: " << NodesToCluster << endl;
 	cout <<  "Edges added " << Add << ", edges deleted " << Del << ", difference " << Add - Del << endl;
+	
 }
 
 // add missing or delete excess edges

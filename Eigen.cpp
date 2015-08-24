@@ -86,5 +86,5 @@ void PrintEigen(const TKronMtx& FitMtx, const int &NIter, const int& NEigen){
 
 void PlotEigen(const PNGraph&G, const TStr& NEigenStr, const TStr& Name){
 	TFltV EigValV;
-	TSnap::PlotEigValRank(TSnap::ConvertGraph<PUNGraph>(G), NEigenStr.GetInt(), Name + "Eigen");
+	TSnap::PlotEigValRank(TSnap::ConvertGraph<PUNGraph>(G), NEigenStr.GetInt(), Name + "Eigen", EigValV);
 }
