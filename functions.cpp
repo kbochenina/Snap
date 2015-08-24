@@ -931,6 +931,9 @@ void Rewire(PNGraph& Kron, RewireDiap& DiapsToCluster, RewireDiap& DiapsToDel, c
 						Add++;
 					}
 				}
+				for (size_t i = 0; i < ReqDeg; i++){
+					cout << "Degree (" << i << "-th node): " << Kron->GetNI(Cluster[i]).GetOutDeg() << endl;
+				}
 				// decrease nodes count to be clustered
 				DiapIt->second[0].second -= ReqDeg;
 				// if clustering ends, remove diap
@@ -1020,7 +1023,7 @@ void AddEdges(PNGraph&Kron, int Diff, int DegMin, int DegMax, int ModelEdges){
 	if (Kron->GetEdges() - ModelEdges != 0) {
 		TStr Msg = "Edges count of rewired graph != required edges count: ModelEdges = ";
 		Msg += ModelEdges; Msg += ", KronEdges = "; Msg += Kron->GetEdges();
-		Error("AddEdges", Msg);
+		//Error("AddEdges", Msg);
 	}
 }
 
