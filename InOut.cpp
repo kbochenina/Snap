@@ -159,13 +159,16 @@ void PrintRelDiff(const TFltPrV& RelDiffV, const TStr& OutFNm){
 	if (! OutFNm.Empty()) { fclose(F); }
 }
 
-void PrintSmoothedDiaps(const vector<pair<TFltPr, TFlt>>& Diaps, const TStr& OutFNm){
+void PrintSmoothedDiaps(const vector<pair<TFltPr, TFltV>>& Diaps, const TStr& OutFNm){
 	FILE *F = stdout;
 	if (! OutFNm.Empty()) F = fopen(OutFNm.CStr(), "wt");
 	fprintf(F, "\n");
 	fprintf(F, "  DiapBegin\tDiapEnd\tRelDiff\n");
 	for (int i = 0; i < Diaps.size(); i++){
-		fprintf(F, "%f\t%f\t%f\n", Diaps[i].first.Val1, Diaps[i].first.Val2, Diaps[i].second);
+		fprintf(F, "%f\t%f\t\n", Diaps[i].first.Val1, Diaps[i].first.Val2);
+		for (size_t j = 0; j < Diaps[i].second.Len(); j++)
+			fprintf(F, "%3.2f ", Diaps[i].second[j]);
+		fprintf(F, "\n");
 	}
 	if (! OutFNm.Empty()) { fclose(F); }
 }

@@ -2,6 +2,7 @@
 #include <string>
 #include <algorithm>
 #include <map>
+#include "Diaps.h"
 
 // number of additional functions
 const int NFUNC = 9;
@@ -10,7 +11,7 @@ const string FUNCNAMES[] = {"KRONTEST", "GRAPHGEN_M", "MTXGEN_M", "KRONFIT_M", "
 const enum CMDARGS { KRONTEST = 0, GRAPHGEN_M = 1, MTXGEN_M = 2, KRONFIT_M = 3, KRONGEN_M = 4, GRAPHGEN_MS = 5, MTXGEN_MS = 6, KRONFIT_MS = 7, KRONGEN_MS = 8};
 const enum ARGS { GRAPHGEN = 0, MTXGEN = 1, KRONFIT = 2, KRONGEN = 3, PTYPE = 4, PLT = 5, NAME = 6, NEIGEN = 7, BINRADIX = 8, HOPS = 9, CLUST = 10};
 
-typedef pair<TFltPr, TFlt> Diap;
+typedef pair<TFltPr, TFltV> Diap;
 typedef map<int, vector<pair<int, int>>> RewireDiap;
 typedef map<int, map<pair<int,int>, vector<int>>> ClusterMap;
 
@@ -56,6 +57,8 @@ void AddEdges(PNGraph&Kron, int Diff, int DegMin, int DegMax, int ModelEdges, co
 void GetDiapNodes(TIntPrV& DiapNodes, TIntPrV& DiapBorders, const vector<Diap>& SmoothedDiaps, const TFltPrV& KronDeg, const TInt& DegMin, const TInt& DegMax, const vector<int>& Prev);
 // get random number from diap
 int GetRndDeg(TRnd& Rnd, const TIntPr& Borders);
+// get random number from diap with account of possibilities
+int GetRndDeg(TRnd&Rnd, const TIntPr& Borders, const TFltV& DiapPossib);
 // get rewire strategies
 int GetRewireStrategies(RewireDiap& DiapsToCluster, RewireDiap& DiapsToDel, TIntPrV& DiapNodes, const TIntPrV& DiapBorders);
 // get diap index
