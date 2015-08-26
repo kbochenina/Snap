@@ -79,8 +79,11 @@ int Diaps::GetSubBIndex(int Deg){
 void Diaps::SetProb(vector<double> P){
 	if (P.size() != SubB.size())
 		Error("Diaps::SetProb", "P.size() != SubB.size()");
-	for (size_t i = 0; i < P.size(); i++)
+	for (size_t i = 0; i < P.size(); i++){
+		if (P[i] < 0 || P[i] > 1)
+			Error("Diaps::SetProb", "P[i] < 0 || P[i] > 1");
 		Prob.push_back(P[i]);
+	}
 }
 
 int Diaps::AddStrat(int I, int N){
@@ -90,7 +93,11 @@ int Diaps::AddStrat(int I, int N){
 		Error("Diaps::AddStrat", "Strategy is not allowed");
 	if (Nodes < 0 && I < Index)
 		Error("Diaps::AddStrat", "Strategy is not allowed");*/
+	if (N == 0)
+		Error("Diaps::AddStrat", "Empty strategy");
 	int NodesToStrat = StratNodes + N <= abs(Nodes) ? N : abs(Nodes) - StratNodes;
+	if (NodesToStrat == 0)
+		Error("Diaps::AddStrat", "Empty strategy");
 	Strat.push_back(make_pair(I, NodesToStrat));
 	StratNodes += NodesToStrat;
 	return NodesToStrat;
@@ -129,6 +136,27 @@ void Diaps::AddStratNodes(int S){
 		Error("Diaps::AddStratNodes", "StratNodes + S > Nodes");
 	StratNodes += S;
 }
+
+// print node info
+void Diaps::PrintInfo(ofstream& F){
+	F << "Index: " << Index << "[" << Borders.first << ";" << Borders.second << "]" << " To add nodes: " << Nodes << endl;
+	F << "Subborders: ";
+	for (size_t i = 0; i < SubB.size(); i++) 
+		F << "[" << SubB[i].first << ";" << SubB[i].second << "]" << " ";
+	F << endl;
+	F << "Prob: ";
+	for (size_t i = 0; i < Prob.size(); i++) 
+		F << Prob[i] << " ";
+	F << endl;
+}
+// print strategies
+void Diaps::PrintStrategies(ofstream& F){
+	F << "Strat nodes (final): " << StratNodes << " Nodes remained: " << abs(Nodes) - StratNodes << endl;
+	for (size_t i = 0; i < Strat.size(); i++) 
+		F << "(" << Strat[i].first << "," << Strat[i].second << ")" << " ";
+	F << endl;
+}
+
 Diaps::~Diaps(void)
 {
 }

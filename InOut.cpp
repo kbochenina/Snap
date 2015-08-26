@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "Error.h"
 
+
 void DefaultSettings(vector<TStr>& out){
 	out.clear();
 	printf("Applying default settings...\n");
@@ -171,6 +172,17 @@ void PrintSmoothedDiaps(const vector<pair<TFltPr, TFltV>>& Diaps, const TStr& Ou
 		fprintf(F, "\n");
 	}
 	if (! OutFNm.Empty()) { fclose(F); }
+}
+
+void PrintDiapsInfo(vector<Diaps>& D, const TStr& OutFNm){
+	ofstream F(OutFNm.CStr());
+	F << endl;
+	for (size_t i = 0; i < D.size(); i++){
+		D[i].PrintInfo(F);
+		D[i].PrintStrategies(F);
+		F << endl;
+	}
+	F.close();
 }
 
 void MakeDatFile(const TStr& Name, const TStr& AddStr, const TStrV& ColumnNames, const vector<vector<double>>& Data, const int& Nodes, const int& Edges){

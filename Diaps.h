@@ -44,11 +44,15 @@ public:
 	int GetRndDeg(TRnd& Rnd);
 	double GetPriority();
 	// are strategies found completely
-	bool IsStratFound() {return Nodes == StratNodes; }
+	bool IsStratFound() {return abs(Nodes) == StratNodes; }
 	// get nodes count available for strategies
-	int GetFreeNodes() {return Nodes - StratNodes;}
+	int GetFreeNodes() {if (Nodes >=0) return Nodes - StratNodes; return Nodes + StratNodes;}
 	// add strat nodes
 	void AddStratNodes(int S);
+	// print node info
+	void PrintInfo(ofstream& F);
+	// print strategies
+	void PrintStrategies(ofstream& F);
 	~Diaps(void);
 };
 

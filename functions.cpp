@@ -782,17 +782,18 @@ int GetRandDeg(TRnd& Rnd, const Diap& Borders, const int DegMin, const int DegMa
 void GetDiaps(vector<Diaps>& DPlus, vector<Diaps>& DMinus, const vector<Diap>& SmoothedDiaps, const TFltPrV& KronDeg, const TInt& DegMin, const TInt& DegMax, const vector<int>& Prev){
 	for (auto DiapIt = SmoothedDiaps.begin(); DiapIt != SmoothedDiaps.end(); DiapIt++){
 		int Index = DiapIt - SmoothedDiaps.begin();
-		int DiapBegin = (DegMax - DegMin) * DiapIt->first.Val1 + DegMin + 0.5,
-			DiapEnd = (DegMax - DegMin) * DiapIt->first.Val2 + DegMin + 0.5;
+		int DiapBegin = static_cast<int>((DegMax - DegMin + 1) * DiapIt->first.Val1 + DegMin + 0.5),
+			DiapEnd = static_cast<int>((DegMax - DegMin + 1) * DiapIt->first.Val2 + DegMin + 0.5);
 		// check
 		if (find(Prev.begin(), Prev.end(), DiapIt-SmoothedDiaps.begin()) != Prev.end()){
 			// if in the sample this diapason starts after previous
-			DiapBegin = (DegMax - DegMin) * (DiapIt-1)->first.Val2 + DegMin + 0.5 + 1;
+			DiapBegin = (DegMax - DegMin + 1) * (DiapIt-1)->first.Val2 + DegMin + 0.5 + 1;
 		}
+		printf("DegBegin: %d DegEnd: %d\n", DiapBegin, DiapEnd);
 		pair<int,int> Borders(DiapBegin, DiapEnd);
 		int BaseLen = DiapEnd - DiapBegin + 1;
 		if (DiapIt->second.Len() != BaseLen)
-			Error("GetDiapNodes", "RelDiff count is not equal to nodes count");
+			Error("GetDiaps", "RelDiff count is not equal to nodes count");
 		Diaps NewDiap(Index, Borders, BaseLen);
 
 		int NodesCount = 0;
@@ -805,22 +806,31 @@ void GetDiaps(vector<Diaps>& DPlus, vector<Diaps>& DMinus, const vector<Diap>& S
 			int SubBIndex = NewDiap.GetSubBIndex(Deg);
 			// add nodes with account of relative difference
 			double RelDiff = DiapIt->second[SubBIndex];
-			RelDiffSum += abs(RelDiff);
 			if (abs(RelDiff) != 1) NodesToAdd += RelDiff * Count;
 			else if (RelDiff == 1.0) NodesToAdd += 1;
 			else NodesToAdd -= Count;
 			NodesCount += Count;
 		}
+		printf("\n");
 		int RoundNodesToAdd = static_cast<int>(NodesToAdd + 0.5);
 		if (RoundNodesToAdd != 0){
 			NewDiap.SetNodes(RoundNodesToAdd);
+			// calculate sum of RelDiff for diapason
+			for (size_t i = 0; i < DiapIt->second.Len(); i++)
+				RelDiffSum += abs(DiapIt->second[i]);
 			// calculate accumulated probabilities of subdiapasons
 			vector<double> Prob;
 			double RelDiffAcc = 0;
 			for (size_t i = 0; i < DiapIt->second.Len(); i++){
-				RelDiffAcc += DiapIt->second[i];
-				Prob.push_back(abs(RelDiffAcc) / RelDiffSum);
+				double RelDiff = abs(DiapIt->second[i]);
+				printf("%3.2f ", RelDiff);
+				RelDiffAcc += RelDiff;
+				double P = RelDiffAcc / RelDiffSum;
+				if (P < 0 || P > 1)
+					Error("GetDiaps", "Wrong value of P");
+				Prob.push_back(P);
 			}
+			printf("\n");
 			NewDiap.SetProb(Prob);
 			printf("DiapBegin: %d DiapEnd: %d Nodes count: %d Nodes to add: %d Res: %d\n", NewDiap.GetL(),  NewDiap.GetR(), NodesCount, 
 			NewDiap.GetNodes(), NodesCount + NewDiap.GetNodes());
@@ -864,7 +874,7 @@ int GetRewireStrategies(vector<Diaps>& DPlus, vector<Diaps>& DMinus){
 		Diaps& Curr =  CurrTrue ? DPlus[CurrLocalInd] : DMinus[CurrLocalInd];
 		if (Curr.IsStratFound()) continue;
 		for (size_t j = 0; j < Pr.size(); j++){
-			bool NeighbTrue = Pr[j].second == true;
+			bool NeighbTrue = Pr[j].first == true;
 			if (CurrTrue == NeighbTrue) continue;
 			int NeighbLocalInd = Pr[j].second;
 			Diaps& Neighb =  NeighbTrue ? DPlus[NeighbLocalInd] : DMinus[NeighbLocalInd];
@@ -897,13 +907,13 @@ int GetRewireStrategies(vector<Diaps>& DPlus, vector<Diaps>& DMinus){
 			}
 			// if we can add edges to nodes with smaller degree to obtain nodes with higher degree
 			else if (LessNodes < 0 && BiggNodes > 0) {
-				int ClusteredNodes = 0, ClusteredEdges = 0, Ind = 0;
+				int Nodes = 0, ClusteredEdges = 0, Ind = 0;
 				TIntPrV AddEdges; 
 				while (1)
 				{
 					BiggDeg = CurrIndHighest ? Curr.GetRndDeg(Rnd) : Neighb.GetRndDeg(Rnd);
 					LessDeg = CurrIndHighest ? Neighb.GetRndDeg(Rnd) : Curr.GetRndDeg(Rnd);
-					ClusteredNodes += 1;
+					Nodes += 1;
 
 					for (size_t d = 0; d < AddEdges.Len(); d++){
 						// if period is finished, delete it
@@ -919,17 +929,17 @@ int GetRewireStrategies(vector<Diaps>& DPlus, vector<Diaps>& DMinus){
 						AddEdges.Add(Diap);
 					}
 					Ind++;
-					if (ClusteredNodes  >= abs(LessNodes) || Ind >= BiggNodes)
+					if (Nodes  >= abs(LessNodes) || Ind >= BiggNodes)
 						break;
 				}
 								
 				if (Ind > 0){
 					if (CurrIndHighest){
-						Neighb.AddStrat(CurrLocalInd, ClusteredNodes);
+						Neighb.AddStrat(CurrLocalInd, Nodes);
 						Curr.AddStratNodes(Ind);
 					}
 					else {
-						Curr.AddStrat(NeighbLocalInd, ClusteredNodes);
+						Curr.AddStrat(NeighbLocalInd, Nodes);
 						Neighb.AddStratNodes(Ind);
 					}
 					EdgesToAdd -= 2 * ClusteredEdges;
@@ -1245,12 +1255,14 @@ void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutD
 	int ModelEdges = Kron->GetEdges();
 	TFltPrV KronDeg;
 	TSnap::GetInDegCnt(Kron, KronDeg);
-	//PrintDegDistr(KronDeg, "Kron.tab");
+	PrintDegDistr(KronDeg, "Kron.tab");
 	KronDeg.Sort();
 	const TInt& DegMin = OutDegR.Val1, &DegMax = OutDegR.Val2;
 	vector<Diaps> DPlus, DMinus;
 	GetDiaps(DPlus, DMinus, SmoothedDiaps, KronDeg, DegMin, DegMax, Prev);
 	GetRewireStrategies(DPlus, DMinus);
+	PrintDiapsInfo(DPlus, "DPlus.tab");
+	PrintDiapsInfo(DMinus, "DMinus.tab");
 	//Rewire(Kron, DiapsToCluster, DiapsToDel, DiapBorders, DegMin.Val, DegMax.Val, DiapsPossib);
 	//
 
@@ -1265,7 +1277,7 @@ void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutD
 void GetSmoothedDiaps(const TFltPrV& RelDiffNonCum, vector<Diap>& SmoothedDiaps, vector<int>& Prev){
 	if (RelDiffNonCum.Len() == 0)
 		Error("GetSmoothedDiaps", "Array size = 0");
-	const TInt DegCount = RelDiffNonCum.Len(), DiffDegs = RelDiffNonCum[DegCount-1].Val1 - RelDiffNonCum[0].Val1;
+	const TInt DegCount = RelDiffNonCum.Len(), DiffDegs = RelDiffNonCum[DegCount-1].Val1 - RelDiffNonCum[0].Val1 + 1;
 	TInt ToleranceVal = 1;
 	if (ToleranceVal == 0) ToleranceVal = 1;
 	TFltV DiapDevV;
@@ -1276,7 +1288,9 @@ void GetSmoothedDiaps(const TFltPrV& RelDiffNonCum, vector<Diap>& SmoothedDiaps,
 		bool CurrentSign = RelDiffNonCum[i].Val2 > 0 ? true : false;
 		// if sign was changed or it is last interval
 		if (CurrentSign != DiapSign || i == DegCount - 1){
-			TInt DiapLength = DiapEnd - DiapBegin + 1;
+			int DegBegin = RelDiffNonCum[DiapBegin].Val1, DegEnd = RelDiffNonCum[DiapEnd].Val1;
+			printf("DegBegin: %d DegEnd: %d\n", DegBegin, DegEnd);
+			TInt DiapLength = DegEnd - DegBegin + 1;
 			// if it is first interval or previous interval has enough length
 			if (DiapIndex == 0 || DiapLength >= ToleranceVal){
 				Diap NewDiap; 
@@ -1285,6 +1299,9 @@ void GetSmoothedDiaps(const TFltPrV& RelDiffNonCum, vector<Diap>& SmoothedDiaps,
 				NewDiap.first.Val2 = static_cast<double>(DiapEnd) / DiffDegs;
 				// average deviation of interval
 				//NewDiap.second = DiapDev / DiapLength;
+				if (DiapDevV.Len() != DiapLength){
+					Error("GetSmoothedDiaps", "Inconsistent size of DiapDevV vector");
+				}
 				for (size_t i = 0; i < DiapDevV.Len(); i++)
 					NewDiap.second.Add(DiapDevV[i]);
 				SmoothedDiaps.push_back(NewDiap);
@@ -1301,10 +1318,18 @@ void GetSmoothedDiaps(const TFltPrV& RelDiffNonCum, vector<Diap>& SmoothedDiaps,
 		}
 		else {
 			DiapEnd = i;
+			// if some degree is absent, the relative difference is equal to 0
+			if (i != 0){
+				int CurrDeg = RelDiffNonCum[i].Val1, PrevDeg = RelDiffNonCum[i-1].Val1; 
+				if (CurrDeg != PrevDeg +1  && DiapBegin != DiapEnd){
+					printf("%d %d\n", PrevDeg, CurrDeg);
+					for (size_t i = 0; i < CurrDeg-PrevDeg-1; i++)
+						DiapDevV.Add(0);
+				}
+			}
 			DiapDevV.Add(RelDiffNonCum[i].Val2);
 		}
 	}
-	
 }
 
 

@@ -14,6 +14,7 @@ using namespace std;
 
 #include "Snap.h"
 #include "kronecker.h"
+#include "Diaps.h"
 #include "InOut.h"
 #include "Python.h"
 #include "Plot.h"
