@@ -1277,58 +1277,77 @@ void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutD
 void GetSmoothedDiaps(const TFltPrV& RelDiffNonCum, vector<Diap>& SmoothedDiaps, vector<int>& Prev){
 	if (RelDiffNonCum.Len() == 0)
 		Error("GetSmoothedDiaps", "Array size = 0");
-	const TInt DegCount = RelDiffNonCum.Len(), DiffDegs = RelDiffNonCum[DegCount-1].Val1 - RelDiffNonCum[0].Val1 + 1;
+	const int DegCount = RelDiffNonCum.Len(), 
+		DegMin = RelDiffNonCum[0].Val1, 
+		DegMax = RelDiffNonCum[DegCount-1].Val1, 
+		DiffDegs = DegMax - DegMin + 1;
 	TInt ToleranceVal = 1;
-	if (ToleranceVal == 0) ToleranceVal = 1;
 	TFltV DiapDevV;
 	bool DiapSign = RelDiffNonCum[0].Val2 > 0 ? true : false;
-	TInt DiapBegin = 0, DiapEnd = 0; 
-	int DiapIndex = 0, PrevDiapEnd = 0;
-	for (size_t i = 0; i < DegCount; i++){ 
-		bool CurrentSign = RelDiffNonCum[i].Val2 > 0 ? true : false;
+	int DiapBegin = 0, DiapEnd = 0; 
+	int DiapIndex = 0, PrevDiapEnd = 0, PrevDeg = 0;
+
+	for (size_t i = 0; i < DegCount; i++){
+		int Deg = RelDiffNonCum[i].Val1;
+		double Diff = RelDiffNonCum[i].Val2;
+		bool Sign = Diff > 0 ? true : false;
+		// if there is no difference, diapason should be finalized
+		if (Diff == 0.0) Sign != DiapSign;
+
+		// if some degrees inside the diapasone are absent, add zero values of relative difference
+		if (i != 0 && Sign == DiapSign && Deg != PrevDeg + 1){
+			printf("%d %d\n", PrevDeg, Deg);
+			for (size_t i = 0; i < Deg-PrevDeg-1; i++)
+				DiapDevV.Add(0);
+		}
+
 		// if sign was changed or it is last interval
-		if (CurrentSign != DiapSign || i == DegCount - 1){
-			int DegBegin = RelDiffNonCum[DiapBegin].Val1, DegEnd = RelDiffNonCum[DiapEnd].Val1;
+		if (Sign != DiapSign || i == DegCount - 1){
+			int DegBegin = RelDiffNonCum[DiapBegin].Val1, 
+				DegEnd = RelDiffNonCum[DiapEnd].Val1;
 			printf("DegBegin: %d DegEnd: %d\n", DegBegin, DegEnd);
 			TInt DiapLength = DegEnd - DegBegin + 1;
 			// if it is first interval or previous interval has enough length
 			if (DiapIndex == 0 || DiapLength >= ToleranceVal){
 				Diap NewDiap; 
 				// [begin;end] as parts of [DegMin;DegMax]
-				NewDiap.first.Val1 = static_cast<double>(DiapBegin) / DiffDegs;
-				NewDiap.first.Val2 = static_cast<double>(DiapEnd) / DiffDegs;
-				// average deviation of interval
-				//NewDiap.second = DiapDev / DiapLength;
+				double ProbFirst = static_cast<double>(DegBegin - DegMin) / DiffDegs,
+					ProbSecond = static_cast<double>(DegEnd - DegMin) / DiffDegs;
+				int CalcDegBegin = static_cast<int>(ProbFirst * DiffDegs + DegMin + 0.5),
+					CalcDegEnd = static_cast<int>(ProbSecond * DiffDegs + DegMin + 0.5);
+				if (CalcDegBegin != DegBegin ||CalcDegEnd  != DegEnd){
+					Error("GetSmoothedDiaps", "Diapason borders are violated");
+				}
+				NewDiap.first.Val1 = ProbFirst;
+				NewDiap.first.Val2 = ProbSecond;
+
 				if (DiapDevV.Len() != DiapLength){
 					Error("GetSmoothedDiaps", "Inconsistent size of DiapDevV vector");
 				}
+
 				for (size_t i = 0; i < DiapDevV.Len(); i++)
 					NewDiap.second.Add(DiapDevV[i]);
 				SmoothedDiaps.push_back(NewDiap);
+
 				// remember if previous interval is the neighbour
-				if (PrevDiapEnd == DiapBegin - 1)
+				if (PrevDiapEnd == DiapBegin - 1 && 
+					RelDiffNonCum[PrevDiapEnd].Val1 + 1 == DegBegin)
 					Prev.push_back(DiapIndex);
+
 				PrevDiapEnd = DiapEnd;
 				DiapBegin = i; DiapEnd = i; 
 				// add value of RelDiffNonCum
-				DiapDevV.Clr(); DiapDevV.Add(RelDiffNonCum[i].Val2); 
-				DiapSign = CurrentSign;
+				DiapDevV.Clr(); 
+				DiapDevV.Add(Diff); 
+				DiapSign = Sign;
 				DiapIndex++;
 			}
 		}
 		else {
 			DiapEnd = i;
-			// if some degree is absent, the relative difference is equal to 0
-			if (i != 0){
-				int CurrDeg = RelDiffNonCum[i].Val1, PrevDeg = RelDiffNonCum[i-1].Val1; 
-				if (CurrDeg != PrevDeg +1  && DiapBegin != DiapEnd){
-					printf("%d %d\n", PrevDeg, CurrDeg);
-					for (size_t i = 0; i < CurrDeg-PrevDeg-1; i++)
-						DiapDevV.Add(0);
-				}
-			}
-			DiapDevV.Add(RelDiffNonCum[i].Val2);
+			DiapDevV.Add(Diff);
 		}
+		PrevDeg = Deg;
 	}
 }
 
