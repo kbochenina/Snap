@@ -50,9 +50,9 @@ void GetRelativeDiff(const TFltPrV& MDeg, const TFltPrV& KronDeg, TFltPrV&  RelD
 void GetSmoothedDiaps(const TFltPrV& RelDiffNonCum, vector<Diap>& SmoothedDiaps, vector<int>& Prev);
 // rewire edges according to smoothed diaps
 void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutDegR, vector<int>& Prev);
-void Rewire(PNGraph& Kron, RewireDiap& DiapsToCluster, RewireDiap& DiapsToDel, const TIntPrV& DiapBorders, const int DegMin, const int DegMax);
+void Rewire(PNGraph& Kron, vector<Diaps>& DPlus, vector<Diaps>& DMinus, const int DegMin, const int DegMax);
 // add missing or delete excess edges
-void AddEdges(PNGraph&Kron, int Diff, int DegMin, int DegMax, int ModelEdges, const TIntPrV& DiapBorders);
+void AddEdges(PNGraph&Kron, int Diff, int DegMin, int DegMax, int ModelEdges, vector<Diaps>& DMinus);
 // get appropriate number of nodes for each diapason and its average degree
 void GetDiaps(vector<Diaps>& DPlus, vector<Diaps>& DMinus, const vector<Diap>& SmoothedDiaps, const TFltPrV& KronDeg, const TInt& DegMin, const TInt& DegMax, const vector<int>& Prev);
 // get random number from diap
@@ -62,7 +62,7 @@ int GetRndDeg(TRnd&Rnd, const TIntPr& Borders, const TFltV& DiapPossib);
 // get rewire strategies
 int GetRewireStrategies(vector<Diaps>& DPlus, vector<Diaps>& DMinus);
 // get diap index
-bool GetDiap(TInt& Deg, const TIntPrV& DiapBorders, TInt& DegIndex);
+bool GetDiap(int Deg, vector<Diaps>& DPlus, vector<Diaps>& DMinus, int& DiapIndex, bool& IsDPlus);
 // add random edge
 bool AddRndEdge(TRnd& Rnd, PNGraph&Kron, int Node, int DegMax);
 

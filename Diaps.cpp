@@ -1,8 +1,9 @@
 #include "StdAfx.h"
 #include "Diaps.h"
 #include "Error.h"
+#include <iostream>
 
-Diaps::Diaps(int I, pair<int, int> B, int BL) : L(Borders.first), R(Borders.second){
+Diaps::Diaps(int I, pair<int, int> B, int BL) {
 	if (I < 0)
 		Error("Diaps::Diaps", "I < 0");
 	if (B.first < 0 || B.second < 0)
@@ -14,12 +15,11 @@ Diaps::Diaps(int I, pair<int, int> B, int BL) : L(Borders.first), R(Borders.seco
 	Index = I;
 	Borders.first = B.first;
 	Borders.second = B.second;
-	L = Borders.first;
-	R = Borders.second;
 	BaseLen = BL;
-	Len = R - L + 1;
+	Len = Borders.second - Borders.first + 1;
 	SetSubB();
 	StratNodes = 0;
+	ClusterClr();
 }
 
 void Diaps::SetNodes(int N){
@@ -30,6 +30,7 @@ void Diaps::SetNodes(int N){
 
 // set subborders
 void Diaps::SetSubB(){
+	int &L = Borders.first, &R = Borders.second;
 	double NodesPerDiap = Len / BaseLen;
 	double AccNodes = NodesPerDiap;
 	int SubBBegin = L, SubBEnd = L;
@@ -47,6 +48,7 @@ void Diaps::SetSubB(){
 // test
 void Diaps::TestSubB(){
 	int Count = 0;
+	int &L = Borders.first, &R = Borders.second;
 	if (SubB.size() != BaseLen)
 		Error("Diaps::TestSubB", "Subborders count != BaseLen");
 	for (auto it = SubB.begin(); it != SubB.end(); it++){
@@ -137,6 +139,81 @@ void Diaps::AddStratNodes(int S){
 	StratNodes += S;
 }
 
+// get index of neighbour diapason
+int Diaps::GetNeighb(){
+	if (Strat.size() == 0)
+		Error("Diaps::GetNeighb", "There are no strategies available");
+	return Strat[0].first;
+}
+
+// get number of nodes assigned to neighbour diapason
+int Diaps::GetNeighbNodes(){
+	if (Strat.size() == 0)
+		Error("Diaps::GetNeighbNodes", "There are no strategies available");
+	return Strat[0].second;
+}
+
+// check if cluster is full
+bool Diaps::IsClusterFull(){
+	int& ReqDeg = Cluster.first.first,
+		&InitDeg = Cluster.first.second.second,
+		&FreeNodes = Cluster.second.first;
+	if (InitDeg + FreeNodes >= ReqDeg)
+		return true;
+	return false;
+}
+
+// delete first node of the cluster's list
+void Diaps::DelClusterFirst(){
+	if (GetClusterSize() == 0)
+		Error("Diaps::DelClusterFirst", "Cluster size = 0");
+	Cluster.second.second.erase(Cluster.second.second.begin());
+	Cluster.second.first = -1;
+	if (Cluster.second.second.size() == 0)
+		ClusterClr();
+}
+
+// add node to cluster
+void Diaps::AddToCluster(int Node, bool HasEdge){
+	Cluster.second.second.push_back(Node);
+	if (!HasEdge)
+		Cluster.second.first++;
+}
+
+// clear the cluster
+void Diaps::ClusterClr(){
+	Cluster.first.first = -1;
+	Cluster.first.second.first = -1;
+	Cluster.first.second.second = -1;
+	Cluster.second.first = -1;
+	Cluster.second.second.clear();
+}
+
+// decrease nodes count for strategy
+bool Diaps::DecreaseStratN(){
+	if (Strat.size() == 0)
+		Error("Diaps::DecreaseStratN", "Strat.size() == 0");
+	Strat[0].second--;
+	if (Strat[0].second == 0){
+		Strat.erase(Strat.begin());
+		if (Strat.size() == 0)
+			ClusterClr();
+		return true;
+	}
+	return false;
+}
+
+// reset cluster from first node in the list
+void Diaps::ResetCluster(int ReqDeg, int CInitDeg, int TargNCount){
+	if (Cluster.second.second.size() == 0)
+		Error("Diaps::ResetCluster", "Cluster.size() == 0");
+	Cluster.first.first = ReqDeg;
+	Cluster.first.second.first = Cluster.second.second[0];
+	Cluster.first.second.second = CInitDeg;
+	Cluster.second.first = TargNCount;
+	Cluster.second.second.erase(Cluster.second.second.begin());
+}
+
 // print node info
 void Diaps::PrintInfo(ofstream& F){
 	F << "Index: " << Index << "[" << Borders.first << ";" << Borders.second << "]" << " To add nodes: " << Nodes << endl;
@@ -155,6 +232,16 @@ void Diaps::PrintStrategies(ofstream& F){
 	for (size_t i = 0; i < Strat.size(); i++) 
 		F << "(" << Strat[i].first << "," << Strat[i].second << ")" << " ";
 	F << endl;
+}
+
+// print cluster info
+void Diaps::PrintClusterInfo(){
+	std::cout << "Node: " << Cluster.first.second.first << " init deg: " << Cluster.first.second.second <<
+		" req deg: " << Cluster.first.first << " cluster size: " << Cluster.second.second.size() <<
+		" free nodes: " << Cluster.second.first << " nodes in the cluster: ";
+	for (size_t i = 0; i < GetClusterSize(); i++)
+		std::cout << Cluster.second.second[i] << " ";
+	std::cout << endl;
 }
 
 Diaps::~Diaps(void)
