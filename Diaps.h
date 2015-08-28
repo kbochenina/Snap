@@ -85,6 +85,8 @@ public:
 	void SetCluster(int ReqDeg, int Node, int InitDeg) {Cluster.first.first = ReqDeg; Cluster.first.second.first = Node; Cluster.first.second.second = InitDeg; Cluster.second.first = 0;}
 	// reset cluster from first node in the list
 	void ResetCluster(int ReqDeg, int CInitDeg, int TargNCount);
+	// decrease CInitDeg by 1
+	void DecreaseCInitDeg() {Cluster.first.second.second--;}
 	// add node to cluster
 	void AddToCluster(int Node, bool HasEdge);
 	// print node info

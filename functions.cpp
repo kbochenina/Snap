@@ -435,7 +435,7 @@ double GetBestCoeff(TFltPrV& ScalingResults){
 // estimate scaling coefficient
 double GetScalingCoefficient(const TFltPrV& InDegCnt, const TFltPrV& OutDegCnt, const TKronMtx& FitMtxM, const TInt& NIter, const TStr& IsDir){
 	// !!!
-	return 0.5;
+	//return 1.4;
 	TKronMtx FitMtx(FitMtxM);
 	double ScalingCoeff = 0;
 	double ScalingStep = 0.2;
@@ -791,11 +791,11 @@ void GetDiaps(vector<Diaps>& DPlus, vector<Diaps>& DMinus, const vector<Diap>& S
 		}
 		//printf("DegBegin: %d DegEnd: %d\n", DiapBegin, DiapEnd);
 		pair<int,int> Borders(DiapBegin, DiapEnd);
-		int BaseLen = DiapEnd - DiapBegin + 1;
+		int BaseLen = DiapIt->second.Len();
 
 		// DEBUG (FOR MODEL_SIZE == KRON_SIZE)
 
-		/*if (DiapIt->second.Len() != BaseLen)
+		/*if (DiapIt->second.Len() != DiapEnd - DiapBegin + 1)
 			Error("GetDiaps", "RelDiff count is not equal to nodes count");*/
 
 		// DEBUG END
@@ -956,7 +956,7 @@ int GetRewireStrategies(vector<Diaps>& DPlus, vector<Diaps>& DMinus){
 		}
 	}
 
-	//printf("Edges to add: %d\n", EdgesToAdd);
+	printf("Edges to add: %d\n", EdgesToAdd);
 	//PrintDegDistr(DiapNodes, "DiapNodesAfter.tab");
 	return EdgesToAdd;
 }
@@ -1070,7 +1070,7 @@ void Rewire(PNGraph& Kron, vector<Diaps>& DPlus, vector<Diaps>& DMinus, const in
 		bool IsDegInDiap = GetDiap(Deg, DPlus, DMinus, DiapIndex, IsDPlus);
 		if (!IsDegInDiap) continue;
 		Diaps& D = IsDPlus ? DPlus[DiapIndex] : DMinus[DiapIndex];
-		if (!D.HasStrat()) continue;
+		if (!D.HasStrat() || IsDPlus) continue;
 		int NeighbInd = D.GetNeighb();
 		if (NeighbInd < 0 || NeighbInd > DPlus.size()-1)
 			Error("Rewire", "Wrong neighbour index");
@@ -1115,9 +1115,27 @@ void Rewire(PNGraph& Kron, vector<Diaps>& DPlus, vector<Diaps>& DMinus, const in
 				if (TargNodes.size() != TargNCount)
 					Error("Rewire", "Incorrect size of TargNodes");
 				
+				//printf("Init degree: %d\n", Kron->GetNI(CNode).GetInDeg());
+
 				for (size_t i = 0; i < TargNCount; i++){
+					
+					// DEBUG
+
+					if (Kron->IsEdge(CNode, TargNodes[i]) || Kron->IsEdge(TargNodes[i], CNode))
+						Error("Rewire", "Attempt to add existing edge");
+					
+					// DEBUG END
+
 					Kron->AddEdge(CNode, TargNodes[i]);
 					Kron->AddEdge(TargNodes[i], CNode);
+
+					// DEBUG
+
+					if (!Kron->IsEdge(CNode, TargNodes[i]))
+						Error("Rewire", "Edge addition failed");
+
+					// DEBUG END
+
 					Add+=2;
 				}
 				
@@ -1165,7 +1183,16 @@ void Rewire(PNGraph& Kron, vector<Diaps>& DPlus, vector<Diaps>& DMinus, const in
 		}
 
 		int ReqDeg = N.GetRndDeg(Rnd);
+		//printf("Init degree: %d\n", Deg);
 		int ToDel = Deg - ReqDeg;
+
+		// DEBUG
+
+		if (ToDel <= 0)
+			Error("Rewire", "ToDel is non-positive");
+
+		// END DEBUG
+
 		int Attempts = 2 * Deg, EdgesDel = 0;
 		while (Attempts != 0 && EdgesDel != ToDel){
 			int NbInd = Rnd.GetUniDev() * (Deg - EdgesDel);
@@ -1177,6 +1204,16 @@ void Rewire(PNGraph& Kron, vector<Diaps>& DPlus, vector<Diaps>& DMinus, const in
 				continue;
 			}
 			Kron->DelEdge(Node, NNode, false);
+			// if the node deleted was the head of the cluster, we should decrease its CInitDeg by 1
+			bool IsDegInDiap = GetDiap(NDeg, DPlus, DMinus, DiapIndex, IsDPlus);
+			if (IsDegInDiap && !IsDPlus){
+				Diaps& RDMin = DMinus[DiapIndex];
+				if (RDMin.GetClusterNode() == NNode){
+					RDMin.DecreaseCInitDeg();
+					printf("Deg: %d CInitDeg:%d\n", Kron->GetNI(NNode).GetInDeg(), N.GetClusterInitDeg());
+				}
+			} 
+
 			EdgesDel++;
 			Del += 2;
 
@@ -1200,18 +1237,25 @@ void Rewire(PNGraph& Kron, vector<Diaps>& DPlus, vector<Diaps>& DMinus, const in
 
 // ModelEdges - debug parameter
 // add missing or delete excess edges
-void AddEdges(PNGraph&Kron, int Diff, int DegMin, int DegMax, int ModelEdges, vector<Diaps>& DMinus){
+void AddEdges(PNGraph&Kron, int Diff, int DegMin, int DegMax, int ModelEdges, vector<Diaps>& DMinus, vector<Diaps>& DPlus){
 	TRnd Rnd;
+	bool IsDPlus, IsInDiap;
+	int DiapIndex;
 	int E = 0;
 	if (Diff < 0){
 		while (E > Diff){
 			int Node1 = Rnd.GetUniDev() * Kron->GetNodes(), Node2;
-			if (Kron->GetNI(Node1).GetOutDeg() == DegMax)
+			int Deg1 = Kron->GetNI(Node1).GetOutDeg();
+			IsInDiap = GetDiap(Deg1, DPlus, DMinus, DiapIndex, IsDPlus);
+			if (Deg1 == DegMax )
 				continue;
 			while (1)
 			{
 				Node2 = Rnd.GetUniDev() * Kron->GetNodes();
-				if (Node1 == Node2 || Kron->GetNI(Node2).GetOutDeg() == DegMax) continue;
+				int Deg2 = Kron->GetNI(Node2).GetOutDeg();
+				bool Node2DPlus;
+				IsInDiap = GetDiap(Deg2, DPlus, DMinus, DiapIndex, Node2DPlus);
+				if (Node1 == Node2 || Deg2 == DegMax || (IsInDiap && Node2DPlus == IsDPlus)) continue;
 				break;
 			}
 			Kron->AddEdge(Node1, Node2);
@@ -1223,7 +1267,7 @@ void AddEdges(PNGraph&Kron, int Diff, int DegMin, int DegMax, int ModelEdges, ve
 		while (E < Diff){
 			int Node1 = Rnd.GetUniDev() * Kron->GetNodes(), Node2;
 			int Node1Deg = Kron->GetNI(Node1).GetOutDeg(), Node2Deg;
-			if (Node1Deg == DegMax || Node1Deg == DegMin)
+			if (Node1Deg == DegMin) // Node1Deg == DegMax || 
 				continue;
 			bool Node2Found = false;
 			int Attempts = 0;
@@ -1232,7 +1276,7 @@ void AddEdges(PNGraph&Kron, int Diff, int DegMin, int DegMax, int ModelEdges, ve
 				int Node2Ind = Node1Deg * Rnd.GetUniDev();
 				Node2 = Kron->GetNI(Node1).GetNbrNId(Node2Ind);
 				Node2Deg = Kron->GetNI(Node2).GetInDeg();
-				if (Node1 == Node2 || Node2Deg == DegMax 
+				if (Node1 == Node2 // || Node2Deg == DegMax 
 					|| Node2Deg == DegMin) {
 						Attempts++;
 						continue;
@@ -1275,11 +1319,10 @@ void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutD
 	PrintDiapsInfo(DPlus, "DPlus.tab");
 	PrintDiapsInfo(DMinus, "DMinus.tab");
 	Rewire(Kron, DPlus, DMinus, DegMin.Val, DegMax.Val);
-	//
-
-	//int Diff = Kron->GetEdges() - ModelEdges;
-	//cout << "Difference of edges: " << Kron->GetEdges() - ModelEdges << endl;
-	//AddEdges(Kron, Diff, DegMin, DegMax, ModelEdges, DiapBorders);
+	
+	int Diff = Kron->GetEdges() - ModelEdges;
+	cout << "Difference of edges: " << Kron->GetEdges() - ModelEdges << endl;
+	AddEdges(Kron, Diff, DegMin, DegMax, ModelEdges, DMinus, DPlus);
 	
 	
 }
@@ -1310,6 +1353,10 @@ void GetSmoothedDiaps(const TFltPrV& RelDiffNonCum, vector<Diap>& SmoothedDiaps,
 			printf("%d %d\n", PrevDeg, Deg);
 			for (size_t i = 0; i < Deg-PrevDeg-1; i++)
 				DiapDevV.Add(0);
+			if (i == DegCount - 1){
+				DiapEnd = i;
+				DiapDevV.Add(Diff);
+			}
 		}
 
 		// if sign was changed or it is last interval
@@ -1333,6 +1380,7 @@ void GetSmoothedDiaps(const TFltPrV& RelDiffNonCum, vector<Diap>& SmoothedDiaps,
 				NewDiap.first.Val2 = ProbSecond;
 
 				if (DiapDevV.Len() != DiapLength){
+
 					Error("GetSmoothedDiaps", "Inconsistent size of DiapDevV vector");
 				}
 

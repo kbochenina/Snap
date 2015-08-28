@@ -31,7 +31,7 @@ void Diaps::SetNodes(int N){
 // set subborders
 void Diaps::SetSubB(){
 	int &L = Borders.first, &R = Borders.second;
-	double NodesPerDiap = Len / BaseLen;
+	double NodesPerDiap = static_cast<double>(Len) / BaseLen;
 	double AccNodes = NodesPerDiap;
 	int SubBBegin = L, SubBEnd = L;
 	while (SubBEnd <= R){
@@ -114,6 +114,14 @@ int Diaps::GetRndDeg(TRnd& Rnd){
 	if (SubBIndex > SubB.size())
 		Error("Diaps::GetRndDeg", "SubBIndex out of range");
 	int RndDeg = Rnd.GetUniDev() * (SubB[SubBIndex].second - SubB[SubBIndex].first) + SubB[SubBIndex].first;
+
+	// DEBUG
+
+	if (RndDeg < Borders.first || RndDeg > Borders.second)
+		Error("Diaps::GetRndDeg", "RndDeg is out of range");
+
+	// END DEBUG
+
 	return RndDeg;
 }
 
