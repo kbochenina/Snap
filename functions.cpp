@@ -789,11 +789,17 @@ void GetDiaps(vector<Diaps>& DPlus, vector<Diaps>& DMinus, const vector<Diap>& S
 			// if in the sample this diapason starts after previous
 			DiapBegin = (DegMax - DegMin + 1) * (DiapIt-1)->first.Val2 + DegMin + 0.5 + 1;
 		}
-		printf("DegBegin: %d DegEnd: %d\n", DiapBegin, DiapEnd);
+		//printf("DegBegin: %d DegEnd: %d\n", DiapBegin, DiapEnd);
 		pair<int,int> Borders(DiapBegin, DiapEnd);
 		int BaseLen = DiapEnd - DiapBegin + 1;
-		if (DiapIt->second.Len() != BaseLen)
-			Error("GetDiaps", "RelDiff count is not equal to nodes count");
+
+		// DEBUG (FOR MODEL_SIZE == KRON_SIZE)
+
+		/*if (DiapIt->second.Len() != BaseLen)
+			Error("GetDiaps", "RelDiff count is not equal to nodes count");*/
+
+		// DEBUG END
+
 		Diaps NewDiap(Index, Borders, BaseLen);
 
 		int NodesCount = 0;
@@ -804,6 +810,8 @@ void GetDiaps(vector<Diaps>& DPlus, vector<Diaps>& DMinus, const vector<Diap>& S
 			if (Deg > DiapEnd) break;
 			if (Deg < DiapBegin) continue;
 			int SubBIndex = NewDiap.GetSubBIndex(Deg);
+			if (SubBIndex < 0 || SubBIndex > DiapIt->second.Len() - 1)
+				Error("GetDiaps", "Incorrect index of subdiapason");
 			// add nodes with account of relative difference
 			double RelDiff = DiapIt->second[SubBIndex];
 			if (abs(RelDiff) != 1) NodesToAdd += RelDiff * Count;
@@ -811,7 +819,7 @@ void GetDiaps(vector<Diaps>& DPlus, vector<Diaps>& DMinus, const vector<Diap>& S
 			else NodesToAdd -= Count;
 			NodesCount += Count;
 		}
-		printf("\n");
+		//printf("\n");
 		int RoundNodesToAdd = static_cast<int>(NodesToAdd + 0.5);
 		if (RoundNodesToAdd != 0){
 			NewDiap.SetNodes(RoundNodesToAdd);
@@ -823,17 +831,17 @@ void GetDiaps(vector<Diaps>& DPlus, vector<Diaps>& DMinus, const vector<Diap>& S
 			double RelDiffAcc = 0;
 			for (size_t i = 0; i < DiapIt->second.Len(); i++){
 				double RelDiff = abs(DiapIt->second[i]);
-				printf("%3.2f ", RelDiff);
+				//printf("%3.2f ", RelDiff);
 				RelDiffAcc += RelDiff;
 				double P = RelDiffAcc / RelDiffSum;
 				if (P < 0 || P > 1)
 					Error("GetDiaps", "Wrong value of P");
 				Prob.push_back(P);
 			}
-			printf("\n");
+			//printf("\n");
 			NewDiap.SetProb(Prob);
-			printf("DiapBegin: %d DiapEnd: %d Nodes count: %d Nodes to add: %d Res: %d\n", NewDiap.GetL(),  NewDiap.GetR(), NodesCount, 
-			NewDiap.GetNodes(), NodesCount + NewDiap.GetNodes());
+			//printf("DiapBegin: %d DiapEnd: %d Nodes count: %d Nodes to add: %d Res: %d\n", NewDiap.GetL(),  NewDiap.GetR(), NodesCount, 
+			//NewDiap.GetNodes(), NodesCount + NewDiap.GetNodes());
 			if (NewDiap.GetNodes() > 0) DPlus.push_back(NewDiap);
 			else DMinus.push_back(NewDiap);
 		}
@@ -1064,13 +1072,14 @@ void Rewire(PNGraph& Kron, vector<Diaps>& DPlus, vector<Diaps>& DMinus, const in
 		Diaps& D = IsDPlus ? DPlus[DiapIndex] : DMinus[DiapIndex];
 		if (!D.HasStrat()) continue;
 		int NeighbInd = D.GetNeighb();
+		if (NeighbInd < 0 || NeighbInd > DPlus.size()-1)
+			Error("Rewire", "Wrong neighbour index");
+		Diaps& N = DPlus[NeighbInd];
 
 		// if nodes are deleted from current diapason
-		if (IsDPlus == false){
-			if (NeighbInd < 0 || NeighbInd > DPlus.size()-1)
-				Error("Rewire", "Wrong neighbour index");
-			Diaps& N = DPlus[NeighbInd];
-
+		// and they are clustered to form a new value
+		if (IsDPlus == false && N.GetL() > Deg){
+			
 			int ReqDeg = 0, CNode = Node, CInitDeg = Deg;
 
 			// cluster is empty if it has no CNode (value = -1)  
@@ -1086,7 +1095,7 @@ void Rewire(PNGraph& Kron, vector<Diaps>& DPlus, vector<Diaps>& DMinus, const in
 				D.AddToCluster(Node, HasDeg);
 			}
 			
-			D.PrintClusterInfo();
+			//D.PrintClusterInfo();
 
 			// while cluster is full
 			while ( D.IsClusterFull() && !D.IsClusterEmpty() ){
@@ -1155,14 +1164,15 @@ void Rewire(PNGraph& Kron, vector<Diaps>& DPlus, vector<Diaps>& DMinus, const in
 			continue;
 		}
 
-		Diaps& N = DMinus[NeighbInd];
 		int ReqDeg = N.GetRndDeg(Rnd);
 		int ToDel = Deg - ReqDeg;
 		int Attempts = 2 * Deg, EdgesDel = 0;
 		while (Attempts != 0 && EdgesDel != ToDel){
 			int NbInd = Rnd.GetUniDev() * (Deg - EdgesDel);
 			int NNode = Kron->GetNI(Node).GetNbrNId(NbInd);
-			if (Kron->GetNI(NNode).GetOutDeg() == DegMin){
+			int NDeg = Kron->GetNI(NNode).GetOutDeg();
+			if (NDeg == DegMin ||
+				NDeg == DegMax){
 				Attempts--;
 				continue;
 			}
