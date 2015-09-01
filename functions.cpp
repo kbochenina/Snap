@@ -384,7 +384,7 @@ double GetAvgDeviation(const TFltPrV& ModelDegCnt, const TFltPrV& KronDegCnt){
 	if (MaxModelDeg == MaxKronDeg) 
 		return (pow((MaxModelCount-MaxKronCount)/MaxModelCount,2));
 	else {
-		return (pow((MaxModelDeg-MaxKronDeg)/MaxModelDeg,2));
+		return (pow((MaxModelDeg-MaxKronDeg)/MaxModelDeg,2) + 1);
 	}
 
 	/*int IndexModel = 0, IndexKron = 0;
@@ -435,7 +435,6 @@ double GetBestCoeff(TFltPrV& ScalingResults){
 // estimate scaling coefficient
 double GetScalingCoefficient(const TFltPrV& InDegCnt, const TFltPrV& OutDegCnt, const TKronMtx& FitMtxM, const TInt& NIter, const TStr& IsDir){
 	// !!!
-	//return 1.4;
 	TKronMtx FitMtx(FitMtxM);
 	double ScalingCoeff = 0;
 	double ScalingStep = 0.2;
@@ -563,6 +562,7 @@ void GenKron(const TStr& Args, TKronMtx& FitMtx, TFltPrV& KronDegAvgIn, TFltPrV&
 		ExecTime.Tick();
 		KroneckerGen(Kron, FitMtx, NIter, IsDir, InDegR, OutDegR, NoiseCoeff);
 		Rewire(Kron, SmoothedDiaps, OutDegR, Prev);
+		//TKronMtx::RemoveZeroDegreeNodes(Kron, FitMtx, NIter, InDegR.Val1, InDegR.Val2);
 		/*if (IsDir == "false" && !CheckReciprocity(Kron)){
 			Error("GenKron", "Violation of reciprocity for undirected graph");
 		}*/
@@ -782,6 +782,9 @@ int GetRandDeg(TRnd& Rnd, const Diap& Borders, const int DegMin, const int DegMa
 void GetDiaps(vector<Diaps>& DPlus, vector<Diaps>& DMinus, const vector<Diap>& SmoothedDiaps, const TFltPrV& KronDeg, const TInt& DegMin, const TInt& DegMax, const vector<int>& Prev){
 	for (auto DiapIt = SmoothedDiaps.begin(); DiapIt != SmoothedDiaps.end(); DiapIt++){
 		int Index = DiapIt - SmoothedDiaps.begin();
+
+		
+
 		int DiapBegin = static_cast<int>((DegMax - DegMin + 1) * DiapIt->first.Val1 + DegMin + 0.5),
 			DiapEnd = static_cast<int>((DegMax - DegMin + 1) * DiapIt->first.Val2 + DegMin + 0.5);
 		// check
