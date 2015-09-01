@@ -435,6 +435,7 @@ double GetBestCoeff(TFltPrV& ScalingResults){
 // estimate scaling coefficient
 double GetScalingCoefficient(const TFltPrV& InDegCnt, const TFltPrV& OutDegCnt, const TKronMtx& FitMtxM, const TInt& NIter, const TStr& IsDir){
 	// !!!
+	return 0.7;
 	TKronMtx FitMtx(FitMtxM);
 	double ScalingCoeff = 0;
 	double ScalingStep = 0.2;
@@ -782,8 +783,7 @@ int GetRandDeg(TRnd& Rnd, const Diap& Borders, const int DegMin, const int DegMa
 void GetDiaps(vector<Diaps>& DPlus, vector<Diaps>& DMinus, const vector<Diap>& SmoothedDiaps, const TFltPrV& KronDeg, const TInt& DegMin, const TInt& DegMax, const vector<int>& Prev){
 	for (auto DiapIt = SmoothedDiaps.begin(); DiapIt != SmoothedDiaps.end(); DiapIt++){
 		int Index = DiapIt - SmoothedDiaps.begin();
-
-		
+				
 
 		int DiapBegin = static_cast<int>((DegMax - DegMin + 1) * DiapIt->first.Val1 + DegMin + 0.5),
 			DiapEnd = static_cast<int>((DegMax - DegMin + 1) * DiapIt->first.Val2 + DegMin + 0.5);
@@ -792,6 +792,13 @@ void GetDiaps(vector<Diaps>& DPlus, vector<Diaps>& DMinus, const vector<Diap>& S
 			// if in the sample this diapason starts after previous
 			DiapBegin = (DegMax - DegMin + 1) * (DiapIt-1)->first.Val2 + DegMin + 0.5 + 1;
 		}
+
+		//// HACK!
+		//if (Index == 1){
+		//	DiapBegin = 3;
+		//	DiapEnd = 11;
+		//}
+
 		//printf("DegBegin: %d DegEnd: %d\n", DiapBegin, DiapEnd);
 		pair<int,int> Borders(DiapBegin, DiapEnd);
 		int BaseLen = DiapIt->second.Len();
@@ -817,7 +824,10 @@ void GetDiaps(vector<Diaps>& DPlus, vector<Diaps>& DMinus, const vector<Diap>& S
 				Error("GetDiaps", "Incorrect index of subdiapason");
 			// add nodes with account of relative difference
 			double RelDiff = DiapIt->second[SubBIndex];
-			if (abs(RelDiff) != 1) NodesToAdd += RelDiff * Count;
+			if (abs(RelDiff) != 1) {
+				printf("%3.2f\n", log10(static_cast<double>(Count)));
+				NodesToAdd += pow(10, log10(static_cast<double>(Count+1)) * RelDiff) - Count - 1;
+			}
 			else if (RelDiff == 1.0) NodesToAdd += 1;
 			else NodesToAdd -= Count;
 			NodesCount += Count;
@@ -1154,7 +1164,8 @@ void Rewire(PNGraph& Kron, vector<Diaps>& DPlus, vector<Diaps>& DMinus, const in
 
 				// DEBUG END
 
-				ReqDeg = DPlus[D.GetNeighb()].GetRndDeg(Rnd);			
+				ReqDeg = DPlus[D.GetNeighb()].GetRndDeg(Rnd);
+				
 				// while CInitDeg >= ReqDeg
 				do{
 					bool StratFin = D.DecreaseStratN();
@@ -1325,7 +1336,7 @@ void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutD
 	
 	int Diff = Kron->GetEdges() - ModelEdges;
 	cout << "Difference of edges: " << Kron->GetEdges() - ModelEdges << endl;
-	AddEdges(Kron, Diff, DegMin, DegMax, ModelEdges, DMinus, DPlus);
+	//AddEdges(Kron, Diff, DegMin, DegMax, ModelEdges, DMinus, DPlus);
 	
 	
 }
@@ -1340,14 +1351,14 @@ void GetSmoothedDiaps(const TFltPrV& RelDiffNonCum, vector<Diap>& SmoothedDiaps,
 		DiffDegs = DegMax - DegMin + 1;
 	TInt ToleranceVal = 1;
 	TFltV DiapDevV;
-	bool DiapSign = RelDiffNonCum[0].Val2 > 0 ? true : false;
+	bool DiapSign = RelDiffNonCum[0].Val2 > 1 ? true : false;
 	int DiapBegin = 0, DiapEnd = 0; 
 	int DiapIndex = 0, PrevDiapEnd = 0, PrevDeg = 0;
 
 	for (size_t i = 0; i < DegCount; i++){
 		int Deg = RelDiffNonCum[i].Val1;
 		double Diff = RelDiffNonCum[i].Val2;
-		bool Sign = Diff > 0 ? true : false;
+		bool Sign = Diff > 1 ? true : false;
 		// if there is no difference, diapason should be finalized
 		if (Diff == 0.0) Sign = DiapSign == true ? false : true;
 
@@ -1416,15 +1427,15 @@ void GetSmoothedDiaps(const TFltPrV& RelDiffNonCum, vector<Diap>& SmoothedDiaps,
 
 // get relative differences of degrees
 void GetRelativeDiff(const TFltPrV& MDeg, const TFltPrV& KronDeg, TFltPrV&  RelDiffV, bool NonCum){
-	TInt MDegCount = MDeg.Len(), KronDegCount = KronDeg.Len();
-	TInt MinDegModel = static_cast<int>(MDeg[0].Val1), MaxDegModel = static_cast<int>(MDeg[MDegCount-1].Val1),
+	int MDegCount = MDeg.Len(), KronDegCount = KronDeg.Len();
+	int MinDegModel = static_cast<int>(MDeg[0].Val1), MaxDegModel = static_cast<int>(MDeg[MDegCount-1].Val1),
 		MinDegKron = static_cast<int>(KronDeg[0].Val1), MaxDegKron = static_cast<int>(KronDeg[KronDegCount-1].Val1);
-	TInt MinDeg = MinDegModel < MinDegKron ? MinDegModel : MinDegKron,
+	int MinDeg = MinDegModel < MinDegKron ? MinDegModel : MinDegKron,
 		MaxDeg = MaxDegModel > MaxDegKron ? MaxDegModel : MaxDegKron;
-	TFlt CurrDeg = MinDeg, MInd = 0, KronInd = 0;
+	double CurrDeg = MinDeg, MInd = 0, KronInd = 0;
 	if (NonCum){
 		while (1){
-			TFlt MDegVal, KronDegVal, MDegCount, KronDegCount;
+			double MDegVal, KronDegVal, MDegCount, KronDegCount;
 			if (MInd < MDeg.Len()){
 				MDegVal = MDeg[MInd].Val1; MDegCount = MDeg[MInd].Val2;
 			}
@@ -1432,7 +1443,7 @@ void GetRelativeDiff(const TFltPrV& MDeg, const TFltPrV& KronDeg, TFltPrV&  RelD
 				MDegVal = MaxDeg + 1; MDegCount = 0;
 			}
 			if (KronInd < KronDeg.Len()) {
-				KronDegVal = KronDeg[KronInd].Val1; KronDegCount = KronDeg[KronInd].Val2;
+				KronDegVal = KronDeg[KronInd].Val1; KronDegCount = static_cast<int>(KronDeg[KronInd].Val2 + 0.5);
 			}
 			else {
 				KronDegVal = MaxDeg + 1; KronDegCount = 0;
@@ -1440,9 +1451,18 @@ void GetRelativeDiff(const TFltPrV& MDeg, const TFltPrV& KronDeg, TFltPrV&  RelD
 			bool MLessDeg = MDegVal < KronDegVal ? true : false;
 			CurrDeg = MLessDeg ? MDegVal : KronDegVal;
 			if (CurrDeg > MaxDeg) break;
-			TFlt RelDiff;
+			double RelDiff;
 			if (MDegVal == CurrDeg && KronDegVal == CurrDeg){
-				RelDiff = (MDegCount - KronDegCount) / KronDegCount;
+				//RelDiff = (MDegCount - KronDegCount) / KronDegCount;
+				if (MDegCount == KronDegCount)
+					RelDiff = 0;
+				else{ 
+					if (KronDegCount == 0)
+						RelDiff = 1;
+					else 
+						RelDiff = log10(MDegCount+1) / log10(KronDegCount+1);
+				}
+				
 				//RelDiff = KronDegCount / MDegCount;
 				MInd++; KronInd++;
 			}
@@ -1456,6 +1476,7 @@ void GetRelativeDiff(const TFltPrV& MDeg, const TFltPrV& KronDeg, TFltPrV&  RelD
 				KronInd++;
 			}
 			TFltPr RelDiffPr(CurrDeg, RelDiff);
+			printf("MDegCount=%3.2f KronDegCount=%3.2f RelDiff = %3.2f\n", MDegCount, KronDegCount, RelDiff);
 			RelDiffV.Add(RelDiffPr);
 		}
 	}

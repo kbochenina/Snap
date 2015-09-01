@@ -113,7 +113,7 @@ int Diaps::GetRndDeg(TRnd& Rnd){
 		SubBIndex++;
 	if (SubBIndex > SubB.size())
 		Error("Diaps::GetRndDeg", "SubBIndex out of range");
-	int RndDeg = Rnd.GetUniDev() * (SubB[SubBIndex].second - SubB[SubBIndex].first) + SubB[SubBIndex].first;
+	int RndDeg = Rnd.GetUniDev() * (SubB[SubBIndex].second - SubB[SubBIndex].first) + SubB[SubBIndex].first + 0.5;
 
 	// DEBUG
 
