@@ -55,9 +55,17 @@ void GetDiaps(vector<Diaps>& DPlus, vector<Diaps>& DMinus, const vector<Diap>& S
 
 		int NodesCount = 0;
 		double NodesToAdd = 0, RelDiffSum = 0;
+		int KronInd = 0, Count = 0, KDeg = 0;
 
-		for (size_t i = 0; i < KronDeg.Len(); i++){
-			int Deg = KronDeg[i].Val1, Count = KronDeg[i].Val2;
+		for (size_t Deg = DegMin; Deg <= DegMax; Deg++){
+			if (KronInd < KronDeg.Len())
+				KDeg = KronDeg[KronInd].Val1;
+			if (KDeg == Deg){
+				Count = KronDeg[KronInd].Val2;
+				KronInd++;
+			}
+			else
+				Count = 0;
 			if (Deg > DiapEnd) break;
 			if (Deg < DiapBegin) continue;
 			int SubBIndex = NewDiap.GetSubBIndex(Deg);
@@ -65,12 +73,17 @@ void GetDiaps(vector<Diaps>& DPlus, vector<Diaps>& DMinus, const vector<Diap>& S
 				Error("GetDiaps", "Incorrect index of subdiapason");
 			// add nodes with account of relative difference
 			double RelDiff = DiapIt->second[SubBIndex];
-			if (abs(RelDiff) != 1) {
-				printf("%3.2f\n", log10(static_cast<double>(Count)));
+			if (abs(RelDiff) != 1 && RelDiff != 0) {
+				printf("%3.2f\n", log10(static_cast<double>(Count+1)));
 				NodesToAdd += pow(10, log10(static_cast<double>(Count+1)) * RelDiff) - Count - 1;
 			}
-			else if (RelDiff == 1.0) NodesToAdd += 1;
-			else NodesToAdd -= Count;
+			else 
+				if (RelDiff == 1.0){ 
+					if (Count == 0) 
+						NodesToAdd += 1;
+				}
+			else if (RelDiff == -1)
+				NodesToAdd -= Count;
 			NodesCount += Count;
 		}
 		//printf("\n");
@@ -88,6 +101,8 @@ void GetDiaps(vector<Diaps>& DPlus, vector<Diaps>& DMinus, const vector<Diap>& S
 				//printf("%3.2f ", RelDiff);
 				RelDiffAcc += RelDiff;
 				double P = RelDiffAcc / RelDiffSum;
+				if (RelDiffSum == 0)
+					Error("GetDiaps", "Wrong value of P");
 				if (P < 0 || P > 1)
 					Error("GetDiaps", "Wrong value of P");
 				Prob.push_back(P);
@@ -317,6 +332,16 @@ void Rewire(PNGraph& Kron, vector<Diaps>& DPlus, vector<Diaps>& DMinus, const in
 	int BasicEdgesCount = Kron->GetEdges();
 
 	for (auto NodeIt = Kron->BegNI(); NodeIt != Kron->EndNI(); NodeIt++){
+		//cout << "Add " << Add << " Del " << Del << endl;
+		bool CanAdd = true, CanDel = true;
+		// TEST CONDITION
+		if (abs(Add-Del)/static_cast<double>(BasicEdgesCount) > 0.01){ 
+			if (Add > Del) CanAdd = false;
+			else CanDel = false;
+		}
+		
+		// END TEST
+
 		int Node = NodeIt.GetId();
 		int Deg = NodeIt.GetInDeg();
 		int DiapIndex = 0; 
@@ -330,10 +355,23 @@ void Rewire(PNGraph& Kron, vector<Diaps>& DPlus, vector<Diaps>& DMinus, const in
 			Error("Rewire", "Wrong neighbour index");
 		Diaps& N = DPlus[NeighbInd];
 
+
 		// if nodes are deleted from current diapason
 		// and they are clustered to form a new value
-		if (IsDPlus == false && N.GetL() > Deg){
+		// and CanAdd == true
+		if (IsDPlus == false && N.GetL() > Deg && CanAdd){
 			
+			// TEST
+			if (N.GetL() - Deg > abs(D.GetNodes())){
+				for (size_t i = 0; i < N.GetL() - Deg; i++){
+					AddRndEdge(Rnd, Kron, Node, DegMax);
+					Add+=2;
+				}
+				D.DecreaseStratN();
+				continue;
+			}
+			// END TEST 
+
 			int ReqDeg = 0, CNode = Node, CInitDeg = Deg;
 
 			// cluster is empty if it has no CNode (value = -1)  
@@ -437,10 +475,13 @@ void Rewire(PNGraph& Kron, vector<Diaps>& DPlus, vector<Diaps>& DMinus, const in
 			continue;
 		}
 
+		if (CanDel == false || N.GetL() > Deg)
+			continue;
+
 		int ReqDeg = N.GetRndDeg(Rnd);
 		//printf("Init degree: %d\n", Deg);
 		int ToDel = Deg - ReqDeg;
-
+		
 		// DEBUG
 
 		if (ToDel <= 0)
@@ -578,7 +619,7 @@ void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutD
 	
 	int Diff = Kron->GetEdges() - ModelEdges;
 	cout << "Difference of edges: " << Kron->GetEdges() - ModelEdges << endl;
-	//AddEdges(Kron, Diff, DegMin, DegMax, ModelEdges, DMinus, DPlus);
+	AddEdges(Kron, Diff, DegMin, DegMax, ModelEdges, DMinus, DPlus);
 	
 	
 }
