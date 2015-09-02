@@ -583,6 +583,19 @@ void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutD
 	
 }
 
+// type 1: RD == 0
+// type 2: RD == -1
+// type 3: RD == 1
+// type 4: RD > 1 
+// type 5: 0 < RD < 1
+int GetRelDiffType(double RD){
+	if (RD == 0) return 1;
+	if (RD == -1) return 2;
+	if (RD == 1) return 3;
+	if (RD > 1) return 4;
+	return 5;
+}
+
 // get smoothed diapasons for scaling
 void GetSmoothedDiaps(const TFltPrV& RelDiffNonCum, vector<Diap>& SmoothedDiaps, vector<int>& Prev){
 	if (RelDiffNonCum.Len() == 0)
@@ -593,19 +606,21 @@ void GetSmoothedDiaps(const TFltPrV& RelDiffNonCum, vector<Diap>& SmoothedDiaps,
 		DiffDegs = DegMax - DegMin + 1;
 	TInt ToleranceVal = 1;
 	TFltV DiapDevV;
-	bool DiapSign = RelDiffNonCum[0].Val2 > 1 ? true : false;
+	int PrevRDType = GetRelDiffType(RelDiffNonCum[0].Val2), RDType;
 	int DiapBegin = 0, DiapEnd = 0; 
-	int DiapIndex = 0, PrevDiapEnd = 0, PrevDeg = 0;
+	int DiapIndex = 0, PrevDiapEnd = 0, PrevDeg = 0, Deg = 0;
+	double Diff = 0;
 
 	for (size_t i = 0; i < DegCount; i++){
-		int Deg = RelDiffNonCum[i].Val1;
-		double Diff = RelDiffNonCum[i].Val2;
-		bool Sign = Diff > 1 ? true : false;
+			Deg = RelDiffNonCum[i].Val1;
+			Diff = RelDiffNonCum[i].Val2;
+			RDType = GetRelDiffType(Diff);
+		
 		// if there is no difference, diapason should be finalized
-		if (Diff == 0.0) Sign = DiapSign == true ? false : true;
+		//if (Diff == 0.0) Sign = DiapSign == true ? false : true;
 
 		// if some degrees inside the diapasone are absent, add zero values of relative difference
-		if (i != 0 && Sign == DiapSign && Deg != PrevDeg + 1){
+		if (i != 0 && RDType == PrevRDType && Deg != PrevDeg + 1){
 			printf("%d %d\n", PrevDeg, Deg);
 			for (size_t i = 0; i < Deg-PrevDeg-1; i++)
 				DiapDevV.Add(0);
@@ -616,10 +631,10 @@ void GetSmoothedDiaps(const TFltPrV& RelDiffNonCum, vector<Diap>& SmoothedDiaps,
 		}
 
 		// if sign was changed or it is last interval
-		if (Sign != DiapSign || i == DegCount - 1){
+		if (RDType != PrevRDType || i == DegCount - 1){
 			int DegBegin = RelDiffNonCum[DiapBegin].Val1, 
 				DegEnd = RelDiffNonCum[DiapEnd].Val1;
-			printf("DegBegin: %d DegEnd: %d\n", DegBegin, DegEnd);
+			//printf("DegBegin: %d DegEnd: %d\n", DegBegin, DegEnd);
 			TInt DiapLength = DegEnd - DegBegin + 1;
 			// if it is first interval or previous interval has enough length
 			if (DiapIndex == 0 || DiapLength >= ToleranceVal){
@@ -634,6 +649,8 @@ void GetSmoothedDiaps(const TFltPrV& RelDiffNonCum, vector<Diap>& SmoothedDiaps,
 				}
 				NewDiap.first.Val1 = ProbFirst;
 				NewDiap.first.Val2 = ProbSecond;
+
+				printf("DiapBegin: %d DiapEnd: %d\n", DegBegin, DegEnd);
 
 				if (DiapDevV.Len() != DiapLength){
 
@@ -654,7 +671,20 @@ void GetSmoothedDiaps(const TFltPrV& RelDiffNonCum, vector<Diap>& SmoothedDiaps,
 				// add value of RelDiffNonCum
 				DiapDevV.Clr(); 
 				DiapDevV.Add(Diff); 
-				DiapSign = Sign;
+				
+				// for the last diapason
+				if (i == DegCount - 1){
+					NewDiap.first.Val1 = static_cast<double>(Deg - DegMin) / DiffDegs;
+					NewDiap.first.Val2 = NewDiap.first.Val1;
+					printf("DiapBegin: %d DiapEnd: %d\n", Deg, Deg);
+					DiapDevV.Clr();
+					DiapDevV.Add(Diff);
+					NewDiap.second.Clr();
+					NewDiap.second.Add(DiapDevV[0]);
+					SmoothedDiaps.push_back(NewDiap);
+				}
+
+				PrevRDType = RDType;
 				DiapIndex++;
 			}
 		}
@@ -669,6 +699,8 @@ void GetSmoothedDiaps(const TFltPrV& RelDiffNonCum, vector<Diap>& SmoothedDiaps,
 
 // get relative differences of degrees
 void GetRelativeDiff(const TFltPrV& MDeg, const TFltPrV& KronDeg, TFltPrV&  RelDiffV, bool NonCum){
+	/*PrintDegDistr(MDeg, "ModelBasic.tab");
+	PrintDegDistr(KronDeg, "KronBasic.tab");*/
 	int MDegCount = MDeg.Len(), KronDegCount = KronDeg.Len();
 	int MinDegModel = static_cast<int>(MDeg[0].Val1), MaxDegModel = static_cast<int>(MDeg[MDegCount-1].Val1),
 		MinDegKron = static_cast<int>(KronDeg[0].Val1), MaxDegKron = static_cast<int>(KronDeg[KronDegCount-1].Val1);
@@ -685,7 +717,7 @@ void GetRelativeDiff(const TFltPrV& MDeg, const TFltPrV& KronDeg, TFltPrV&  RelD
 				MDegVal = MaxDeg + 1; MDegCount = 0;
 			}
 			if (KronInd < KronDeg.Len()) {
-				KronDegVal = KronDeg[KronInd].Val1; KronDegCount = static_cast<int>(KronDeg[KronInd].Val2 + 0.5);
+				KronDegVal = KronDeg[KronInd].Val1; KronDegCount = floor(KronDeg[KronInd].Val2 + 0.5);
 			}
 			else {
 				KronDegVal = MaxDeg + 1; KronDegCount = 0;
@@ -699,6 +731,7 @@ void GetRelativeDiff(const TFltPrV& MDeg, const TFltPrV& KronDeg, TFltPrV&  RelD
 				if (MDegCount == KronDegCount)
 					RelDiff = 0;
 				else{ 
+					// if averaged KronDegCount < 0.5
 					if (KronDegCount == 0)
 						RelDiff = 1;
 					else 
@@ -718,7 +751,7 @@ void GetRelativeDiff(const TFltPrV& MDeg, const TFltPrV& KronDeg, TFltPrV&  RelD
 				KronInd++;
 			}
 			TFltPr RelDiffPr(CurrDeg, RelDiff);
-			printf("MDegCount=%3.2f KronDegCount=%3.2f RelDiff = %3.2f\n", MDegCount, KronDegCount, RelDiff);
+			//printf("MDegCount=%3.2f KronDegCount=%3.2f RelDiff = %3.2f\n", MDegCount, KronDegCount, RelDiff);
 			RelDiffV.Add(RelDiffPr);
 		}
 	}
