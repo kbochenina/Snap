@@ -23,7 +23,7 @@ int BasicGraphGen(const TStr args, PNGraph &GD);
 // create string with parameters of model graph as an input to GenKron() function
 TStr GetModelParamsStr(const PNGraph& G);
 // generates Kronecker graphs
-void GenKron(const TStr& Args, TKronMtx& FitMtx, TFltPrV& KronDegAvgIn, TFltPrV& KronDegAvgOut, vector<Diap>& SmoothedDiaps, vector<int>& Prev);
+void GenKron(const TStr& Args, TKronMtx& FitMtx, TFltPrV& KronDegAvgIn, TFltPrV& KronDegAvgOut, vector<Diap>& SmoothedDiaps, vector<int>& Prev, PNGraph& out);
 // estimation of initiator matrix
 int InitKronecker(const TStr args, PNGraph &G, TKronMtx& FitMtx);
 // generates one instance of Kronecker graphs 

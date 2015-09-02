@@ -303,7 +303,7 @@ bool GetMtx(const TStr& MtxArgs, TKronMtx& FitMtxModel){
 
 
 
-void GenKron(const TStr& Args, TKronMtx& FitMtx, TFltPrV& KronDegAvgIn, TFltPrV& KronDegAvgOut, vector<Diap>& SmoothedDiaps, vector<int>& Prev){
+void GenKron(const TStr& Args, TKronMtx& FitMtx, TFltPrV& KronDegAvgIn, TFltPrV& KronDegAvgOut, vector<Diap>& SmoothedDiaps, vector<int>& Prev, PNGraph& Kron){
 	Env = TEnv(Args, TNotify::NullNotify);
 	TExeTm ExecTime;
 	// number of Kronecker graphs to generate
@@ -347,8 +347,8 @@ void GenKron(const TStr& Args, TKronMtx& FitMtx, TFltPrV& KronDegAvgIn, TFltPrV&
 	if (IsDir == "false" && (InDegR.Val1 != OutDegR.Val1 || InDegR.Val2 != OutDegR.Val2))
 		Error("GenKron", "InDegR and OutDegR should be the same for undirected graph");
 
-	// Kronecker  graph
-	PNGraph Kron;
+	// Kronecker  graph (UNCOMMENT FOR REAL USE)
+	//PNGraph Kron;
 	TIntPrV SamplesIn, SamplesOut;
 	double Sec = 0.0;
 	int AvgMaxOutDeg = 0, AvgMaxInDeg = 0, MinMaxOutDeg = 0, MaxMaxOutDeg = 0, MinMaxInDeg = 0, MaxMaxInDeg = 0;
@@ -356,7 +356,7 @@ void GenKron(const TStr& Args, TKronMtx& FitMtx, TFltPrV& KronDegAvgIn, TFltPrV&
 	for (int i = 0; i < NKron; i++){
 		ExecTime.Tick();
 		KroneckerGen(Kron, FitMtx, NIter, IsDir, InDegR, OutDegR, NoiseCoeff);
-		Rewire(Kron, SmoothedDiaps, OutDegR, Prev, TFile);
+		//Rewire(Kron, SmoothedDiaps, OutDegR, Prev, TFile);
 		//TKronMtx::RemoveZeroDegreeNodes(Kron, FitMtx, NIter, InDegR.Val1, InDegR.Val2);
 		/*if (IsDir == "false" && !CheckReciprocity(Kron)){
 			Error("GenKron", "Violation of reciprocity for undirected graph");
@@ -485,7 +485,8 @@ void GetGraphs(const vector <TStr>& Parameters, const TStr& ModelGen, const TStr
 		TStr KronParameters = GetModelParamsStr(G, IsDir);
 		vector<Diap> SmoothedDiaps; vector<int> Prev;
 
-		GenKron(Parameters[KRONGEN] + KronParameters, FitMtxM, KronDegAvgIn, KronDegAvgOut, SmoothedDiaps, Prev);
+		PNGraph Kron;
+		GenKron(Parameters[KRONGEN] + KronParameters, FitMtxM, KronDegAvgIn, KronDegAvgOut, SmoothedDiaps, Prev, Kron);
 
 		PlotDegrees(Parameters, KronDegAvgIn, KronDegAvgOut, "kron");
 		
@@ -627,7 +628,9 @@ void KroneckerByConf(vector<TStr> CommandLineArgs){
 		double MaxModelOutDeg = MDegOut[MDegOut.Len()-1].Val1;
 		double RequiredDeg = MaxModelOutDeg + MaxModelOutDeg * ScalingCoeff;
 		ScaleFitMtx(G->GetNodes(), G->GetEdges(), RequiredDeg, RequiredDeg, FitMtx, NIter, IsDir, "true", TFile);
-		GenKron(Parameters[KRONGEN] + KronParameters, FitMtx, KronDegAvgIn, KronDegAvgOut, SmoothedDiaps, Prev);
+		PNGraph Kron;
+		GenKron(Parameters[KRONGEN] + KronParameters, FitMtx, KronDegAvgIn, KronDegAvgOut, SmoothedDiaps, Prev, Kron);
+		TestModelKronRelation(G, Kron);
 		//PlotDegrees(Parameters, KronDegAvgIn, KronDegAvgOut, "kron");
 		PlotPoints(KronDegAvgIn, KronDegAvgOut, "KronModel", "all");
 		PNGraph  K;

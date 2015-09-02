@@ -30,6 +30,7 @@ using namespace std;
 #include "Scale.h"
 #include "GenPy.h"
 #include "Eigen.h"
+#include "Test.h"
 #include "functions.h"
 
 

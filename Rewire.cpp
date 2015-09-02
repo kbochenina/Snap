@@ -669,7 +669,7 @@ void GetSmoothedDiaps(const TFltPrV& RelDiffNonCum, vector<Diap>& SmoothedDiaps,
 		DegMin = RelDiffNonCum[0].Val1, 
 		DegMax = RelDiffNonCum[DegCount-1].Val1, 
 		DiffDegs = DegMax - DegMin + 1;
-	TInt ToleranceVal = 1;
+	TInt ToleranceVal = 4;
 	TFltV DiapDevV;
 	int PrevRDType = GetRelDiffType(RelDiffNonCum[0].Val2), RDType;
 	int DiapBegin = 0, DiapEnd = 0; 
@@ -751,6 +751,14 @@ void GetSmoothedDiaps(const TFltPrV& RelDiffNonCum, vector<Diap>& SmoothedDiaps,
 
 				PrevRDType = RDType;
 				DiapIndex++;
+			}
+			// if DiapLength < ToleranceVal && Diap is finished
+			else {
+				DiapBegin = i;
+				DiapEnd = i;
+				DiapDevV.Clr(); 
+				DiapDevV.Add(Diff); 
+				PrevRDType = RDType;
 			}
 		}
 		else {

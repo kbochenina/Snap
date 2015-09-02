@@ -17,4 +17,5 @@ void GetParameters(const vector<TStr>& CommandLineArgs, const TStr& Type, vector
 void PrintRelDiff(const TFltPrV& RelDiffV, const TStr& OutFNm);
 void PrintSmoothedDiaps(const vector<pair<TFltPr, TFltV>>& Diaps, const TStr& OutFNm);
 void PrintDiapsInfo(vector<Diaps>& D, const TStr& OutFNm);
+void PrintIntIntDblV(const vector<pair<pair<int,int>, double>>& V, const TStr& OutFNm);
 

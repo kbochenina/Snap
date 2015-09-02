@@ -134,6 +134,17 @@ void PrintDegDistr(const TIntPrV& distr, const TStr& OutFNm){
 	if (! OutFNm.Empty()) { fclose(F); }
 }
 
+void PrintIntIntDblV(const vector<pair<pair<int,int>, double>>& V, const TStr& OutFNm){
+	FILE *F = stdout;
+	if (! OutFNm.Empty()) F = fopen(OutFNm.CStr(), "wt");
+	fprintf(F, "\n");
+	fprintf(F, "L\tR\tVal\n");
+	for (int i = 0; i < V.size(); i++){
+		fprintf(F, "%d %d\t%d\t%3.2f\n", i + 1, V[i].first.first, V[i].first.second, V[i].second);
+	}
+	if (! OutFNm.Empty()) { fclose(F); }
+}
+
 void PrintDegDistr(const PNGraph& G, const TStr& OutFNm){
 	TFltPrV InDeg, OutDeg;
 	TSnap::GetInDegCnt(G, InDeg);
