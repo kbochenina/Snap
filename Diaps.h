@@ -72,7 +72,7 @@ public:
 	// get target nodes count
 	int GetTargNCount() {return Cluster.second.first;}
 	// get cluster size
-	int GetClusterSize() {return Cluster.second.second.size();}
+	size_t GetClusterSize() {return Cluster.second.second.size();}
 	// delete first node of the cluster's list
 	void DelClusterFirst();
 	// get cluster

@@ -1,8 +1,5 @@
-#include <fstream>
-#include <string>
-#include <algorithm>
-#include <map>
-#include "Diaps.h"
+
+
 
 // number of additional functions
 const int NFUNC = 9;
@@ -11,9 +8,6 @@ const string FUNCNAMES[] = {"KRONTEST", "GRAPHGEN_M", "MTXGEN_M", "KRONFIT_M", "
 const enum CMDARGS { KRONTEST = 0, GRAPHGEN_M = 1, MTXGEN_M = 2, KRONFIT_M = 3, KRONGEN_M = 4, GRAPHGEN_MS = 5, MTXGEN_MS = 6, KRONFIT_MS = 7, KRONGEN_MS = 8};
 const enum ARGS { GRAPHGEN = 0, MTXGEN = 1, KRONFIT = 2, KRONGEN = 3, PTYPE = 4, PLT = 5, NAME = 6, NEIGEN = 7, BINRADIX = 8, HOPS = 9, CLUST = 10};
 
-typedef pair<TFltPr, TFltV> Diap;
-typedef map<int, vector<pair<int, int>>> RewireDiap;
-typedef map<int, map<pair<int,int>, vector<int>>> ClusterMap;
 
 // generates Kronecker model on the base of existing graph
 void KroneckerTest(vector<TStr> commandLineArgs);
@@ -34,35 +28,7 @@ void GenKron(const TStr& Args, TKronMtx& FitMtx, TFltPrV& KronDegAvgIn, TFltPrV&
 int InitKronecker(const TStr args, PNGraph &G, TKronMtx& FitMtx);
 // generates one instance of Kronecker graphs 
 void KroneckerGen(PNGraph& out, const TKronMtx& FitMtx, const TInt NIter, const TStr& IsDir, const TIntPr& InDegR, const TIntPr& OutDegR, double NoisePart);
-// scaling initiator matrix
-void ScaleFitMtx(int ModelNodes, int ModelEdges, TFlt MaxDegInModel, TFlt MaxDegOutModel, TKronMtx& FitMtx, const TInt& NIter, TStr IsDir, const TStr& ScaleMtx);
-void ScaleFitMtxForUnDir(TKronMtx& FitMtx);
-void ScaleFitMtx(TKronMtx& FitMtx, const TInt& NIter, const int& InitModelNodes, const int& MaxModelDeg, const TStr& IsDir);
-void ScaleFitMtxForEdges(TKronMtx& FitMtx, const TInt& NIter, const int& ExpectedModelEdges);
-// estimate scaling coefficient
-double GetScalingCoefficient(const TFltPrV& InDegCnt, const TFltPrV& OutDegCnt, const TKronMtx& FitMtx, const TInt& NIter, const TStr& IsDir);
-double GetAvgDeviation(const TFltPrV& ModelDegCnt, const TFltPrV& KronDegCnt);
 // get average estimates of out-degree of NKron Kronecker graphs
 void GetAvgKronDeg(const TKronMtx& NewMtx, const TInt& NIter, const TStr& IsDir, const TInt& NKron, const TIntPr& ModelDegR, TFltPrV& KronDeg);
-// get relative differences of degrees
-void GetRelativeDiff(const TFltPrV& MDeg, const TFltPrV& KronDeg, TFltPrV&  RelDiffNonCum, bool NonCum = true);
-// get smoothed diapasons for scaling
-void GetSmoothedDiaps(const TFltPrV& RelDiffNonCum, vector<Diap>& SmoothedDiaps, vector<int>& Prev);
-// rewire edges according to smoothed diaps
-void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutDegR, vector<int>& Prev);
-void Rewire(PNGraph& Kron, vector<Diaps>& DPlus, vector<Diaps>& DMinus, const int DegMin, const int DegMax);
-// add missing or delete excess edges
-void AddEdges(PNGraph&Kron, int Diff, int DegMin, int DegMax, int ModelEdges, vector<Diaps>& DMinus, vector<Diaps>& DPlus);
-// get appropriate number of nodes for each diapason and its average degree
-void GetDiaps(vector<Diaps>& DPlus, vector<Diaps>& DMinus, const vector<Diap>& SmoothedDiaps, const TFltPrV& KronDeg, const TInt& DegMin, const TInt& DegMax, const vector<int>& Prev);
-// get random number from diap
-int GetRndDeg(TRnd& Rnd, const TIntPr& Borders);
-// get random number from diap with account of possibilities
-int GetRndDeg(TRnd&Rnd, const TIntPr& Borders, const TFltV& DiapPossib);
-// get rewire strategies
-int GetRewireStrategies(vector<Diaps>& DPlus, vector<Diaps>& DMinus);
-// get diap index
-bool GetDiap(int Deg, vector<Diaps>& DPlus, vector<Diaps>& DMinus, int& DiapIndex, bool& IsDPlus);
-// add random edge
-bool AddRndEdge(TRnd& Rnd, PNGraph&Kron, int Node, int DegMax);
+
 

@@ -10,17 +10,27 @@
 #include <stdio.h>
 #include <tchar.h>
 #include <vector>
+#include <fstream>
+#include <iostream>
+#include <string>
+#include <algorithm>
+#include <map>
 using namespace std;
 
+
 #include "Snap.h"
+#include "Error.h"
 #include "kronecker.h"
 #include "Diaps.h"
 #include "InOut.h"
 #include "Python.h"
 #include "Plot.h"
 #include "Stat.h"
+#include "Rewire.h"
+#include "Scale.h"
+#include "GenPy.h"
+#include "Eigen.h"
 #include "functions.h"
-
 
 
 
