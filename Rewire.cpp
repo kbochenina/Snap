@@ -330,6 +330,8 @@ void Rewire(PNGraph& Kron, vector<Diaps>& DPlus, vector<Diaps>& DMinus, const in
 	TRnd Rnd;
 	int Add = 0, Del = 0;
 	int BasicEdgesCount = Kron->GetEdges();
+	double SecAdd = 0, SecDel = 0, TimeToFindDel = 0;
+	TExeTm execTime;
 
 	for (auto NodeIt = Kron->BegNI(); NodeIt != Kron->EndNI(); NodeIt++){
 		//cout << "Add " << Add << " Del " << Del << endl;
@@ -355,6 +357,7 @@ void Rewire(PNGraph& Kron, vector<Diaps>& DPlus, vector<Diaps>& DMinus, const in
 			Error("Rewire", "Wrong neighbour index");
 		Diaps& N = DPlus[NeighbInd];
 
+		execTime.Tick();
 
 		// if nodes are deleted from current diapason
 		// and they are clustered to form a new value
@@ -475,8 +478,11 @@ void Rewire(PNGraph& Kron, vector<Diaps>& DPlus, vector<Diaps>& DMinus, const in
 			continue;
 		}
 
+		SecAdd += execTime.GetSecs();
+
 		if (CanDel == false || N.GetL() > Deg)
 			continue;
+		execTime.Tick();
 
 		int ReqDeg = N.GetRndDeg(Rnd);
 		//printf("Init degree: %d\n", Deg);
@@ -488,18 +494,26 @@ void Rewire(PNGraph& Kron, vector<Diaps>& DPlus, vector<Diaps>& DMinus, const in
 			Error("Rewire", "ToDel is non-positive");
 
 		// END DEBUG
-
+		TExeTm TimeToFind;
 		int Attempts = 2 * Deg, EdgesDel = 0;
 		while (Attempts != 0 && EdgesDel != ToDel){
+			
 			int NbInd = Rnd.GetUniDev() * (Deg - EdgesDel);
 			int NNode = Kron->GetNI(Node).GetNbrNId(NbInd);
 			int NDeg = Kron->GetNI(NNode).GetOutDeg();
+			
 			if (NDeg == DegMin ||
 				NDeg == DegMax){
 				Attempts--;
 				continue;
 			}
+			
+			
+
 			Kron->DelEdge(Node, NNode, false);
+			
+			TimeToFind.Tick();
+
 			// if the node deleted was the head of the cluster, we should decrease its CInitDeg by 1
 			bool IsDegInDiap = GetDiap(NDeg, DPlus, DMinus, DiapIndex, IsDPlus);
 			if (IsDegInDiap && !IsDPlus){
@@ -509,25 +523,28 @@ void Rewire(PNGraph& Kron, vector<Diaps>& DPlus, vector<Diaps>& DMinus, const in
 					printf("Deg: %d CInitDeg:%d\n", Kron->GetNI(NNode).GetInDeg(), N.GetClusterInitDeg());
 				}
 			} 
-
+			
 			EdgesDel++;
 			Del += 2;
 
+			TimeToFindDel += TimeToFind.GetSecs();
 			// DEBUG
 
-			int Edges = Kron->GetEdges();
+			/*int Edges = Kron->GetEdges();
 			if (Edges != BasicEdgesCount + Add - Del)
-				Error("Rewire", "Basic edges count != Edges + Add - Del");
+			Error("Rewire", "Basic edges count != Edges + Add - Del");*/
+
+			
 
 			// DEBUG END
 		}
-
+		//TimeToFindDel += TimeToFind.GetSecs();
 		D.DecreaseStratN();
-
+		SecDel += execTime.GetSecs();
 	}
 	
 	cout <<  "Edges added " << Add << ", edges deleted " << Del << ", difference " << Add - Del << endl;
-
+	cout <<  "Time of addition " << SecAdd << ", time of deletion " << SecDel <<  ", time to find del " << TimeToFindDel << endl;
 	
 }
 
@@ -602,21 +619,28 @@ void AddEdges(PNGraph&Kron, int Diff, int DegMin, int DegMax, int ModelEdges, ve
 
 
 // rewire edges according to smoothed diaps
-void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutDegR, vector<int>& Prev){
+void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutDegR, vector<int>& Prev, ofstream& TFile){
 	TRnd Rnd;
 	int ModelEdges = Kron->GetEdges();
 	TFltPrV KronDeg;
+	TExeTm execTime;
 	TSnap::GetInDegCnt(Kron, KronDeg);
-	PrintDegDistr(KronDeg, "Kron.tab");
+	TFile << "Time of getting degree sequence of Kronecker graph: " <<  execTime.GetSecs() << endl;
+	execTime.Tick();
+	//PrintDegDistr(KronDeg, "Kron.tab");
 	KronDeg.Sort();
 	const TInt& DegMin = OutDegR.Val1, &DegMax = OutDegR.Val2;
 	vector<Diaps> DPlus, DMinus;
 	GetDiaps(DPlus, DMinus, SmoothedDiaps, KronDeg, DegMin, DegMax, Prev);
+	TFile << "Time of GetDiaps(): " <<  execTime.GetSecs() << endl;
+	execTime.Tick();
 	GetRewireStrategies(DPlus, DMinus);
-	PrintDiapsInfo(DPlus, "DPlus.tab");
-	PrintDiapsInfo(DMinus, "DMinus.tab");
+	TFile << "Time of GetRewireStrategies(): " <<  execTime.GetSecs() << endl;
+	execTime.Tick();
+	//PrintDiapsInfo(DPlus, "DPlus.tab");
+	//PrintDiapsInfo(DMinus, "DMinus.tab");
 	Rewire(Kron, DPlus, DMinus, DegMin.Val, DegMax.Val);
-	
+	TFile << "Time of Rewire(): " <<  execTime.GetSecs() << endl;
 	int Diff = Kron->GetEdges() - ModelEdges;
 	cout << "Difference of edges: " << Kron->GetEdges() - ModelEdges << endl;
 	AddEdges(Kron, Diff, DegMin, DegMax, ModelEdges, DMinus, DPlus);

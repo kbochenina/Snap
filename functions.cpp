@@ -356,7 +356,7 @@ void GenKron(const TStr& Args, TKronMtx& FitMtx, TFltPrV& KronDegAvgIn, TFltPrV&
 	for (int i = 0; i < NKron; i++){
 		ExecTime.Tick();
 		KroneckerGen(Kron, FitMtx, NIter, IsDir, InDegR, OutDegR, NoiseCoeff);
-		Rewire(Kron, SmoothedDiaps, OutDegR, Prev);
+		Rewire(Kron, SmoothedDiaps, OutDegR, Prev, TFile);
 		//TKronMtx::RemoveZeroDegreeNodes(Kron, FitMtx, NIter, InDegR.Val1, InDegR.Val2);
 		/*if (IsDir == "false" && !CheckReciprocity(Kron)){
 			Error("GenKron", "Violation of reciprocity for undirected graph");
