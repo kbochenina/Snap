@@ -381,6 +381,7 @@ void Rewire(PNGraph& Kron, vector<Diaps>& DPlus, vector<Diaps>& DMinus, const in
 			if (D.IsClusterEmpty()){
 				ReqDeg = N.GetRndDeg(Rnd);
 				D.SetCluster(ReqDeg, CNode, CInitDeg);
+				//printf("Set cluster: ReqDeg: %d CNode: %d CInitDeg: %d\n", ReqDeg, CNode, CInitDeg);
 			}
 			else{
 				ReqDeg = D.GetClusterReqDeg();
@@ -396,6 +397,9 @@ void Rewire(PNGraph& Kron, vector<Diaps>& DPlus, vector<Diaps>& DMinus, const in
 			while ( D.IsClusterFull() && !D.IsClusterEmpty() ){
 				vector<int>& Cluster = D.GetCluster();
 				vector<int> TargNodes;
+				int CRealDeg = Kron->GetNI(CNode).GetInDeg();
+				if (D.GetClusterInitDeg() != CRealDeg)
+					Error("Rewire", "Inconsistency in inner state of cluster");
 				int TargNCount = D.GetClusterReqDeg() - D.GetClusterInitDeg();
 				int Left = TargNCount;
 				for (size_t i = 0; i < Cluster.size(); i++){
@@ -436,9 +440,9 @@ void Rewire(PNGraph& Kron, vector<Diaps>& DPlus, vector<Diaps>& DMinus, const in
 				
 				// DEBUG
 
-				int Edges = Kron->GetEdges();
+				/*int Edges = Kron->GetEdges();
 				if (Edges != BasicEdgesCount + Add - Del)
-					Error("Rewire", "Basic edges count != Edges + Add - Del");
+				Error("Rewire", "Basic edges count != Edges + Add - Del");*/
 
 				int NewCDeg = Kron->GetNI(CNode).GetInDeg();
 				if (NewCDeg != ReqDeg)
@@ -473,6 +477,7 @@ void Rewire(PNGraph& Kron, vector<Diaps>& DPlus, vector<Diaps>& DMinus, const in
 						}
 					}
 					D.ResetCluster(ReqDeg, CInitDeg, TargNCount);
+					//printf("Reset cluster: ReqDeg: %d CNode: %d CInitDeg: %d TargNCount: %d\n", ReqDeg, D.GetClusterNode(), CInitDeg, TargNCount);
 				}
 			}
 			continue;
@@ -511,19 +516,17 @@ void Rewire(PNGraph& Kron, vector<Diaps>& DPlus, vector<Diaps>& DMinus, const in
 			
 
 			Kron->DelEdge(Node, NNode, false);
+			//printf("Edge (%d, %d) was deleted, NDeg: %d\n", Node, NNode, NDeg);
 			
 			TimeToFind.Tick();
 
 			// if the node deleted was the head of the cluster, we should decrease its CInitDeg by 1
-			bool IsDegInDiap = GetDiap(NDeg, DPlus, DMinus, DiapIndex, IsDPlus);
-			if (IsDegInDiap && !IsDPlus){
-				Diaps& RDMin = DMinus[DiapIndex];
-				if (RDMin.GetClusterNode() == NNode){
-					RDMin.DecreaseCInitDeg();
-					printf("Deg: %d CInitDeg:%d\n", Kron->GetNI(NNode).GetInDeg(), N.GetClusterInitDeg());
-				}
-			} 
-			
+			for (size_t i = 0; i < DMinus.size(); i++){
+				if (DMinus[i].GetClusterNode() == NNode)
+					DMinus[i].DecreaseCInitDeg();
+					//printf("Deg: %d CInitDeg:%d\n", Kron->GetNI(NNode).GetInDeg(), N.GetClusterInitDeg());
+			}
+						
 			EdgesDel++;
 			Del += 2;
 
@@ -627,7 +630,7 @@ void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutD
 	TSnap::GetInDegCnt(Kron, KronDeg);
 	TFile << "Time of getting degree sequence of Kronecker graph: " <<  execTime.GetSecs() << endl;
 	execTime.Tick();
-	//PrintDegDistr(KronDeg, "Kron.tab");
+	PrintDegDistr(KronDeg, "Kron.tab");
 	KronDeg.Sort();
 	const TInt& DegMin = OutDegR.Val1, &DegMax = OutDegR.Val2;
 	vector<Diaps> DPlus, DMinus;
@@ -637,8 +640,8 @@ void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutD
 	GetRewireStrategies(DPlus, DMinus);
 	TFile << "Time of GetRewireStrategies(): " <<  execTime.GetSecs() << endl;
 	execTime.Tick();
-	//PrintDiapsInfo(DPlus, "DPlus.tab");
-	//PrintDiapsInfo(DMinus, "DMinus.tab");
+	PrintDiapsInfo(DPlus, "DPlus.tab");
+	PrintDiapsInfo(DMinus, "DMinus.tab");
 	Rewire(Kron, DPlus, DMinus, DegMin.Val, DegMax.Val);
 	TFile << "Time of Rewire(): " <<  execTime.GetSecs() << endl;
 	int Diff = Kron->GetEdges() - ModelEdges;
@@ -669,7 +672,7 @@ void GetSmoothedDiaps(const TFltPrV& RelDiffNonCum, vector<Diap>& SmoothedDiaps,
 		DegMin = RelDiffNonCum[0].Val1, 
 		DegMax = RelDiffNonCum[DegCount-1].Val1, 
 		DiffDegs = DegMax - DegMin + 1;
-	TInt ToleranceVal = 4;
+	TInt ToleranceVal = 1;
 	TFltV DiapDevV;
 	int PrevRDType = GetRelDiffType(RelDiffNonCum[0].Val2), RDType;
 	int DiapBegin = 0, DiapEnd = 0; 

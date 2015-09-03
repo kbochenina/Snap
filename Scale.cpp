@@ -97,7 +97,7 @@ double GetBestCoeff(TFltPrV& ScalingResults){
 // estimate scaling coefficient
 double GetScalingCoefficient(const TFltPrV& InDegCnt, const TFltPrV& OutDegCnt, const TKronMtx& FitMtxM, const TInt& NIter, const TStr& IsDir){
 	// !!!
-	return 0.7;
+	//return 0.7;
 	TKronMtx FitMtx(FitMtxM);
 	double ScalingCoeff = 0;
 	double ScalingStep = 0.2;
