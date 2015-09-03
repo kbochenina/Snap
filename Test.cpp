@@ -36,13 +36,13 @@ void TestModelKronRelation(const PNGraph& M, const PNGraph& K){
 	TSnap::GetInDegCnt(M, MDeg);
 	TSnap::GetInDegCnt(K, KDeg);
 	GetRelativeDiff(MDeg, KDeg, RD);
-	vector<Diap> SDiaps;
+	vector<BaseDiap> SDiaps;
 	vector<int> Prev;
-	GetSmoothedDiaps(RD, SDiaps, Prev);
+	GetBaseDiaps(MDeg, KDeg, SDiaps);
 	vector<Diaps> DPlus, DMinus;
 	int DegMin = static_cast<int>(MDeg[0].Val1),
 		DegMax = static_cast<int>(MDeg[MDeg.Len()-1].Val1);
-	GetDiaps(DPlus, DMinus, SDiaps, KDeg, DegMin, DegMax, Prev);
+	GetDiaps(DPlus, DMinus, SDiaps, KDeg, DegMin, DegMax);
 	int DPlusInd = 0, DMinusInd = 0, DPlusLDeg = 0, DMinusLDeg = 0;
 	int DiapInd = 0;
 	// true - DPlus, false - DMinus, int - index in DPlus/DMinus

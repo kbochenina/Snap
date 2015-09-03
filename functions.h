@@ -17,13 +17,13 @@ void KroneckerByConf(vector<TStr> commandLineArgs);
 // generates set of graphs + calculates the metrics + create plots
 void GetGraphs(const vector <TStr>& parameters, const TStr& ModelGen, const TStr&ModelPlt);
 // get FitMtx and scaling coefficient from small model
-void GetFitMtxFromMS(TKronMtx& FitMtx, TFlt& ScalingCoeff, vector<Diap>& SmoothedDiaps, const vector<TStr>& Parameters, vector<int>& Prev);
+void GetFitMtxFromMS(TKronMtx& FitMtx, TFlt& ScalingCoeff, vector<BaseDiap>& BaseDiaps, const vector<TStr>& Parameters, vector<int>& Prev);
 // graph generator by Lescovec
 int BasicGraphGen(const TStr args, PNGraph &GD);
 // create string with parameters of model graph as an input to GenKron() function
 TStr GetModelParamsStr(const PNGraph& G);
 // generates Kronecker graphs
-void GenKron(const TStr& Args, TKronMtx& FitMtx, TFltPrV& KronDegAvgIn, TFltPrV& KronDegAvgOut, vector<Diap>& SmoothedDiaps, vector<int>& Prev, PNGraph& out);
+void GenKron(const TStr& Args, TKronMtx& FitMtx, TFltPrV& KronDegAvgIn, TFltPrV& KronDegAvgOut, vector<BaseDiap>& BaseDiaps, PNGraph& out);
 // estimation of initiator matrix
 int InitKronecker(const TStr args, PNGraph &G, TKronMtx& FitMtx);
 // generates one instance of Kronecker graphs 

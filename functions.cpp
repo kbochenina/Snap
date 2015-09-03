@@ -303,7 +303,7 @@ bool GetMtx(const TStr& MtxArgs, TKronMtx& FitMtxModel){
 
 
 
-void GenKron(const TStr& Args, TKronMtx& FitMtx, TFltPrV& KronDegAvgIn, TFltPrV& KronDegAvgOut, vector<Diap>& SmoothedDiaps, vector<int>& Prev, PNGraph& Kron){
+void GenKron(const TStr& Args, TKronMtx& FitMtx, TFltPrV& KronDegAvgIn, TFltPrV& KronDegAvgOut, vector<BaseDiap>& BaseDiaps, PNGraph& Kron){
 	Env = TEnv(Args, TNotify::NullNotify);
 	TExeTm ExecTime;
 	// number of Kronecker graphs to generate
@@ -356,7 +356,7 @@ void GenKron(const TStr& Args, TKronMtx& FitMtx, TFltPrV& KronDegAvgIn, TFltPrV&
 	for (int i = 0; i < NKron; i++){
 		ExecTime.Tick();
 		KroneckerGen(Kron, FitMtx, NIter, IsDir, InDegR, OutDegR, NoiseCoeff);
-		Rewire(Kron, SmoothedDiaps, OutDegR, Prev, TFile);
+		Rewire(Kron, BaseDiaps, OutDegR, TFile);
 		//TKronMtx::RemoveZeroDegreeNodes(Kron, FitMtx, NIter, InDegR.Val1, InDegR.Val2);
 		/*if (IsDir == "false" && !CheckReciprocity(Kron)){
 			Error("GenKron", "Violation of reciprocity for undirected graph");
@@ -483,10 +483,10 @@ void GetGraphs(const vector <TStr>& Parameters, const TStr& ModelGen, const TStr
 		TFltPrV KronDegAvgIn, KronDegAvgOut;
 		
 		TStr KronParameters = GetModelParamsStr(G, IsDir);
-		vector<Diap> SmoothedDiaps; vector<int> Prev;
+		vector<BaseDiap> BaseDiaps; vector<int> Prev;
 
 		PNGraph Kron;
-		GenKron(Parameters[KRONGEN] + KronParameters, FitMtxM, KronDegAvgIn, KronDegAvgOut, SmoothedDiaps, Prev, Kron);
+		GenKron(Parameters[KRONGEN] + KronParameters, FitMtxM, KronDegAvgIn, KronDegAvgOut, BaseDiaps, Kron);
 
 		PlotDegrees(Parameters, KronDegAvgIn, KronDegAvgOut, "kron");
 		
@@ -497,7 +497,7 @@ void GetGraphs(const vector <TStr>& Parameters, const TStr& ModelGen, const TStr
 }
 
 // get FitMtx and scaling coefficient from small model
-void GetFitMtxFromMS(TKronMtx& FitMtxM, TFlt& ScalingCoeff, vector<Diap>& SmoothedDiaps, const vector<TStr>& Parameters, vector<int>& Prev){
+void GetFitMtxFromMS(TKronMtx& FitMtxM, TFlt& ScalingCoeff, vector<BaseDiap>& BaseDiaps, const vector<TStr>& Parameters){
 	PNGraph G;
 	GetModel(Parameters[GRAPHGEN], G);
 	int ModelNodes = G->GetNodes(), ModelEdges = G->GetEdges();
@@ -534,12 +534,12 @@ void GetFitMtxFromMS(TKronMtx& FitMtxM, TFlt& ScalingCoeff, vector<Diap>& Smooth
 		NewMtx.Dump();
 		GetAvgKronDeg(NewMtx, NIter, IsDir, NKron, OutDegR, KronDeg);
 		TFltPrV RelDiffNonCum;
-		GetRelativeDiff(MDegOut, KronDeg, RelDiffNonCum);
+		//GetRelativeDiff(MDegOut, KronDeg, RelDiffNonCum);
 		PrintDegDistr(KronDeg, "KronAvg.tab");
 		//PrintDegDistr(MDegOut, "Model.tab");
-		PrintRelDiff(RelDiffNonCum, "RelDiff.tab");
-		GetSmoothedDiaps(RelDiffNonCum, SmoothedDiaps, Prev);
-		PrintSmoothedDiaps(SmoothedDiaps, "SmoothedDiaps.tab");
+		//PrintRelDiff(RelDiffNonCum, "RelDiff.tab");
+		GetBaseDiaps(MDegIn, KronDeg, BaseDiaps);
+		PrintBaseDiaps(BaseDiaps, "BaseDiaps.tab");
 		/*PNGraph Kron; 
 		KroneckerGen(Kron, NewMtx, NIter, IsDir, OutDegR, OutDegR, 0);
 		Rewire(Kron, SmoothedDiaps, OutDegR);
@@ -599,8 +599,8 @@ void KroneckerByConf(vector<TStr> CommandLineArgs){
 		TFlt ScalingCoeff = 0;
 		vector <TStr> Parameters;
 		GetParameters(CommandLineArgs, "Small", Parameters);
-		vector<Diap> SmoothedDiaps; vector<int> Prev;
-		GetFitMtxFromMS(FitMtx, ScalingCoeff, SmoothedDiaps, Parameters, Prev);
+		vector<BaseDiap> BaseDiaps; 
+		GetFitMtxFromMS(FitMtx, ScalingCoeff, BaseDiaps, Parameters);
 		Parameters.clear();
 		GetParameters(CommandLineArgs, "Model", Parameters);
 		// generate big graph and plot its degrees
@@ -629,8 +629,8 @@ void KroneckerByConf(vector<TStr> CommandLineArgs){
 		double RequiredDeg = MaxModelOutDeg + MaxModelOutDeg * ScalingCoeff;
 		ScaleFitMtx(G->GetNodes(), G->GetEdges(), RequiredDeg, RequiredDeg, FitMtx, NIter, IsDir, "true", TFile);
 		PNGraph Kron;
-		GenKron(Parameters[KRONGEN] + KronParameters, FitMtx, KronDegAvgIn, KronDegAvgOut, SmoothedDiaps, Prev, Kron);
-		TestModelKronRelation(G, Kron);
+		GenKron(Parameters[KRONGEN] + KronParameters, FitMtx, KronDegAvgIn, KronDegAvgOut, BaseDiaps, Kron);
+		//TestModelKronRelation(G, Kron);
 		//PlotDegrees(Parameters, KronDegAvgIn, KronDegAvgOut, "kron");
 		PlotPoints(KronDegAvgIn, KronDegAvgOut, "KronModel", "all");
 		PNGraph  K;

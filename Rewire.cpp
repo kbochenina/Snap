@@ -21,100 +21,90 @@ int GetRandDeg(TRnd& Rnd, const Diap& Borders, const int DegMin, const int DegMa
 }
 
 // get appropriate number of nodes for each diapasone and its average degree
-void GetDiaps(vector<Diaps>& DPlus, vector<Diaps>& DMinus, const vector<Diap>& SmoothedDiaps, const TFltPrV& KronDeg, const TInt& DegMin, const TInt& DegMax, const vector<int>& Prev){
-	for (auto DiapIt = SmoothedDiaps.begin(); DiapIt != SmoothedDiaps.end(); DiapIt++){
-		int Index = DiapIt - SmoothedDiaps.begin();
-				
+void GetDiaps(vector<Diaps>& DPlus, vector<Diaps>& DMinus, const vector<BaseDiap>& BaseDiaps, const TFltPrV& KronDeg, const TInt& DegMin, const TInt& DegMax){
+	//for (auto DiapIt = SmoothedDiaps.begin(); DiapIt != SmoothedDiaps.end(); DiapIt++){
+	//	int Index = DiapIt - SmoothedDiaps.begin();
+	//			
 
-		int DiapBegin = static_cast<int>((DegMax - DegMin + 1) * DiapIt->first.Val1 + DegMin + 0.5),
-			DiapEnd = static_cast<int>((DegMax - DegMin + 1) * DiapIt->first.Val2 + DegMin + 0.5);
-		// check
-		if (find(Prev.begin(), Prev.end(), DiapIt-SmoothedDiaps.begin()) != Prev.end()){
-			// if in the sample this diapason starts after previous
-			DiapBegin = (DegMax - DegMin + 1) * (DiapIt-1)->first.Val2 + DegMin + 0.5 + 1;
-		}
+	//	int DiapBegin = static_cast<int>((DegMax - DegMin + 1) * DiapIt->first.Val1 + DegMin + 0.5),
+	//		DiapEnd = static_cast<int>((DegMax - DegMin + 1) * DiapIt->first.Val2 + DegMin + 0.5);
+	//			
 
-		//// HACK!
-		//if (Index == 1){
-		//	DiapBegin = 3;
-		//	DiapEnd = 11;
-		//}
+	//	//printf("DegBegin: %d DegEnd: %d\n", DiapBegin, DiapEnd);
+	//	pair<int,int> Borders(DiapBegin, DiapEnd);
+	//	int BaseLen = DiapIt->second.Len();
 
-		//printf("DegBegin: %d DegEnd: %d\n", DiapBegin, DiapEnd);
-		pair<int,int> Borders(DiapBegin, DiapEnd);
-		int BaseLen = DiapIt->second.Len();
+	//	// DEBUG (FOR MODEL_SIZE == KRON_SIZE)
 
-		// DEBUG (FOR MODEL_SIZE == KRON_SIZE)
+	//	/*if (DiapIt->second.Len() != DiapEnd - DiapBegin + 1)
+	//		Error("GetDiaps", "RelDiff count is not equal to nodes count");*/
 
-		/*if (DiapIt->second.Len() != DiapEnd - DiapBegin + 1)
-			Error("GetDiaps", "RelDiff count is not equal to nodes count");*/
+	//	// DEBUG END
 
-		// DEBUG END
+	//	Diaps NewDiap(Index, Borders, BaseLen);
 
-		Diaps NewDiap(Index, Borders, BaseLen);
+	//	int NodesCount = 0;
+	//	double NodesToAdd = 0, RelDiffSum = 0;
+	//	int KronInd = 0, Count = 0, KDeg = 0;
 
-		int NodesCount = 0;
-		double NodesToAdd = 0, RelDiffSum = 0;
-		int KronInd = 0, Count = 0, KDeg = 0;
-
-		for (size_t Deg = DegMin; Deg <= DegMax; Deg++){
-			if (KronInd < KronDeg.Len())
-				KDeg = KronDeg[KronInd].Val1;
-			if (KDeg == Deg){
-				Count = KronDeg[KronInd].Val2;
-				KronInd++;
-			}
-			else
-				Count = 0;
-			if (Deg > DiapEnd) break;
-			if (Deg < DiapBegin) continue;
-			int SubBIndex = NewDiap.GetSubBIndex(Deg);
-			if (SubBIndex < 0 || SubBIndex > DiapIt->second.Len() - 1)
-				Error("GetDiaps", "Incorrect index of subdiapason");
-			// add nodes with account of relative difference
-			double RelDiff = DiapIt->second[SubBIndex];
-			if (abs(RelDiff) != 1 && RelDiff != 0) {
-				printf("%3.2f\n", log10(static_cast<double>(Count+1)));
-				NodesToAdd += pow(10, log10(static_cast<double>(Count+1)) * RelDiff) - Count - 1;
-			}
-			else 
-				if (RelDiff == 1.0){ 
-					if (Count == 0) 
-						NodesToAdd += 1;
-				}
-			else if (RelDiff == -1)
-				NodesToAdd -= Count;
-			NodesCount += Count;
-		}
-		//printf("\n");
-		int RoundNodesToAdd = static_cast<int>(NodesToAdd + 0.5);
-		if (RoundNodesToAdd != 0){
-			NewDiap.SetNodes(RoundNodesToAdd);
-			// calculate sum of RelDiff for diapason
-			for (size_t i = 0; i < DiapIt->second.Len(); i++)
-				RelDiffSum += abs(DiapIt->second[i]);
-			// calculate accumulated probabilities of subdiapasons
-			vector<double> Prob;
-			double RelDiffAcc = 0;
-			for (size_t i = 0; i < DiapIt->second.Len(); i++){
-				double RelDiff = abs(DiapIt->second[i]);
-				//printf("%3.2f ", RelDiff);
-				RelDiffAcc += RelDiff;
-				double P = RelDiffAcc / RelDiffSum;
-				if (RelDiffSum == 0)
-					Error("GetDiaps", "Wrong value of P");
-				if (P < 0 || P > 1)
-					Error("GetDiaps", "Wrong value of P");
-				Prob.push_back(P);
-			}
-			//printf("\n");
-			NewDiap.SetProb(Prob);
-			//printf("DiapBegin: %d DiapEnd: %d Nodes count: %d Nodes to add: %d Res: %d\n", NewDiap.GetL(),  NewDiap.GetR(), NodesCount, 
-			//NewDiap.GetNodes(), NodesCount + NewDiap.GetNodes());
-			if (NewDiap.GetNodes() > 0) DPlus.push_back(NewDiap);
-			else DMinus.push_back(NewDiap);
-		}
-	}
+	//	for (size_t Deg = DegMin; Deg <= DegMax; Deg++){
+	//		if (KronInd < KronDeg.Len())
+	//			KDeg = KronDeg[KronInd].Val1;
+	//		if (KDeg == Deg){
+	//			Count = KronDeg[KronInd].Val2;
+	//			KronInd++;
+	//		}
+	//		else
+	//			Count = 0;
+	//		if (Deg > DiapEnd) break;
+	//		if (Deg < DiapBegin) continue;
+	//		int SubBIndex = NewDiap.GetSubBIndex(Deg);
+	//		if (SubBIndex < 0 || SubBIndex > DiapIt->second.Len() - 1)
+	//			Error("GetDiaps", "Incorrect index of subdiapason");
+	//		// add nodes with account of relative difference
+	//		double RelDiff = DiapIt->second[SubBIndex];
+	//		if (abs(RelDiff) != 1 && RelDiff != 0) {
+	//			printf("%3.2f\n", log10(static_cast<double>(Count+1)));
+	//			NodesToAdd += pow(10, log10(static_cast<double>(Count+1)) * RelDiff) - Count - 1;
+	//		}
+	//		else 
+	//			if (RelDiff == 1.0){ 
+	//				if (Count == 0) 
+	//					NodesToAdd += 1;
+	//			}
+	//		else if (RelDiff == -1)
+	//			NodesToAdd -= Count;
+	//		NodesCount += Count;
+	//	}
+	//	//printf("\n");
+	//	int RoundNodesToAdd = static_cast<int>(NodesToAdd + 0.5);
+	//	if (RoundNodesToAdd != 0){
+	//		NewDiap.SetNodes(RoundNodesToAdd);
+	//		// calculate sum of RelDiff for diapason
+	//		for (size_t i = 0; i < DiapIt->second.Len(); i++)
+	//			RelDiffSum += abs(DiapIt->second[i]);
+	//		// calculate accumulated probabilities of subdiapasons
+	//		vector<double> Prob;
+	//		double RelDiffAcc = 0;
+	//		for (size_t i = 0; i < DiapIt->second.Len(); i++){
+	//			double RelDiff = abs(DiapIt->second[i]);
+	//			//printf("%3.2f ", RelDiff);
+	//			RelDiffAcc += RelDiff;
+	//			double P = RelDiffAcc / RelDiffSum;
+	//			if (RelDiffSum == 0)
+	//				Error("GetDiaps", "Wrong value of P");
+	//			if (P < 0 || P > 1)
+	//				Error("GetDiaps", "Wrong value of P");
+	//			Prob.push_back(P);
+	//		}
+	//		//printf("\n");
+	//		NewDiap.SetProb(Prob);
+	//		//printf("DiapBegin: %d DiapEnd: %d Nodes count: %d Nodes to add: %d Res: %d\n", NewDiap.GetL(),  NewDiap.GetR(), NodesCount, 
+	//		//NewDiap.GetNodes(), NodesCount + NewDiap.GetNodes());
+	//		if (NewDiap.GetNodes() > 0) DPlus.push_back(NewDiap);
+	//		else DMinus.push_back(NewDiap);
+	//	}
+	//}
 }
 
 bool PrVecComp(const pair<pair<bool,int>, double>& Pr1, const pair<pair<bool,int>, double>& Pr2){
@@ -622,7 +612,7 @@ void AddEdges(PNGraph&Kron, int Diff, int DegMin, int DegMax, int ModelEdges, ve
 
 
 // rewire edges according to smoothed diaps
-void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutDegR, vector<int>& Prev, ofstream& TFile){
+void Rewire(PNGraph& Kron, const vector<BaseDiap>& BaseDiaps, const TIntPr& OutDegR, ofstream& TFile){
 	TRnd Rnd;
 	int ModelEdges = Kron->GetEdges();
 	TFltPrV KronDeg;
@@ -634,7 +624,7 @@ void Rewire(PNGraph& Kron, const vector<Diap>& SmoothedDiaps, const TIntPr& OutD
 	KronDeg.Sort();
 	const TInt& DegMin = OutDegR.Val1, &DegMax = OutDegR.Val2;
 	vector<Diaps> DPlus, DMinus;
-	GetDiaps(DPlus, DMinus, SmoothedDiaps, KronDeg, DegMin, DegMax, Prev);
+	GetDiaps(DPlus, DMinus, BaseDiaps, KronDeg, DegMin, DegMax);
 	TFile << "Time of GetDiaps(): " <<  execTime.GetSecs() << endl;
 	execTime.Tick();
 	GetRewireStrategies(DPlus, DMinus);
@@ -664,173 +654,143 @@ int GetRelDiffType(double RD){
 	return 5;
 }
 
-// get smoothed diapasons for scaling
-void GetSmoothedDiaps(const TFltPrV& RelDiffNonCum, vector<Diap>& SmoothedDiaps, vector<int>& Prev){
-	if (RelDiffNonCum.Len() == 0)
-		Error("GetSmoothedDiaps", "Array size = 0");
-	const int DegCount = RelDiffNonCum.Len(), 
-		DegMin = RelDiffNonCum[0].Val1, 
-		DegMax = RelDiffNonCum[DegCount-1].Val1, 
-		DiffDegs = DegMax - DegMin + 1;
-	TInt ToleranceVal = 1;
-	TFltV DiapDevV;
-	int PrevRDType = GetRelDiffType(RelDiffNonCum[0].Val2), RDType;
-	int DiapBegin = 0, DiapEnd = 0; 
-	int DiapIndex = 0, PrevDiapEnd = 0, PrevDeg = 0, Deg = 0;
-	double Diff = 0;
+int GetDiffType(double M, double K){
+	if (M == K) return 1;
+	if (M < K) return 2;
+	if (M > K) return 3;
+}
+
+// get base diapasons for scaling
+void GetBaseDiaps(const TFltPrV& MDeg, const TFltPrV& KronDeg, vector<BaseDiap>& BaseDiaps){
+	if (MDeg.Len() == 0 || KronDeg.Len() == 0)
+		Error("GetBaseDiaps", "Array size = 0");
+	int MDegCount = MDeg.Len(), KDegCount = KronDeg.Len();
+	const double DegMin = MDeg[0].Val1 < KronDeg[0].Val1 ? MDeg[0].Val1 : KronDeg[0].Val1, 
+		DegMax = MDeg[MDegCount-1].Val1 > KronDeg[KDegCount-1].Val1 ? MDeg[MDegCount-1].Val1 : KronDeg[KDegCount-1].Val1,
+		DegCount = DegMax - DegMin + 1;
+	
+	int MN = MDeg[0].Val1 == DegMin ? MDeg[0].Val2 : 0;
+	int KN = KronDeg[0].Val1 == DegMin ? KronDeg[0].Val2 : 0;
+
+	int PrevType = GetDiffType(MN, KN), Type;
+	// DegBegin, DegEnd
+	int DegBegin = 0, DegEnd = 0; 
+	int DiapIndex = 0;
+	double Deg = 0;
+	// indexes of MDeg and KronDeg
+	int MDegI = 0, KDegI = 0;
+	double Diff = 0.0;
+	// differences of nodes count
+	vector<double> DiffV;
+	// Model Nodes and Kron Nodes for the diapason
+	double MNDiap = 0, KNDiap = 0;
+	// log10(MN + 1)/log10(KN + 1) for the diapason
+	double MKRatio = 0.0;
+	// log10(PrevKN + 1)/log10(CurrKN+1)
+	double PrevCurrKRatio = 0.0, PrevKNDiap = 0.0;
 
 	for (size_t i = 0; i < DegCount; i++){
-			Deg = RelDiffNonCum[i].Val1;
-			Diff = RelDiffNonCum[i].Val2;
-			RDType = GetRelDiffType(Diff);
-		
-		// if there is no difference, diapason should be finalized
-		//if (Diff == 0.0) Sign = DiapSign == true ? false : true;
+		Deg = i;
+		MN = 0;
+		KN = 0;
 
-		// if some degrees inside the diapasone are absent, add zero values of relative difference
-		if (i != 0 && RDType == PrevRDType && Deg != PrevDeg + 1){
-			printf("%d %d\n", PrevDeg, Deg);
-			for (size_t i = 0; i < Deg-PrevDeg-1; i++)
-				DiapDevV.Add(0);
-			if (i == DegCount - 1){
-				DiapEnd = i;
-				DiapDevV.Add(Diff);
-			}
+		// get nodes count of Deg and update nodes count for the diapason
+		if (MDegI < MDegCount && MDeg[MDegI].Val1 == Deg){
+			MN = MDeg[MDegI++].Val2;
+			MNDiap += MN;
+		}
+		if (KDegI < KDegCount && KronDeg[KDegI].Val1 == Deg){
+			KN = KronDeg[KDegI++].Val2;
+			KNDiap += KN;
 		}
 
-		// if sign was changed or it is last interval
-		if (RDType != PrevRDType || i == DegCount - 1){
-			int DegBegin = RelDiffNonCum[DiapBegin].Val1, 
-				DegEnd = RelDiffNonCum[DiapEnd].Val1;
+		Type = GetDiffType(MN, KN);
+		DiffV.push_back(MN - KN);
+		DegEnd = Deg;
+		if (DegBegin == DegEnd)
+			PrevType = Type;
+
+		// if type of diapason changed 
+		// or it is second or last interval (first interval is always [DegMin;DegMin])
+		if (Type != PrevType || i == DegCount - 1 || i == 1){
 			//printf("DegBegin: %d DegEnd: %d\n", DegBegin, DegEnd);
-			TInt DiapLength = DegEnd - DegBegin + 1;
-			// if it is first interval or previous interval has enough length
-			if (DiapIndex == 0 || DiapLength >= ToleranceVal){
-				Diap NewDiap; 
-				// [begin;end] as parts of [DegMin;DegMax]
-				double ProbFirst = static_cast<double>(DegBegin - DegMin) / DiffDegs,
-					ProbSecond = static_cast<double>(DegEnd - DegMin) / DiffDegs;
-				int CalcDegBegin = static_cast<int>(ProbFirst * DiffDegs + DegMin + 0.5),
-					CalcDegEnd = static_cast<int>(ProbSecond * DiffDegs + DegMin + 0.5);
-				if (CalcDegBegin != DegBegin ||CalcDegEnd  != DegEnd){
-					Error("GetSmoothedDiaps", "Diapason borders are violated");
-				}
-				NewDiap.first.Val1 = ProbFirst;
-				NewDiap.first.Val2 = ProbSecond;
+			int BaseLen = DegEnd - DegBegin + 1;
 
-				printf("DiapBegin: %d DiapEnd: %d\n", DegBegin, DegEnd);
+			if (MNDiap == KNDiap)
+				MKRatio = 1;
+			else if (MNDiap > 0 && KNDiap > 0)
+				MKRatio = log10(MNDiap + 1) / log10 (KNDiap + 1);
+			else
+				MKRatio = log10(MNDiap + 2) / log10 (KNDiap + 2);
 
-				if (DiapDevV.Len() != DiapLength){
+			if (DiapIndex != 0)
+				PrevCurrKRatio = PrevKNDiap / KNDiap;
 
-					Error("GetSmoothedDiaps", "Inconsistent size of DiapDevV vector");
-				}
+			PrevKNDiap = KNDiap;
 
-				for (size_t i = 0; i < DiapDevV.Len(); i++)
-					NewDiap.second.Add(DiapDevV[i]);
-				SmoothedDiaps.push_back(NewDiap);
-
-				// remember if previous interval is the neighbour
-				if (PrevDiapEnd == DiapBegin - 1 && 
-					RelDiffNonCum[PrevDiapEnd].Val1 + 1 == DegBegin)
-					Prev.push_back(DiapIndex);
-
-				PrevDiapEnd = DiapEnd;
-				DiapBegin = i; DiapEnd = i; 
-				// add value of RelDiffNonCum
-				DiapDevV.Clr(); 
-				DiapDevV.Add(Diff); 
+			BaseDiap NewDiap(DiapIndex++, make_pair(DegBegin, DegEnd), BaseLen, MKRatio, PrevCurrKRatio); 
 				
-				// for the last diapason
-				if (i == DegCount - 1){
-					NewDiap.first.Val1 = static_cast<double>(Deg - DegMin) / DiffDegs;
-					NewDiap.first.Val2 = NewDiap.first.Val1;
-					printf("DiapBegin: %d DiapEnd: %d\n", Deg, Deg);
-					DiapDevV.Clr();
-					DiapDevV.Add(Diff);
-					NewDiap.second.Clr();
-					NewDiap.second.Add(DiapDevV[0]);
-					SmoothedDiaps.push_back(NewDiap);
-				}
+			printf("DiapBegin: %d DiapEnd: %d\n", DegBegin, DegEnd);
 
-				PrevRDType = RDType;
-				DiapIndex++;
+			if (DiffV.size() != BaseLen)
+				Error("GetBaseDiaps", "Inconsistent size of DiffV vector");
+
+			double DiffSum = 0.0;
+			for (int i = 0; i < BaseLen; i++)
+				DiffSum += DiffV[i];
+
+			vector<pair<int, int>> SubBorders;
+			vector<double> Prob;
+								
+			for (int i = 0; i < BaseLen; i++){
+				SubBorders.push_back(make_pair(DegBegin + i, DegBegin + i));
+				Prob.push_back(abs(DiffV[i]/DiffSum));
 			}
-			// if DiapLength < ToleranceVal && Diap is finished
-			else {
-				DiapBegin = i;
-				DiapEnd = i;
-				DiapDevV.Clr(); 
-				DiapDevV.Add(Diff); 
-				PrevRDType = RDType;
-			}
+			NewDiap.SetSubB(SubBorders, Prob);
+			BaseDiaps.push_back(NewDiap);
+				
+			DegBegin = Deg + 1; 
+			DiffV.clear();
+			DiapIndex++;
 		}
-		else {
-			DiapEnd = i;
-			DiapDevV.Add(Diff);
-		}
-		PrevDeg = Deg;
 	}
 }
 
 
 // get relative differences of degrees
-void GetRelativeDiff(const TFltPrV& MDeg, const TFltPrV& KronDeg, TFltPrV&  RelDiffV, bool NonCum){
-	/*PrintDegDistr(MDeg, "ModelBasic.tab");
-	PrintDegDistr(KronDeg, "KronBasic.tab");*/
+void GetRelativeDiff(const TFltPrV& MDeg, const TFltPrV& KronDeg, TFltPrV&  RelDiffV){
+	PrintDegDistr(MDeg, "ModelBasic.tab");
+	PrintDegDistr(KronDeg, "KronBasic.tab");
 	int MDegCount = MDeg.Len(), KronDegCount = KronDeg.Len();
 	int MinDegModel = static_cast<int>(MDeg[0].Val1), MaxDegModel = static_cast<int>(MDeg[MDegCount-1].Val1),
 		MinDegKron = static_cast<int>(KronDeg[0].Val1), MaxDegKron = static_cast<int>(KronDeg[KronDegCount-1].Val1);
 	int MinDeg = MinDegModel < MinDegKron ? MinDegModel : MinDegKron,
 		MaxDeg = MaxDegModel > MaxDegKron ? MaxDegModel : MaxDegKron;
-	double CurrDeg = MinDeg, MInd = 0, KronInd = 0;
-	if (NonCum){
-		while (1){
-			double MDegVal, KronDegVal, MDegCount, KronDegCount;
-			if (MInd < MDeg.Len()){
-				MDegVal = MDeg[MInd].Val1; MDegCount = MDeg[MInd].Val2;
-			}
-			else {
-				MDegVal = MaxDeg + 1; MDegCount = 0;
-			}
-			if (KronInd < KronDeg.Len()) {
-				KronDegVal = KronDeg[KronInd].Val1; KronDegCount = floor(KronDeg[KronInd].Val2 + 0.5);
-			}
-			else {
-				KronDegVal = MaxDeg + 1; KronDegCount = 0;
-			}
-			bool MLessDeg = MDegVal < KronDegVal ? true : false;
-			CurrDeg = MLessDeg ? MDegVal : KronDegVal;
-			if (CurrDeg > MaxDeg) break;
-			double RelDiff;
-			if (MDegVal == CurrDeg && KronDegVal == CurrDeg){
-				//RelDiff = (MDegCount - KronDegCount) / KronDegCount;
-				if (MDegCount == KronDegCount)
-					RelDiff = 0;
-				else{ 
-					// if averaged KronDegCount < 0.5
-					if (KronDegCount == 0)
-						RelDiff = 1;
-					else 
-						RelDiff = log10(MDegCount+1) / log10(KronDegCount+1);
-				}
-				
-				//RelDiff = KronDegCount / MDegCount;
-				MInd++; KronInd++;
-			}
-			else if (MLessDeg){
-				RelDiff = 1;
-				MInd++;
-			}
-			else {
-				//RelDiff = KronDegCount;
-				RelDiff = -1;
-				KronInd++;
-			}
-			TFltPr RelDiffPr(CurrDeg, RelDiff);
-			//printf("MDegCount=%3.2f KronDegCount=%3.2f RelDiff = %3.2f\n", MDegCount, KronDegCount, RelDiff);
-			RelDiffV.Add(RelDiffPr);
-		}
+	double MInd = 0, KronInd = 0;
+	
+	for (int i = MinDeg; i <= MaxDeg; i++){
+		double MDegVal = MDeg[MInd].Val1, KronDegVal = KronDeg[KronInd].Val1, 
+			MDegCount = 0, KronDegCount = 0;
+		double RelDiff;
+		if (MDegVal == i)
+			 MDegCount = MDeg[MInd++].Val2;
+		if (KronDegVal == i)
+			KronDegCount = floor(KronDeg[KronInd++].Val2 + 0.5);
+
+		if (MDegCount == KronDegCount)
+			RelDiff = 0;
+		else if (MDegCount != 0 && KronDegCount != 0)
+			RelDiff = log10(MDegCount+1) / log10(KronDegCount+1);
+		else if (MDegCount == 0 && KronDegCount != 0)
+			RelDiff = -1;
+		else if (MDegCount != 0 && KronDegCount == 0)
+			RelDiff = 1;
+
+		TFltPr RelDiffPr(i, RelDiff);
+		//printf("MDegCount=%3.2f KronDegCount=%3.2f RelDiff = %3.2f\n", MDegCount, KronDegCount, RelDiff);
+		RelDiffV.Add(RelDiffPr);
 	}
+	
 }
 
 double GetAvgDeviation(const TFltPrV& ModelDegCnt, const TFltPrV& KronDegCnt){

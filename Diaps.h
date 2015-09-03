@@ -1,19 +1,7 @@
 #pragma once
 // to work with diapasons
-class Diaps
+class Diaps : public BaseDiap
 {
-	// index of diapason
-	int Index;
-	// base length of diapason
-	int BaseLen;
-	// real length of diapason
-	int Len;
-	// borders of diapason
-	pair<int, int> Borders;
-	// subborders according to the relation of BaseLen to Len
-	vector<pair<int, int>> SubB;
-	// probabilities of subdiapasons
-	vector<double> Prob;
 	// strategy (the most important strategy is at the beginning of the vector)
 	// (index of another diapasone; nodes count to be removed to another diapasone)
 	vector<pair<int, int>> Strat;
@@ -23,19 +11,10 @@ class Diaps
 	int Nodes;
 	// clusters: ((ReqDeg, <NodeToCluster, InitialDeg>), (AppropriateNodesCount,vector<Nodes indexes>)) for Strat[0] (if it exists) for DMinus
 	pair<pair<int, pair<int,int>>, pair<int,vector<int>>> Cluster;
-	// set subborders
-	void SetSubB();
-	// test
-	void TestSubB();
 public:
-	Diaps(int I, pair<int, int> B, int BL);
-	void SetNodes(int N);
+	Diaps(int I, pair<int, int> B, int BL, double MK, double Prev);
 	void SetProb(vector<double> P);
-	int Length() {return Len;}
-	int GetSubBIndex(int Deg);
-	int GetL(){return Borders.first;}
-	int GetR(){return Borders.second;}
-	int GetIndex() {return Index;}
+	void SetNodes(int N);
 	int GetNodes(){return Nodes;}
 	int GetStratNodes(){return StratNodes;}
 	// returning value: number of nodes actually added to a strategy
@@ -49,8 +28,6 @@ public:
 	int GetFreeNodes() {if (Nodes >=0) return Nodes - StratNodes; return Nodes + StratNodes;}
 	// add strat nodes
 	void AddStratNodes(int S);
-	// check if degree belongs to diapasone
-	bool IsDegInDiap(int Deg) { if (Deg >= Borders.first && Deg <= Borders.second) return true; return false; }
 	// check if diapason has strategies
 	bool HasStrat() { if (Strat.size() != 0) return true; return false; }
 	// decrease nodes count for strategy
@@ -89,8 +66,8 @@ public:
 	void DecreaseCInitDeg() {Cluster.first.second.second--;}
 	// add node to cluster
 	void AddToCluster(int Node, bool HasEdge);
-	// print node info
-	void PrintInfo(ofstream& F);
+	// print diapason info
+	virtual void PrintInfo(ofstream& F);
 	// print strategies
 	void PrintStrategies(ofstream& F);
 	// print cluster info

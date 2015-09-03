@@ -15,7 +15,7 @@ void PrintDegDistr(const TFltPrV& distr, const TStr& OutFNm);
 void PrintDegDistr(const TIntPrV& distr, const TStr& OutFNm);
 void GetParameters(const vector<TStr>& CommandLineArgs, const TStr& Type, vector<TStr>& Parameters);
 void PrintRelDiff(const TFltPrV& RelDiffV, const TStr& OutFNm);
-void PrintSmoothedDiaps(const vector<pair<TFltPr, TFltV>>& Diaps, const TStr& OutFNm);
+void PrintBaseDiaps(vector<BaseDiap>& D, const TStr& OutFNm);
 void PrintDiapsInfo(vector<Diaps>& D, const TStr& OutFNm);
 void PrintIntIntDblV(const vector<pair<pair<int,int>, double>>& V, const TStr& OutFNm);
 

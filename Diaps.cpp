@@ -3,21 +3,7 @@
 #include "Error.h"
 #include <iostream>
 
-Diaps::Diaps(int I, pair<int, int> B, int BL) {
-	if (I < 0)
-		Error("Diaps::Diaps", "I < 0");
-	if (B.first < 0 || B.second < 0)
-		Error("Diaps::Diaps", "Negative border");
-	if (B.first > B.second)
-		Error("Diaps::Diaps", "B.first > B.second");
-	if (BL > B.second - B.first + 1)
-		Error("Diaps::Diaps", "Base length is more that real length");
-	Index = I;
-	Borders.first = B.first;
-	Borders.second = B.second;
-	BaseLen = BL;
-	Len = Borders.second - Borders.first + 1;
-	SetSubB();
+Diaps::Diaps(int I, pair<int, int> B, int BL, double MK, double Prev) : BaseDiap(I, B, BL, MK, Prev) {
 	StratNodes = 0;
 	ClusterClr();
 }
@@ -28,55 +14,7 @@ void Diaps::SetNodes(int N){
 	Nodes = N;
 }
 
-// set subborders
-void Diaps::SetSubB(){
-	int &L = Borders.first, &R = Borders.second;
-	double NodesPerDiap = static_cast<double>(Len) / BaseLen;
-	double AccNodes = NodesPerDiap;
-	int SubBBegin = L, SubBEnd = L;
-	while (SubBEnd <= R){
-		while (SubBEnd - L + 1 < static_cast<int>(AccNodes + 0.5))
-			SubBEnd++;
-		SubB.push_back(make_pair(SubBBegin, SubBEnd));
-		AccNodes += NodesPerDiap;
-		SubBBegin = SubBEnd + 1;
-		SubBEnd = SubBBegin;
-	}
-	TestSubB();
-}
 
-// test
-void Diaps::TestSubB(){
-	int Count = 0;
-	int &L = Borders.first, &R = Borders.second;
-	if (SubB.size() != BaseLen)
-		Error("Diaps::TestSubB", "Subborders count != BaseLen");
-	for (auto it = SubB.begin(); it != SubB.end(); it++){
-		if (it - SubB.begin() == 0 && it->first != L)
-			Error("Diaps::TestSubB", "Left border of 1st subdiapason != L");
-		if (it - SubB.begin() == SubB.size() && it->second != R)
-			Error("Diaps::TestSubB", "Left border of 1st subdiapason != L");
-		if (it - SubB.begin() != 0 && it->first != (it-1)->second + 1)
-			Error("Diaps::TestSubB", "Left border of current subdiapason != right border of previous diapason + 1");
-		if (it->first > it->second)
-			Error("Diaps::TestSubB", "B.first > B.second");
-		Count += it->second - it->first + 1;
-	}
-	if (Count != Len)
-		Error("Diaps::TestSubB", "Count != Len");
-}
-
-int Diaps::GetSubBIndex(int Deg){
-	if (SubB.size() == 0)
-		Error("Diaps::GetSubBIndex", "SubB size == 0");
-	if (Deg < SubB[0].first || Deg > SubB[SubB.size()-1].second)
-		Error("Diaps::GetSubBIndex", "Deg is out of range");
-	for (int i = 0; i < SubB.size(); i++){
-		if (Deg >= SubB[i].first && Deg <= SubB[i].second)
-			return i;
-	}
-	Error("Diaps::GetSubBIndex", "Deg not found");
-}
 
 void Diaps::SetProb(vector<double> P){
 	if (P.size() != SubB.size())
@@ -222,6 +160,7 @@ void Diaps::ResetCluster(int ReqDeg, int CInitDeg, int TargNCount){
 	Cluster.second.second.erase(Cluster.second.second.begin());
 }
 
+
 // print node info
 void Diaps::PrintInfo(ofstream& F){
 	F << "Index: " << Index << "[" << Borders.first << ";" << Borders.second << "]" << " To add nodes: " << Nodes << endl;
@@ -234,6 +173,7 @@ void Diaps::PrintInfo(ofstream& F){
 		F << Prob[i] << " ";
 	F << endl;
 }
+
 // print strategies
 void Diaps::PrintStrategies(ofstream& F){
 	F << "Strat nodes (final): " << StratNodes << " Nodes remained: " << abs(Nodes) - StratNodes << endl;

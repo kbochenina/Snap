@@ -21,6 +21,7 @@ using namespace std;
 #include "Snap.h"
 #include "Error.h"
 #include "kronecker.h"
+#include "BaseDiap.h"
 #include "Diaps.h"
 #include "InOut.h"
 #include "Python.h"
