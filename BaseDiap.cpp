@@ -73,9 +73,11 @@ int BaseDiap::GetSubBIndex(int Deg){
 // print node info
 void BaseDiap::PrintInfo(ofstream& F){
 	F << "Index: " << Index << "[" << Borders.first << ";" << Borders.second << "]" <<  endl;
-	F << "Subborders: ";
+	F << "MKRatio: " << MKRatio << endl;
+	F << "PrevCurrKRatio: " << PrevCurrKRatio << endl;
+	F << "Subborders: " << endl;
 	for (size_t i = 0; i < SubB.size(); i++) 
-		F << "[" << SubB[i].first << ";" << SubB[i].second << "]" << " ";
+		F << "[" << SubB[i].first << ";" << SubB[i].second << "]" << " Prob: " << Prob[i] << endl;
 	F << endl;
 }
 

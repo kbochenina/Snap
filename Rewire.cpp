@@ -660,6 +660,14 @@ int GetDiffType(double M, double K){
 	if (M > K) return 3;
 }
 
+double GetDegVal(const TFltPrV& Deg, double Val){
+	double Res = 0;
+	for (size_t i = 0; i < Deg.Len(); i++){
+		if (Val == Deg[i].Val1) 
+			return Deg[i].Val2;
+	}
+}
+
 // get base diapasons for scaling
 void GetBaseDiaps(const TFltPrV& MDeg, const TFltPrV& KronDeg, vector<BaseDiap>& BaseDiaps){
 	if (MDeg.Len() == 0 || KronDeg.Len() == 0)
@@ -671,10 +679,11 @@ void GetBaseDiaps(const TFltPrV& MDeg, const TFltPrV& KronDeg, vector<BaseDiap>&
 	
 	int MN = MDeg[0].Val1 == DegMin ? MDeg[0].Val2 : 0;
 	int KN = KronDeg[0].Val1 == DegMin ? KronDeg[0].Val2 : 0;
+	int NextMN, NextKN;
 
-	int PrevType = GetDiffType(MN, KN), Type;
+	int Type, NextType;
 	// DegBegin, DegEnd
-	int DegBegin = 0, DegEnd = 0; 
+	int DegBegin = DegMin, DegEnd = DegMin; 
 	int DiapIndex = 0;
 	double Deg = 0;
 	// indexes of MDeg and KronDeg
@@ -690,7 +699,7 @@ void GetBaseDiaps(const TFltPrV& MDeg, const TFltPrV& KronDeg, vector<BaseDiap>&
 	double PrevCurrKRatio = 0.0, PrevKNDiap = 0.0;
 
 	for (size_t i = 0; i < DegCount; i++){
-		Deg = i;
+		Deg = i + DegMin;
 		MN = 0;
 		KN = 0;
 
@@ -698,21 +707,24 @@ void GetBaseDiaps(const TFltPrV& MDeg, const TFltPrV& KronDeg, vector<BaseDiap>&
 		if (MDegI < MDegCount && MDeg[MDegI].Val1 == Deg){
 			MN = MDeg[MDegI++].Val2;
 			MNDiap += MN;
+			NextMN = GetDegVal(MDeg, Deg + 1);
 		}
 		if (KDegI < KDegCount && KronDeg[KDegI].Val1 == Deg){
 			KN = KronDeg[KDegI++].Val2;
 			KNDiap += KN;
+			NextKN = GetDegVal(KronDeg, Deg + 1);
 		}
 
-		Type = GetDiffType(MN, KN);
-		DiffV.push_back(MN - KN);
 		DegEnd = Deg;
-		if (DegBegin == DegEnd)
-			PrevType = Type;
+		DiffV.push_back(MN - KN);
 
+		Type = GetDiffType(MN, KN);
+		NextType = GetDiffType(NextMN, NextKN);
+				
 		// if type of diapason changed 
 		// or it is second or last interval (first interval is always [DegMin;DegMin])
-		if (Type != PrevType || i == DegCount - 1 || i == 1){
+		if (Type != NextType || i == DegCount - 1 || i == 0){
+			
 			//printf("DegBegin: %d DegEnd: %d\n", DegBegin, DegEnd);
 			int BaseLen = DegEnd - DegBegin + 1;
 
@@ -723,10 +735,20 @@ void GetBaseDiaps(const TFltPrV& MDeg, const TFltPrV& KronDeg, vector<BaseDiap>&
 			else
 				MKRatio = log10(MNDiap + 2) / log10 (KNDiap + 2);
 
-			if (DiapIndex != 0)
-				PrevCurrKRatio = PrevKNDiap / KNDiap;
+			if (DiapIndex != 0){
+				if (PrevKNDiap == KNDiap)
+				{
+					PrevCurrKRatio = 1;
+				}
+				else if (KNDiap != 0)
+					PrevCurrKRatio = PrevKNDiap / KNDiap;
+				else
+					PrevCurrKRatio = PrevKNDiap;
+			}
 
 			PrevKNDiap = KNDiap;
+			MNDiap = 0;
+			KNDiap = 0;
 
 			BaseDiap NewDiap(DiapIndex++, make_pair(DegBegin, DegEnd), BaseLen, MKRatio, PrevCurrKRatio); 
 				
@@ -744,14 +766,17 @@ void GetBaseDiaps(const TFltPrV& MDeg, const TFltPrV& KronDeg, vector<BaseDiap>&
 								
 			for (int i = 0; i < BaseLen; i++){
 				SubBorders.push_back(make_pair(DegBegin + i, DegBegin + i));
-				Prob.push_back(abs(DiffV[i]/DiffSum));
+				double P = abs(DiffV[i]/DiffSum);
+				if (P < 0 || P > 1)
+					Error("GetBaseDiaps", "Incorrect value of Prob");
+				Prob.push_back(P);
 			}
 			NewDiap.SetSubB(SubBorders, Prob);
 			BaseDiaps.push_back(NewDiap);
 				
-			DegBegin = Deg + 1; 
+			DegBegin = Deg + 1;
+			DegEnd = Deg + 1;
 			DiffV.clear();
-			DiapIndex++;
 		}
 	}
 }
