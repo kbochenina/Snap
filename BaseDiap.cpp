@@ -25,14 +25,17 @@ BaseDiap::BaseDiap(int I, pair<int, int> B, int BL, double MK, double Prev) {
 }
 
 // set subborders
-void BaseDiap::SetSubB(vector<pair<int,int>> SB, vector<double> P){
+void BaseDiap::SetSubB(vector<pair<int,int>> SB, vector<double> P, vector<double> NP){
 	if (SB.size() != BaseLen)
 		Error("BaseDiap::SetSubB", "SB.size() != BaseLen");
 	if (P.size() != BaseLen)
 		Error("BaseDiap::SetSubB", "P.size() != BaseLen");
+	if (NP.size() != BaseLen)
+		Error("BaseDiap::SetSubB", "NP.size() != BaseLen");
 	for (size_t i = 0; i < BaseLen; i++){
 		SubB.push_back(make_pair(SB[i].first, SB[i].second));
 		Prob.push_back(P[i]);
+		NParts.push_back(NP[i]);
 	}
 	TestSubB();
 }
@@ -70,6 +73,22 @@ int BaseDiap::GetSubBIndex(int Deg){
 	Error("BaseDiap::GetSubBIndex", "Deg not found");
 }
 
+void BaseDiap::GetProb(vector<double>& P) const{
+	P.clear();
+	if (Prob.size() != BaseLen)
+		Error("BaseDiap::GetProb", "Prob is not set");
+	for (int i = 0; i < BaseLen; i++)
+		P.push_back(Prob[i]);
+}
+
+void BaseDiap::GetNParts(vector<double>& NP) const{
+	NP.clear();
+	if (NParts.size() != BaseLen)
+		Error("BaseDiap::GetProb", "Prob is not set");
+	for (int i = 0; i < BaseLen; i++)
+		NP.push_back(NParts[i]);
+}
+
 // print node info
 void BaseDiap::PrintInfo(ofstream& F){
 	F << "Index: " << Index << "[" << Borders.first << ";" << Borders.second << "]" <<  endl;
@@ -77,7 +96,7 @@ void BaseDiap::PrintInfo(ofstream& F){
 	F << "PrevCurrKRatio: " << PrevCurrKRatio << endl;
 	F << "Subborders: " << endl;
 	for (size_t i = 0; i < SubB.size(); i++) 
-		F << "[" << SubB[i].first << ";" << SubB[i].second << "]" << " Prob: " << Prob[i] << endl;
+		F << "[" << SubB[i].first << ";" << SubB[i].second << "]" << " Prob: " << Prob[i] << " Np: " << NParts[i] << endl;
 	F << endl;
 }
 

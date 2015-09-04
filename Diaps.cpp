@@ -14,15 +14,91 @@ void Diaps::SetNodes(int N){
 	Nodes = N;
 }
 
+void Diaps::SetSubB(const TFltPrV& KronDeg){
+	if (Prob.size() != BaseLen)
+		Error("Diaps::SetSubB", "Wrong size of Prob");
+	if (SubB.size() != 0)
+		SubB.clear();
+	int& L = Borders.first, &R = Borders.second;
+	int DiapNCount = 0;
+	
+	vector<int> KronNodes;
+	for (int i = 0; i < Len; i++)
+		KronNodes.push_back(0);
+
+	for (size_t i = 0; i < KronDeg.Len(); i++){
+		int Deg = KronDeg[i].Val1;
+		if (Deg >= L && Deg <= R){
+			int NCount = KronDeg[i].Val2;
+			KronNodes[Deg-L] = NCount;
+			DiapNCount += NCount;
+		}
+	}
+
+	if (KronNodes.size() != Len)
+		Error("Diaps::SetSubB", "Wrong size of KronNodes");
+
+	int KronNodesInd = 0;
+	int DiapBegin = L;
+	bool EndReached = false;
+	for (int i = 0; i < BaseLen; i++){
+		double SubDNCount = NParts[i] * DiapNCount;
+		int AccNodes = 0;
+		int DiapEnd = 0;
+		if (SubDNCount == 0 || EndReached){
+			SubB.push_back(make_pair(-1,-1));
+			continue;
+		}
+
+		while (1){
+			if (KronNodesInd == Len-1) {
+				DiapEnd = L + KronNodesInd;
+				break;
+			}
+			AccNodes += KronNodes[KronNodesInd];
+			// if next diapason will cause "overflow"
+			int NextAccNodes = AccNodes + KronNodes[KronNodesInd+1];
+			if (NextAccNodes >= SubDNCount){
+				// check if current or next degree is closer to desired right border
+				bool IsCurr = (abs(AccNodes-SubDNCount) < abs(NextAccNodes-SubDNCount)) ? true : false;
+				if (IsCurr)
+					DiapEnd = L + KronNodesInd;
+				else{
+					DiapEnd = L + KronNodesInd + 1;
+					KronNodesInd++;
+				}
+				KronNodesInd++;
+				break;
+			}
+			KronNodesInd++;
+		};
+				
+		if (DiapBegin < L && DiapEnd > R)
+			Error("Diaps::SetSubB", "Attempt to add wrong subborders");
+		SubB.push_back(make_pair(DiapBegin, DiapEnd));
+		if (DiapEnd == R) EndReached = true;
+		DiapBegin = DiapEnd + 1;
+	}
+	if (SubB.size() != BaseLen)
+		Error("Diaps::SetSubB", "Wrong SubB size");
+}
 
 
 void Diaps::SetProb(vector<double> P){
-	if (P.size() != SubB.size())
-		Error("Diaps::SetProb", "P.size() != SubB.size()");
+	/*if (P.size() != SubB.size())
+	Error("Diaps::SetProb", "P.size() != SubB.size()");*/
 	for (size_t i = 0; i < P.size(); i++){
 		if (P[i] < 0 || P[i] > 1)
 			Error("Diaps::SetProb", "P[i] < 0 || P[i] > 1");
 		Prob.push_back(P[i]);
+	}
+}
+
+void Diaps::SetNParts(vector<double> NP){
+	for (size_t i = 0; i < NP.size(); i++){
+		if (NP[i] < 0 || NP[i] > 1)
+			Error("Diaps::SetProb", "NP[i] < 0 || NP[i] > 1");
+		NParts.push_back(NP[i]);
 	}
 }
 

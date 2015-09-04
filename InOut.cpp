@@ -181,6 +181,16 @@ void PrintBaseDiaps(vector<BaseDiap>& D, const TStr& OutFNm){
 	F.close();
 }
 
+void PrintBaseDiaps(vector<Diaps>& D, const TStr& OutFNm){
+	ofstream F(OutFNm.CStr());
+	F << endl;
+	for (size_t i = 0; i < D.size(); i++){
+		D[i].PrintInfo(F);
+		F << endl;
+	}
+	F.close();
+}
+
 void PrintDiapsInfo(vector<Diaps>& D, const TStr& OutFNm){
 	ofstream F(OutFNm.CStr());
 	F << endl;
