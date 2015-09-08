@@ -29,15 +29,16 @@ int GetRightBorder(const TFltPrV& KronDeg, double L, int Nodes, int& AccNodes){
 		if (Deg >= L){
 			if (AccNodes <= Nodes){
 				AccNodes += KNodes;
-				//printf("Deg: %d KNodes: %d AccNodes: %d\n", Deg, KNodes, AccNodes);
+				printf("Deg: %d KNodes: %d AccNodes: %d\n", Deg, KNodes, AccNodes);
 			}
 			else{
+				// if a single degree is enough
 				if (Deg == L)
 					return L;
 				else {
 					int CurrDiff = abs(Nodes-AccNodes),
 						PrevDiff = abs(Nodes-(AccNodes-KronDeg[i-1].Val2));
-					//printf("PrevDiff (Deg %3.2f): %d CurrDiff (Deg %3.2f):%d\n", KronDeg[i-2].Val1, PrevDiff,  KronDeg[i-1].Val1, CurrDiff);
+					printf("PrevDiff (Deg %3.2f): %d CurrDiff (Deg %3.2f):%d\n", KronDeg[i-2].Val1, PrevDiff,  KronDeg[i-1].Val1, CurrDiff);
 					if (CurrDiff < PrevDiff)
 						return KronDeg[i-1].Val1;
 					AccNodes -= KronDeg[i-1].Val2;
@@ -58,6 +59,9 @@ void GetDiaps(vector<Diaps>& DPlus, vector<Diaps>& DMinus, const vector<BaseDiap
 	int PrevDiapN = 0;
 	int PrevR = 0;
 	int DiapNodesReq = 0, DiapNodesAct = 0;
+	// if previous diapason takes more/less nodes than required
+	// we should subtract/add this value from/to DiapNodesReq of the next diapason
+	int NodesFromPrevDiap = 0;
 
 	for (size_t i = 0; i < BaseDiaps.size(); i++){
 		printf("Index: %d\n", i);
@@ -77,23 +81,49 @@ void GetDiaps(vector<Diaps>& DPlus, vector<Diaps>& DMinus, const vector<BaseDiap
 		}
 		else {
 			Borders.first = PrevR + 1;
-			DiapNodesReq = pow(10, log10(PrevDiapN + 1.00) / PrevCurrKRatio) + 0.5;
+			DiapNodesReq = pow(10, log10(PrevDiapN + 2.00) / PrevCurrKRatio) + 0.5;
+			printf("PrevDiapN: %d PrevCurrRatio: % 3.2f DiapNodesReq: %d\n", PrevDiapN, PrevCurrKRatio, DiapNodesReq);
+			DiapNodesReq += NodesFromPrevDiap;
+			printf("DiapNodesReq after correction: %d\n", DiapNodesReq);
+			if (DiapNodesReq < 0){
+				printf("GetDiaps() WARNING. DiapNodesReq is less than zero\n");
+				DiapNodesReq = 0;
+			}
 			Borders.second = GetRightBorder(KronDeg, Borders.first, DiapNodesReq, DiapNodesAct);
+			if (i == BaseDiaps.size() - 1 && Borders.second != DegMax)
+				Borders.second = DegMax;
+			NodesFromPrevDiap = DiapNodesAct-DiapNodesReq;
+			printf("Correction for the next diapason: %d\n", NodesFromPrevDiap);
+
 			PrevDiapN = DiapNodesAct;
 		}
 
 		if (DiapNodesAct < 0)
 			Error("GetDiaps", "DiapNodesAct < 0");
 
+		
+		if (MKRatio == 1) 
+			continue;
+		int DiapLength = Borders.second-Borders.first+1;
+		// diapason size cannot be less than basic diapason size
+		if (DiapLength < BaseLength){
+			int DegToAddCount = BaseD.BaseLength()-(Borders.second-Borders.first+1);
+			// add nodes from KronDeg to DiapNodesAct
+			for (size_t i = 0; i < BaseLength - DiapLength; ++i)
+				DiapNodesAct += GetDegVal(KronDeg, Borders.second + i);
+			// expand diapason
+			Borders.second += DegToAddCount;
+		}
+		
 		PrevR = Borders.second;
-		if (MKRatio == 1) continue;
-		if (Borders.second-Borders.first+1 < BaseD.BaseLength())
-			Borders.second += BaseD.BaseLength()-(Borders.second-Borders.first+1);
+		double Weight = BaseD.GetWeight();
 
-		Diaps NewDiap(DiapIndex++, Borders, BaseLength, MKRatio, PrevCurrKRatio);
+		Diaps NewDiap(DiapIndex++, Borders, BaseLength, MKRatio, PrevCurrKRatio, Weight);
 		
 		double ToAddNodes = pow(10, log10(DiapNodesAct + 1.00) * MKRatio) - 1 - DiapNodesAct;
-		printf("DiapNodesAct: %d MKRatio: %3.2f ToAddNodes: %3.2f\n", DiapNodesAct, MKRatio, ToAddNodes);
+		printf("[%d;%d] ", Borders.first, Borders.second);
+		printf("DiapNodesAct: %d MKRatio: %3.2f ToAddNodes: %3.2f\n\n", DiapNodesAct, MKRatio, ToAddNodes);
+		//system("pause");
 		int ToAdd = ToAddNodes > 0 ? static_cast<int>(ToAddNodes + 0.5) : static_cast<int>(ToAddNodes - 0.5);
 
 		if (ToAdd == 0)
@@ -108,6 +138,8 @@ void GetDiaps(vector<Diaps>& DPlus, vector<Diaps>& DMinus, const vector<BaseDiap
 		BaseD.GetNParts(NParts);
 		NewDiap.SetNParts(NParts);
 		NewDiap.SetSubB(KronDeg);
+		// to make CumProb consistent with SubB
+		NewDiap.ResetCumProb();
 		if (ToAddNodes < 0)
 			DMinus.push_back(NewDiap);
 		else
@@ -394,7 +426,7 @@ void SetReqDeg(ClusterMap& Clusters, int DiapIndex, int ReqDiap, int ReqDeg, vec
 }
 
 // add random edge
-bool AddRndEdge(TRnd& Rnd, PNGraph&Kron, int Node, int DegMax){
+bool AddRndEdge(TRnd& Rnd, PNGraph&Kron, int Node, int DegMax, int& NeighbNode){
 	int Attempts = Kron->GetEdges();
 	while (Attempts > 0){
 		int Neighb = Rnd.GetUniDev() * (Kron->GetNodes() - 1);
@@ -418,9 +450,10 @@ void Rewire(PNGraph& Kron, vector<Diaps>& DPlus, vector<Diaps>& DMinus, const in
 	for (auto NodeIt = Kron->BegNI(); NodeIt != Kron->EndNI(); NodeIt++){
 		//cout << "Add " << Add << " Del " << Del << endl;
 		bool CanAdd = true, CanDel = true;
-		// TEST CONDITION
-		if (abs(Add-Del)/static_cast<double>(BasicEdgesCount) > 0.01){ 
-			if (Add > Del) CanAdd = false;
+		// TEST CONDITION (0.01)
+		if (abs(Add-Del)/static_cast<double>(BasicEdgesCount) > 0.1){ 
+			if (Add > Del) 
+				CanAdd = false;
 			else CanDel = false;
 		}
 		
@@ -448,9 +481,17 @@ void Rewire(PNGraph& Kron, vector<Diaps>& DPlus, vector<Diaps>& DMinus, const in
 			
 			// TEST
 			if (N.GetL() - Deg > abs(D.GetNodes())){
-				for (size_t i = 0; i < N.GetL() - Deg; i++){
-					AddRndEdge(Rnd, Kron, Node, DegMax);
-					Add+=2;
+				int CNode = D.GetClusterNode();
+				for (size_t i = 0; i < N.GetL() - Deg; ++i){
+					int NeighbNode = 0;
+					AddRndEdge(Rnd, Kron, Node, DegMax, NeighbNode);
+					// if NeighbNode == CNode, cancel the addition of edge
+					// to support cluster's consistency
+					if (CNode == NeighbNode){
+						Kron->DelEdge(Node, CNode, false);
+						--i;
+					}
+					else Add+=2;
 				}
 				D.DecreaseStratN();
 				continue;
@@ -762,6 +803,13 @@ double GetDegVal(const TFltPrV& Deg, double Val){
 	return 0;
 }
 
+int GetNodesCount(const TFltPrV& Deg){
+	int N = 0;
+	for (size_t i = 0; i < Deg.Len(); ++i)
+		N += Deg[i].Val2;
+	return N;
+}
+
 // get base diapasons for scaling
 void GetBaseDiaps(const TFltPrV& MDeg, const TFltPrV& KronDeg, vector<BaseDiap>& BaseDiaps){
 	if (MDeg.Len() == 0 || KronDeg.Len() == 0)
@@ -812,7 +860,7 @@ void GetBaseDiaps(const TFltPrV& MDeg, const TFltPrV& KronDeg, vector<BaseDiap>&
 		}
 
 		DegEnd = Deg;
-		DiffV.push_back(MN - KN);
+		DiffV.push_back(log10(abs(KN + 2.00)) / log10(abs(MN + 2.00)));
 		NCount.push_back(KN);
 
 		Type = GetDiffType(MN, KN);
@@ -838,16 +886,18 @@ void GetBaseDiaps(const TFltPrV& MDeg, const TFltPrV& KronDeg, vector<BaseDiap>&
 					PrevCurrKRatio = 1;
 				}
 				else if (KNDiap != 0)
-					PrevCurrKRatio = log10(PrevKNDiap+1) / log10(KNDiap+1);
+					PrevCurrKRatio = log10(PrevKNDiap+2) / log10(KNDiap+2);
 				else
 					PrevCurrKRatio = PrevKNDiap;
 			}
+
+			double Weight = KNDiap / GetNodesCount(MDeg);
 
 			PrevKNDiap = KNDiap;
 			MNDiap = 0;
 			KNDiap = 0;
 
-			BaseDiap NewDiap(DiapIndex++, make_pair(DegBegin, DegEnd), BaseLen, MKRatio, PrevCurrKRatio); 
+			BaseDiap NewDiap(DiapIndex++, make_pair(DegBegin, DegEnd), BaseLen, MKRatio, PrevCurrKRatio, Weight); 
 				
 			printf("DiapBegin: %d DiapEnd: %d\n", DegBegin, DegEnd);
 
@@ -864,13 +914,17 @@ void GetBaseDiaps(const TFltPrV& MDeg, const TFltPrV& KronDeg, vector<BaseDiap>&
 
 			vector<pair<int, int>> SubBorders;
 			vector<double> Prob; vector<double> PartNC;
-								
-			for (int i = 0; i < BaseLen; i++){
+			
+			// cumulative probabilities
+			double P = 0;
+
+			for (int i = 0; i < BaseLen; ++i){
 				SubBorders.push_back(make_pair(DegBegin + i, DegBegin + i));
-				double P = abs(DiffV[i]/DiffSum);
-				if (P < 0 || P > 1)
+				P += abs(DiffV[i]/DiffSum);
+				if (P > 1) P = 1;
+				if (P < 0)
 					Error("GetBaseDiaps", "Incorrect value of Prob");
-				double Part = abs(NCount[i]/NCountSum);
+				double Part = NCountSum > 0 ? abs(NCount[i]/NCountSum) : 1.00 / BaseLen;
 				if (Part < 0 || Part > 1)
 					Error("GetBaseDiaps", "Incorrect value of NCount");
 				Prob.push_back(P);

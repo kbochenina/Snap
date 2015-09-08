@@ -2,19 +2,24 @@
 #include "BaseDiap.h"
 
 
-BaseDiap::BaseDiap(int I, pair<int, int> B, int BL, double MK, double Prev) {
+BaseDiap::BaseDiap(int I, pair<int, int> B, int BL, double MK, double Prev, double W) {
 	if (I < 0)
 		Error("BaseDiap::Diaps", "I < 0");
 	if (MK < 0)
 		Error("BaseDiap::Diaps", "MKRatio < 0");
 	if (Prev < 0)
-		Error("BaseDiap::Diaps", "PrevCurrKRatio < 0");
+		Error("BaseDiap::Diaps", "PrevCurrKRatio <= 0");
+	// PrevCurrKRatio can be equal to 0 onlu for the first diapason
+	if (Prev == 0 && I != 0)
+		Error("BaseDiap::Diaps", "PrevCurrKRatio == 0");
 	if (B.first < 0 || B.second < 0)
 		Error("BaseDiap::Diaps", "Negative border");
 	if (B.first > B.second)
 		Error("BaseDiap::Diaps", "B.first > B.second");
 	if (BL > B.second - B.first + 1)
 		Error("BaseDiap::Diaps", "Base length is more that real length");
+	if (W < 0)
+		Error("BaseDiap::Diaps", "Weight is <= 0");
 	Index = I;
 	Borders.first = B.first;
 	Borders.second = B.second;
@@ -22,6 +27,7 @@ BaseDiap::BaseDiap(int I, pair<int, int> B, int BL, double MK, double Prev) {
 	Len = Borders.second - Borders.first + 1;
 	MKRatio = MK;
 	PrevCurrKRatio = Prev;
+	Weight = W;
 }
 
 // set subborders
@@ -94,6 +100,7 @@ void BaseDiap::PrintInfo(ofstream& F){
 	F << "Index: " << Index << "[" << Borders.first << ";" << Borders.second << "]" <<  endl;
 	F << "MKRatio: " << MKRatio << endl;
 	F << "PrevCurrKRatio: " << PrevCurrKRatio << endl;
+	F << "Weight: " << Weight << endl;
 	F << "Subborders: " << endl;
 	for (size_t i = 0; i < SubB.size(); i++) 
 		F << "[" << SubB[i].first << ";" << SubB[i].second << "]" << " Prob: " << Prob[i] << " Np: " << NParts[i] << endl;

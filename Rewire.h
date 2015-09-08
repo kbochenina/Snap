@@ -22,6 +22,8 @@ int GetRewireStrategies(vector<Diaps>& DPlus, vector<Diaps>& DMinus);
 // get diap index
 bool GetDiap(int Deg, vector<Diaps>& DPlus, vector<Diaps>& DMinus, int& DiapIndex, bool& IsDPlus);
 // add random edge
-bool AddRndEdge(TRnd& Rnd, PNGraph&Kron, int Node, int DegMax);
+bool AddRndEdge(TRnd& Rnd, PNGraph&Kron, int Node, int DegMax, int& NeighbNode);
 // get average deviation
 double GetAvgDeviation(const TFltPrV& ModelDegCnt, const TFltPrV& KronDegCnt);
+// get count of nodes with degree Val from Deg
+double GetDegVal(const TFltPrV& Deg, double Val);

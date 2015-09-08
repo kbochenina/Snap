@@ -523,7 +523,9 @@ void GetFitMtxFromMS(TKronMtx& FitMtxM, TFlt& ScalingCoeff, vector<BaseDiap>& Ba
 		NewMtx.Dump(TFile);
 		TExeTm T;
 		T.Tick();
-		ScalingCoeff = GetScalingCoefficient(MDegIn, MDegOut, NewMtx, NIter, IsDir);
+		// if scaling coefficient is not given
+		if (ScalingCoeff == -1.00)
+			ScalingCoeff = GetScalingCoefficient(MDegIn, MDegOut, NewMtx, NIter, IsDir);
 		TFile << "Time of getting scaling coefficient: " << T.GetSecs() << endl;
 		TFile << "Scailing coefficient: " << ScalingCoeff << endl;
 		cout << "Scailing coefficient: " << ScalingCoeff << endl;
@@ -562,6 +564,10 @@ void GetAvgKronDeg(const TKronMtx& NewMtx, const TInt& NIter, const TStr& IsDir,
 	for (int i = 0; i < NKron; i++){
 		PNGraph G;
 		KroneckerGen(G, NewMtx, NIter, IsDir, ModelDegR, ModelDegR, 0);
+		/*char Buf[15];
+		itoa(i, Buf, 10);
+		TStr Str(Buf);
+		PrintDegDistr(G, "Kron" + Str);*/
 		// ! out degrees
 		AddDegreesStat(KronDeg, Samples, G, false);
 	}
@@ -586,6 +592,8 @@ void KroneckerByConf(vector<TStr> CommandLineArgs){
 	const TStr StatFile = Env.GetIfArgPrefixStr("-ot:", "stat.tab", "Name of output file with statistics");
 	// is it required to generate big Kronecker graphs using FitMtx estimated on small graph (yes/no)
 	const TStr FromMS = Env.GetIfArgPrefixStr("-fromms:", "yes", "Create big graph using FitMtx estimated for small graph (yes/none)");
+	// scaling coefficient (if the parameter is given, scaling coefficient will not be calculated)
+	TFlt ScalingCoeff = Env.GetIfArgPrefixFlt("-sc:", -1, "Scaling coefficient");
 
 	CheckParams(ModelGen, ModelPlt);
 	CheckParams(MSGen, MSPlt);
@@ -596,7 +604,6 @@ void KroneckerByConf(vector<TStr> CommandLineArgs){
 
 	if (FromMS == "yes"){
 		TKronMtx FitMtx;
-		TFlt ScalingCoeff = 0;
 		vector <TStr> Parameters;
 		GetParameters(CommandLineArgs, "Small", Parameters);
 		vector<BaseDiap> BaseDiaps; 

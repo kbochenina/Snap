@@ -11,10 +11,13 @@ class Diaps : public BaseDiap
 	int Nodes;
 	// clusters: ((ReqDeg, <NodeToCluster, InitialDeg>), (AppropriateNodesCount,vector<Nodes indexes>)) for Strat[0] (if it exists) for DMinus
 	pair<pair<int, pair<int,int>>, pair<int,vector<int>>> Cluster;
+	// test probability
+	void TestProb();
 public:
-	Diaps(int I, pair<int, int> B, int BL, double MK, double Prev);
+	Diaps(int I, pair<int, int> B, int BL, double MK, double Prev, double W);
 	void SetSubB(const TFltPrV& KronDeg);
 	void SetProb(vector<double> P);
+	void ResetCumProb();
 	void SetNParts(vector<double> NP);
 	void SetNodes(int N);
 	int GetNodes(){return Nodes;}

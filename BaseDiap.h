@@ -16,23 +16,26 @@ protected:
 	double MKRatio;
 	// log10(PrevKN + 1)/log10(CurrKN+1)
 	double PrevCurrKRatio;
+	// weight of diapason (NDiap/NCount)
+	double Weight;
 	// borders of diapason
 	pair<int, int> Borders;
 	// subborders according to the relation of BaseLen to Len
 	vector<pair<int, int>> SubB;
-	// probabilities to add nodes to subdiapasons
+	// cumulative probabilities to add nodes to subdiapasons
 	vector<double> Prob;
 	// part of nodes of diapason in subdiapasons
 	vector<double> NParts;
 	// test
 	void TestSubB();
 public:
-	BaseDiap(int I, pair<int, int> B, int BL, double MK, double Prev);
+	BaseDiap(int I, pair<int, int> B, int BL, double MK, double Prev, double W);
 	int Length() const {return Len;}
 	int BaseLength() const {return BaseLen;}
 	int GetSubBIndex (int Deg);
 	int GetL() const {return Borders.first;}
 	int GetR() const {return Borders.second;}
+	double GetWeight() const {return Weight;}
 	int GetIndex() {return Index;}
 	void GetProb(vector<double>& P) const;
 	void GetNParts(vector<double>& NP) const;
